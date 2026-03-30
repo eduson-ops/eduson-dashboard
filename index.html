@@ -456,16 +456,21 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 const SHEET_ID = '1U5L4zrFcqPAy4_6VXA5xHxqM2xAKPkWW-At2neINj18';
 const GVZ = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:csv&gid=';
 const URLS = {
-  form:     GVZ + '1621541455',
+  form:     GVZ + '1621541455',   // Отчёт о МК (без оплаты)
+  payments: GVZ + '1367593612',   // Отчёт об оплате — лист «Оплаты»
   targets:  GVZ + '325926893',
   managers: GVZ + '1534781490',
-  slots:    GVZ + '1587702885',  // ← слоты из Apps Script (Rubitime)
-  schedule: GVZ + '462545215',   // ← расписание менеджеров
+  slots:    GVZ + '1587702885',
+  schedule: GVZ + '462545215',
 };
 
-// COLUMNS (0-indexed):
+// COLUMNS Форма 1 — Отчёт о МК (0-indexed):
 // 0=timestamp,1=manager,2=date,3=time,4=crm,5=recording,
-// 6=practice,7=age,8=pack,9=paytype,10=notes,11=objection,12=revenue
+// 6=practice,7=age,8=pack,9=notes,10=objection
+// (оплата убрана)
+//
+// COLUMNS Форма 2 — Отчёт об оплате (0-indexed):
+// 0=timestamp,1=manager,2=crm,3=paydate,4=practice,5=pack,6=paytype,7=revenue
 
 const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Николаев Г.','Папашвили Д.','Федяинов Е.','Масимова Р.'];
 
@@ -592,24 +597,77 @@ async function loadAll() {
   var loader = document.getElementById('loader');
   if (loader) loader.classList.add('visible');
   try {
-  var [rawForm,rawMgrs,rawTar,rawSlots,rawSched] = await Promise.all([
-    fetchCSV('form'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule')
+  var [rawForm,rawPayments,rawMgrs,rawTar,rawSlots,rawSched] = await Promise.all([
+    fetchCSV('form'),fetchCSV('payments'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule')
   ]);
 
-  // Parse lessons
-  lessons=[];
+  // Parse lessons (Форма 1 — без оплаты)
+  // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=notes,10=objection
+  var mkMap = {}; // crmId → lesson object
+  var mkList = [];
   for(var i=1;i<rawForm.length;i++){
     var r=rawForm[i];
     if(!r[1])continue;
-    var rev=parseFloat(cc(r[12]).replace(/[^0-9.]/g,''))||0;
-    var pt=cc(r[9])||'';
-    var paid=rev>0;
-    lessons.push({
+    var crmUrl=cc(r[4]);
+    var crmId=crmUrl.replace(/.*\/detail\//,'').replace(/[^0-9]/g,'') || crmUrl;
+    var lesson = {
       ts:cc(r[0]),manager:cc(r[1]),date:cc(r[2]),time:cc(r[3]),
-      crm:cc(r[4]),rec:cc(r[5]),practice:cc(r[6]),age:cc(r[7]),
-      pack:cc(r[8]),paytype:pt,notes:cc(r[10]),objection:cc(r[11]),rev:rev,paid:paid
+      crm:crmUrl,crmId:crmId,rec:cc(r[5]),practice:cc(r[6]),age:cc(r[7]),
+      pack:cc(r[8]),notes:cc(r[9]),objection:cc(r[10]),
+      rev:0,paid:false,paytype:'',scenario:'no_pay'
+    };
+    mkList.push(lesson);
+    if(crmId) mkMap[crmId] = lesson;
+  }
+
+  // Parse payments (Форма 2 — только оплата)
+  // Cols: 0=ts,1=manager,2=crm,3=paydate,4=practice,5=pack,6=paytype,7=revenue
+  var payMap = {}; // crmId → payment object
+  var payOnlyList = []; // оплаты без МК (сценарий 2)
+  for(var i=1;i<rawPayments.length;i++){
+    var r=rawPayments[i];
+    if(!r[1])continue;
+    var crmUrl=cc(r[2]);
+    var crmId=crmUrl.replace(/.*\/detail\//,'').replace(/[^0-9]/g,'') || crmUrl;
+    var rev=parseFloat(cc(r[7]).replace(/[^0-9.]/g,''))||0;
+    var pay = {
+      ts:cc(r[0]),manager:cc(r[1]),crm:crmUrl,crmId:crmId,
+      paydate:cc(r[3]),practice:cc(r[4]),pack:cc(r[5]),paytype:cc(r[6]),rev:rev
+    };
+    if(crmId) payMap[crmId] = pay;
+    // Сценарий 2: оплата есть, МК отчёта нет → оплата на занятии
+    if(!mkMap[crmId]){
+      payOnlyList.push(pay);
+    }
+  }
+
+  // Мёрдж: накладываем оплаты на МК
+  for(var crmId in payMap){
+    if(mkMap[crmId]){
+      // Сценарий 3: МК + оплата позже → обновляем существующий урок
+      var mk = mkMap[crmId];
+      var pay = payMap[crmId];
+      mk.rev = pay.rev;
+      mk.paid = true;
+      mk.paytype = pay.paytype;
+      mk.pack = pay.pack || mk.pack;
+      mk.practice = pay.practice || mk.practice;
+      mk.scenario = 'pay_later';
+    }
+  }
+
+  // Сценарий 2: оплата на занятии (нет отчёта МК) → создаём виртуальный урок из оплаты
+  for(var j=0;j<payOnlyList.length;j++){
+    var pay = payOnlyList[j];
+    mkList.push({
+      ts:pay.ts,manager:pay.manager,date:pay.paydate,time:'',
+      crm:pay.crm,crmId:pay.crmId,rec:'',practice:pay.practice,age:'',
+      pack:pay.pack,notes:'',objection:'',
+      rev:pay.rev,paid:true,paytype:pay.paytype,scenario:'pay_on_lesson'
     });
   }
+
+  lessons = mkList;
 
   // Parse managers
   managers=[];
