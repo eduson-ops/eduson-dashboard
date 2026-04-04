@@ -209,6 +209,17 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 .empty{text-align:center;padding:30px 20px;color:var(--muted)}
 .empty-ic{font-size:28px;margin-bottom:6px}
 
+/* AGREEMENT POPUP */
+.agr-btn{background:var(--bg3);border:1px solid var(--border-s);color:var(--y);font-size:10px;font-weight:600;padding:2px 8px;border-radius:4px;cursor:pointer;white-space:nowrap;font-family:var(--mono)}
+.agr-btn:hover{background:var(--bg4)}
+.agr-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:900;display:flex;align-items:center;justify-content:center;padding:20px}
+[data-theme="light"] .agr-overlay{background:rgba(0,0,0,0.4)}
+.agr-modal{background:var(--bg2);border:1px solid var(--border-s);border-radius:12px;padding:20px 24px;max-width:560px;width:100%;max-height:80vh;overflow-y:auto;position:relative}
+.agr-modal-title{font-size:13px;font-weight:700;color:var(--y);font-family:var(--display);margin-bottom:12px}
+.agr-modal-body{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap}
+.agr-modal-close{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:0 4px;line-height:1}
+.agr-modal-close:hover{color:var(--text)}
+
 /* LOADER */
 .loader-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;opacity:0;pointer-events:none;transition:opacity .3s}
 .loader-overlay.visible{opacity:1;pointer-events:all}
@@ -462,6 +473,15 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
   </div>
 </div>
 
+<!-- AGREEMENT POPUP MODAL -->
+<div class="agr-overlay" id="agr-overlay" style="display:none" onclick="if(event.target===this)closeAgrModal()">
+  <div class="agr-modal">
+    <div class="agr-modal-title">Договорённости с клиентом</div>
+    <button class="agr-modal-close" onclick="closeAgrModal()">✕</button>
+    <div class="agr-modal-body" id="agr-modal-body"></div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════
 // CONFIG
@@ -480,7 +500,7 @@ const URLS = {
 
 // COLUMNS Форма 1 — Отчёт о МК (0-indexed):
 // 0=timestamp,1=manager,2=date,3=time,4=crm,5=recording,
-// 6=practice,7=age,8=pack,9=notes,10=objection
+// 6=practice,7=age,8=pack,9=notes,10=agreement,11=objection
 // (оплата убрана)
 //
 // COLUMNS Форма 2 — Отчёт об оплате (0-indexed):
@@ -616,7 +636,7 @@ async function loadAll() {
   ]);
 
   // Parse lessons (Форма 1 — без оплаты)
-  // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=notes,10=objection
+  // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=notes,10=agreement,11=objection
   var mkMap = {}; // crmId → lesson object
   var mkList = [];
   for(var i=1;i<rawForm.length;i++){
@@ -627,7 +647,7 @@ async function loadAll() {
     var lesson = {
       ts:cc(r[0]),manager:cc(r[1]),date:cc(r[2]),time:cc(r[3]),
       crm:crmUrl,crmId:crmId,rec:cc(r[5]),practice:cc(r[6]),age:cc(r[7]),
-      pack:cc(r[8]),notes:cc(r[9]),objection:cc(r[10]),
+      pack:cc(r[8]),notes:cc(r[9]),agreement:cc(r[10]),objection:cc(r[11]),
       rev:0,paid:false,paytype:'',scenario:'no_pay'
     };
     mkList.push(lesson);
@@ -676,7 +696,7 @@ async function loadAll() {
     mkList.push({
       ts:pay.ts,manager:pay.manager,date:pay.paydate,time:'',
       crm:pay.crm,crmId:pay.crmId,rec:'',practice:pay.practice,age:'',
-      pack:pay.pack,notes:'',objection:'',
+      pack:pay.pack,notes:'',agreement:'',objection:'',
       rev:pay.rev,paid:true,paytype:pay.paytype,scenario:'pay_on_lesson'
     });
   }
@@ -1111,8 +1131,8 @@ function openMgr(name) {
   if(os.length)charts.mo=new Chart(document.getElementById('moC'),{type:'bar',data:{labels:os.map(([k])=>k),datasets:[{data:os.map(([,v])=>v),backgroundColor:'#f5c84288',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}});
 
   document.getElementById('mlessons').innerHTML=[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).length?
-    `<div style="overflow-x:auto"><table class="tt" style="min-width:480px"><thead><tr><th>Дата</th><th>Время</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>
-    ${[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${r.date}</td><td style="font-family:var(--mono);font-size:10px">${r.time}</td><td>${r.practice}</td><td>${r.pack}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${r.objection||'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}
+    `<div style="overflow-x:auto"><table class="tt" style="min-width:560px"><thead><tr><th>Дата</th><th>Время</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>Договорённости</th><th>CRM</th></tr></thead><tbody>
+    ${[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${r.date}</td><td style="font-family:var(--mono);font-size:10px">${r.time}</td><td>${r.practice}</td><td>${r.pack}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${r.objection||'—'}</td><td style="text-align:center">${agrBtn(r.agreement)}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}
     </tbody></table></div>`:'<div class="empty"><div class="empty-ic">📋</div><div>Нет уроков</div></div>';
 
   document.getElementById('mgr-list').style.display='none';
@@ -1121,6 +1141,18 @@ function openMgr(name) {
 }
 
 function backMgr(){document.getElementById('mgr-list').style.display='block';document.getElementById('mgr-detail').style.display='none';}
+
+function agrBtn(text){
+  if(!text)return '—';
+  var safe=text.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return '<button class="agr-btn" onclick="openAgrModal(this)" data-text="'+safe+'">📋 читать</button>';
+}
+function openAgrModal(btn){
+  var text = btn.getAttribute('data-text');
+  document.getElementById('agr-modal-body').textContent = text;
+  document.getElementById('agr-overlay').style.display='flex';
+}
+function closeAgrModal(){document.getElementById('agr-overlay').style.display='none';}
 
 // ═══════════════════════════════════════
 // SCHEDULE / HEATMAP
