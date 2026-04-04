@@ -254,7 +254,27 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
   .ring-wrap{display:none}
   .ms4{grid-template-columns:repeat(2,1fr)}
   .nav-logo{font-size:10px}
+  .guide-grid{grid-template-columns:1fr}
 }
+
+/* GUIDE PAGE */
+.guide-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
+.guide-tab{font-size:12px;font-weight:600;padding:6px 18px;border-radius:var(--r6);border:1px solid var(--border-s);background:var(--bg3);color:var(--muted);cursor:pointer;font-family:var(--sans);transition:all .15s}
+.guide-tab.active{background:var(--text);color:var(--bg);border-color:var(--text)}
+.guide-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.guide-card{background:var(--bg2);border:1px solid var(--border-s);border-radius:12px;padding:20px;transition:border-color .15s}
+.guide-card-link{text-decoration:none;display:block;cursor:pointer}
+.guide-card-link:hover{border-color:var(--border-s);opacity:.85}
+.guide-card-icon{width:44px;height:44px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:12px}
+.guide-card-title{font-size:16px;font-weight:700;color:var(--text);font-family:var(--display);margin-bottom:6px}
+.guide-card-sub{font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:14px}
+.guide-pills{display:flex;flex-wrap:wrap;gap:8px}
+.guide-pill{display:inline-flex;align-items:center;padding:5px 12px;border-radius:99px;border:1px solid;font-size:11px;font-weight:600;text-decoration:none;transition:opacity .15s;white-space:nowrap}
+.guide-pill:hover{opacity:.75}
+.guide-notes{margin-top:16px;display:flex;flex-direction:column;gap:8px}
+.guide-note{font-size:12px;color:var(--sub);line-height:1.6;padding:8px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)}
+.guide-prices-table td:not(:first-child){text-align:right}
+.guide-prices-table th:not(:first-child){text-align:right}
 </style>
 </head>
 <body>
@@ -286,6 +306,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <button class="tab" onclick="showPage('analytics')">Аналитика</button>
     <button class="tab" onclick="showPage('managers')">Менеджеры</button>
     <button class="tab" onclick="showPage('schedule')">Расписание</button>
+    <button class="tab" onclick="showPage('guide')">Справка</button>
   </div>
   <div class="nav-right">
     <div class="live-b"><div class="ldot"></div>LIVE</div>
@@ -483,6 +504,98 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <div id="quote-author" style="font-size:11px;color:var(--y);font-weight:600;letter-spacing:.03em;transition:opacity .35s ease"></div>
     <div style="position:absolute;bottom:10px;right:22px;font-size:30px;color:var(--y);opacity:.12;font-family:Georgia,serif;transform:rotate(180deg)">"</div>
   </div>
+</div>
+
+<!-- ══ СПРАВКА ══ -->
+<div class="page" id="page-guide">
+  <div style="margin-bottom:18px">
+    <div style="font-family:var(--display);font-size:20px;font-weight:700;color:var(--text)">Справочник</div>
+    <div style="font-size:12px;color:var(--muted);margin-top:4px">Курсы, ссылки, цены и отчёты — всё под рукой</div>
+  </div>
+
+  <div class="guide-tabs">
+    <button class="guide-tab active" onclick="showGuideTab('courses',this)">Курсы</button>
+    <button class="guide-tab" onclick="showGuideTab('reports',this)">Отчёты</button>
+    <button class="guide-tab" onclick="showGuideTab('prices',this)">Цены</button>
+  </div>
+
+  <!-- TAB: КУРСЫ -->
+  <div class="guide-panel" id="gtab-courses">
+    <div class="guide-grid">
+
+      <!-- Python + AI -->
+      <div class="guide-card" style="border-color:#1d3a5e">
+        <div class="guide-card-icon" style="background:#0f2035;color:#60a5fa">🐍</div>
+        <div class="guide-card-title">Python + AI</div>
+        <div class="guide-card-sub">11–14 лет · Zoom · группы 5–6 чел. · 12 мес · 48 уроков · 12 проектов</div>
+        <div class="guide-pills">
+          <a href="https://eduson.academy/kids-python-ai-lesson#popup-close" target="_blank" class="guide-pill" style="background:#0f2035;color:#60a5fa;border-color:#1d3a5e">🌐 Лендинг ↗</a>
+          <a href="https://eduson-ops.github.io/EdusonKidsPython/turtle/" target="_blank" class="guide-pill" style="background:#0f2035;color:#60a5fa;border-color:#1d3a5e">🐢 Черепашка ↗</a>
+          <a href="https://disk.360.yandex.com/i/fbzK_8cNUYpCyQ" target="_blank" class="guide-pill" style="background:#0f2035;color:#60a5fa;border-color:#1d3a5e">📄 План курса ↗</a>
+        </div>
+      </div>
+
+      <!-- Scratch + AI -->
+      <div class="guide-card" style="border-color:#5c3410">
+        <div class="guide-card-icon" style="background:#2d1a08;color:#fb923c">🐧</div>
+        <div class="guide-card-title">Scratch + AI</div>
+        <div class="guide-card-sub">7–10 лет · Zoom · группы 4–6 чел. · 12 мес · 48 уроков · 12 проектов</div>
+        <div class="guide-pills">
+          <a href="https://eduson.academy/kids-scratch-ai-free-lesson#popup-close" target="_blank" class="guide-pill" style="background:#2d1a08;color:#fb923c;border-color:#5c3410">🌐 Лендинг ↗</a>
+          <a href="https://scratch.mit.edu/projects/1271032659/" target="_blank" class="guide-pill" style="background:#2d1a08;color:#fb923c;border-color:#5c3410">🐧 Пингвин ↗</a>
+          <a href="https://scratch.mit.edu/projects/1271031407/" target="_blank" class="guide-pill" style="background:#2d1a08;color:#fb923c;border-color:#5c3410">📷 Камера ↗</a>
+          <a href="https://disk.360.yandex.com/i/d14TKSYisL-aiw" target="_blank" class="guide-pill" style="background:#2d1a08;color:#fb923c;border-color:#5c3410">📄 План курса ↗</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TAB: ОТЧЁТЫ -->
+  <div class="guide-panel" id="gtab-reports" style="display:none">
+    <div class="guide-grid">
+
+      <a href="https://docs.google.com/forms/d/1DqWZXF5gYVca9oEWumlQLDfsZM5fNKOXSAnVSTee5vI/edit" target="_blank" class="guide-card guide-card-link" style="border-color:#2d4a1e">
+        <div class="guide-card-icon" style="background:#1a2e10;color:#86efac">📋</div>
+        <div class="guide-card-title">Отчёт об уроке</div>
+        <div class="guide-card-sub">Заполнить сразу после МК</div>
+        <div style="margin-top:12px;font-size:11px;color:#86efac;font-weight:600">Открыть форму ↗</div>
+      </a>
+
+      <a href="https://docs.google.com/forms/d/1s0R4F1cMXrg02Ypi4uGvSZXJmDbN5T9qDGZbrPXmHaY/edit" target="_blank" class="guide-card guide-card-link" style="border-color:#5c3410">
+        <div class="guide-card-icon" style="background:#2d1a08;color:#fb923c">💳</div>
+        <div class="guide-card-title">Отчёт об оплате</div>
+        <div class="guide-card-sub">Заполнить когда пришли деньги</div>
+        <div style="margin-top:12px;font-size:11px;color:#fb923c;font-weight:600">Открыть форму ↗</div>
+      </a>
+
+    </div>
+  </div>
+
+  <!-- TAB: ЦЕНЫ -->
+  <div class="guide-panel" id="gtab-prices" style="display:none">
+    <div class="panel" style="max-width:600px">
+      <div class="pt" style="margin-bottom:14px">Акционные цены <span style="font-size:11px;font-weight:400;color:var(--g)">−25%</span></div>
+      <div style="overflow-x:auto">
+        <table class="tt guide-prices-table">
+          <thead>
+            <tr><th>Формат</th><th>3 месяца</th><th>6 месяцев</th><th>12 месяцев</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Группа</td><td class="yc" style="font-family:var(--mono)">17 813 ₽</td><td class="yc" style="font-family:var(--mono)">35 625 ₽</td><td class="yc" style="font-family:var(--mono)">71 250 ₽</td></tr>
+            <tr><td>Индивидуальный</td><td class="yc" style="font-family:var(--mono)">27 938 ₽</td><td class="yc" style="font-family:var(--mono)">55 875 ₽</td><td class="yc" style="font-family:var(--mono)">111 750 ₽</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="guide-notes">
+        <div class="guide-note">💡 Скидка 25% = 3 месяца бесплатно. Действует 1 час после МК.</div>
+        <div class="guide-note">🚫 1 месяц не продаём.</div>
+        <div class="guide-note">💳 Рассрочка 0% — Сбер / Тинькофф.</div>
+        <div class="guide-note">🎁 Акция 1+1: при покупке детского курса — взрослый курс в подарок.</div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <!-- AGREEMENT POPUP MODAL -->
@@ -1194,6 +1307,14 @@ function openAgrModal(btn){
   document.getElementById('agr-overlay').style.display='flex';
 }
 function closeAgrModal(){document.getElementById('agr-overlay').style.display='none';}
+
+function showGuideTab(tab,btn){
+  ['courses','reports','prices'].forEach(t=>{
+    document.getElementById('gtab-'+t).style.display=t===tab?'block':'none';
+  });
+  document.querySelectorAll('#page-guide .guide-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
 
 // ═══════════════════════════════════════
 // SCHEDULE / HEATMAP
