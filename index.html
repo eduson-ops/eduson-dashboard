@@ -313,6 +313,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <div class="cc"><div class="ccl">МК осталось</div><div class="ccv bc" id="cc-mk">—</div><div class="ccs">до плана</div></div>
   </div>
 
+  <div class="dfilter">
+    <span style="font-size:11px;color:var(--muted);font-weight:600">Период:</span>
+    <button class="dfbtn active" onclick="setMainDfPer('all',this)">Весь месяц</button>
+    <button class="dfbtn" onclick="setMainDfPer('week',this)">Эта неделя</button>
+    <button class="dfbtn" onclick="setMainDfPer('custom',this)">Произвольный</button>
+    <div id="main-custom-dates" style="display:none;align-items:center;gap:6px">
+      <label>с</label><input type="date" class="dfinput" id="main-df-from">
+      <label>по</label><input type="date" class="dfinput" id="main-df-to">
+      <button class="dfbtn active" onclick="applyMainCustom()">Применить</button>
+    </div>
+  </div>
+
   <div class="kpis">
     <div class="kpi bad"><div class="kl">Выручка факт</div><div class="kv rc" id="kv-rev">—</div><div class="ks" id="ks-rev">—</div><span class="ktag bad" id="kt-rev">—</span></div>
     <div class="kpi warn"><div class="kl">МК проведено</div><div class="kv yc" id="kv-mk">—</div><div class="ks" id="ks-mk">—</div><span class="ktag warn" id="kt-mk">—</span></div>
@@ -513,6 +525,7 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 // ═══════════════════════════════════════
 let lessons=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[];
 let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
+let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
 
 // ═══════════════════════════════════════
 // HELPERS
@@ -824,6 +837,18 @@ function visible() {
   return data;
 }
 
+function visibleMain() {
+  var data=lessons.filter(r=>managers.some(m=>r.manager&&r.manager.includes(m.split(' ')[0])));
+  if(mainDfMode==='week'){
+    var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
+    var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
+    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mon&&d<=sun;});
+  } else if(mainDfMode==='custom'&&mainDfFrom&&mainDfTo){
+    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mainDfFrom&&d<=mainDfTo;});
+  }
+  return data;
+}
+
 function calcTotals(data) {
   var mk=data.length,paid=data.filter(r=>r.paid).length,rev=data.reduce((s,r)=>s+r.rev,0);
   return{mk,paid,rev,conv:mk?Math.round(paid/mk*1000)/10:0,avg:paid?Math.round(rev/paid):0,rpm:mk?Math.round(rev/mk):0};
@@ -833,7 +858,7 @@ function calcTotals(data) {
 // MAIN PAGE
 // ═══════════════════════════════════════
 function renderMain() {
-  var data=visible(),t=calcTotals(data);
+  var data=visibleMain(),t=calcTotals(data);
   var now=new Date();
 
   // Countdown — calendar days
@@ -904,7 +929,7 @@ function renderTeamTable(data,filter) {
   tbody.innerHTML+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc">${fmt(t.rev)} ₽</td><td class="bc">${fmt(t.rpm)}</td><td></td></tr>`;
 }
 
-function filterTeam(v){renderTeamTable(visible(),v);}
+function filterTeam(v){renderTeamTable(visibleMain(),v);}
 
 function renderSlots() {
   var targetDate = fmtDate(curSlotDate);
@@ -1032,10 +1057,10 @@ function setPer(p,btn){curPer=p;document.querySelectorAll('.pbtn').forEach(b=>b.
 // ═══════════════════════════════════════
 function setDfPer(mode,btn) {
   dfMode=mode;
-  document.querySelectorAll('.dfbtn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#page-analytics .dfbtn').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('custom-dates').style.display=mode==='custom'?'flex':'none';
-  if(mode!=='custom'){renderMain();renderAnalytics();}
+  if(mode!=='custom'){renderAnalytics();}
 }
 
 function applyCustom() {
@@ -1043,7 +1068,23 @@ function applyCustom() {
   if(!f||!t)return;
   dfFrom=new Date(f);dfFrom.setHours(0,0,0,0);
   dfTo=new Date(t);dfTo.setHours(23,59,59,999);
-  renderMain();renderAnalytics();
+  renderAnalytics();
+}
+
+function setMainDfPer(mode,btn) {
+  mainDfMode=mode;
+  document.querySelectorAll('#page-main .dfbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('main-custom-dates').style.display=mode==='custom'?'flex':'none';
+  if(mode!=='custom'){renderMain();}
+}
+
+function applyMainCustom() {
+  var f=document.getElementById('main-df-from').value,t=document.getElementById('main-df-to').value;
+  if(!f||!t)return;
+  mainDfFrom=new Date(f);mainDfFrom.setHours(0,0,0,0);
+  mainDfTo=new Date(t);mainDfTo.setHours(23,59,59,999);
+  renderMain();
 }
 
 function renderAnalytics() {
