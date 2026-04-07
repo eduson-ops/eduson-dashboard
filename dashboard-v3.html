@@ -277,6 +277,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 .guide-prices-table th:not(:first-child){text-align:right}
 
 /* COPY TOAST */
+.copy-slots-btn{margin-left:6px;background:none;border:none;cursor:pointer;font-size:13px;opacity:0;transition:opacity .15s;padding:0 2px;line-height:1;vertical-align:middle}
+.hm-row:hover .copy-slots-btn{opacity:1}
+.copy-slots-btn:hover{transform:scale(1.2)}
 #copy-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--g);color:#000;font-size:12px;font-weight:600;padding:8px 18px;border-radius:99px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9999;white-space:nowrap}
 #copy-toast.visible{opacity:1;transform:translateX(-50%) translateY(0)}
 </style>
@@ -1440,7 +1443,7 @@ function renderSchedule() {
   html+='</tr></thead><tbody>';
 
   managers.forEach(function(m){
-    html+=`<tr class="hm-row"><td class="mgr-td" onclick="copyManagerSlots('${m}')" title="Скопировать слоты ${m}" style="cursor:pointer">💼 ${m}</td>`;
+    html+=`<tr class="hm-row"><td class="mgr-td">💼 ${m}<button class="copy-slots-btn" onclick="copyManagerSlots('${m}')" title="Скопировать слоты">📋</button></td>`;
     days.forEach(function(d){
       var ds=dateStr(d);
       var isSel=ds===selectedHmDay;
