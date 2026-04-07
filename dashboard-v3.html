@@ -1352,7 +1352,7 @@ function dayName(d){
 
 // ─── Copy slots helper ───
 function copyManagerSlots(name) {
-  var days = get14Days(hmWeek);
+  var days = get14Days(0).concat(get14Days(1));
   var lines = [];
   days.forEach(function(d) {
     var ds = dateStr(d);
@@ -1364,13 +1364,29 @@ function copyManagerSlots(name) {
     }
     if (times.length) lines.push(ds + ' ' + times.join(' '));
   });
-  navigator.clipboard.writeText(lines.join('\n')).then(function() {
-    showCopyToast(name);
-  });
+  var text = lines.join('\n');
+  if (!text) { showCopyToast(name, true); return; }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() {
+      showCopyToast(name, false);
+    }).catch(function() { copyFallback(text, name); });
+  } else {
+    copyFallback(text, name);
+  }
 }
-function showCopyToast(name) {
+function copyFallback(text, name) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  showCopyToast(name, false);
+}
+function showCopyToast(name, empty) {
   var t = document.getElementById('copy-toast');
-  t.textContent = '✓ ' + name + ' — слоты скопированы';
+  t.textContent = empty ? ('⚠ ' + name + ' — нет слотов') : ('✓ ' + name + ' — слоты скопированы');
   t.classList.add('visible');
   setTimeout(function() { t.classList.remove('visible'); }, 2500);
 }
