@@ -1365,7 +1365,7 @@ function copyManagerSlots(name) {
     for (var h = 10; h <= 21; h++) {
       if (daySlots[h]) times.push(h + ':00');
     }
-    if (times.length) lines.push(ds + ' ' + times.join(' '));
+    if (times.length) lines.push(ds + '\t' + times.join('\t'));
   });
   var text = lines.join('\n');
   if (!text) { showCopyToast(name, true); return; }

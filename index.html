@@ -275,7 +275,6 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 .guide-note{font-size:12px;color:var(--sub);line-height:1.6;padding:8px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)}
 .guide-prices-table td:not(:first-child){text-align:right}
 .guide-prices-table th:not(:first-child){text-align:right}
-
 /* COPY TOAST */
 .copy-slots-btn{margin-left:6px;background:none;border:none;cursor:pointer;font-size:13px;opacity:0;transition:opacity .15s;padding:0 2px;line-height:1;vertical-align:middle}
 .hm-row:hover .copy-slots-btn{opacity:1}
@@ -1754,6 +1753,47 @@ setTimeout(function(){
 }, 8000);
 loadAll();
 setInterval(loadAll, 30 * 60 * 1000); // 30 минут
+
+// ─── Copy slots helper ───
+function copyManagerSlots(name) {
+  var days = get14Days(0).concat(get14Days(1));
+  var lines = [];
+  days.forEach(function(d) {
+    var ds = dateStr(d);
+    var daySlots = scheduleData[name] && scheduleData[name][ds];
+    if (!daySlots) return;
+    var times = [];
+    for (var h = 10; h <= 21; h++) {
+      if (daySlots[h]) times.push(h + ':00');
+    }
+    if (times.length) lines.push(ds + '\t' + times.join('\t'));
+  });
+  var text = lines.join('\n');
+  if (!text) { showCopyToast(name, true); return; }
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(function() {
+      showCopyToast(name, false);
+    }).catch(function() { copyFallback(text, name); });
+  } else {
+    copyFallback(text, name);
+  }
+}
+function copyFallback(text, name) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  showCopyToast(name, false);
+}
+function showCopyToast(name, empty) {
+  var t = document.getElementById('copy-toast');
+  t.textContent = empty ? ('⚠ ' + name + ' — нет слотов') : ('✓ ' + name + ' — слоты скопированы');
+  t.classList.add('visible');
+  setTimeout(function() { t.classList.remove('visible'); }, 2500);
+}
 </script>
 <div id="copy-toast"></div>
 </body>
