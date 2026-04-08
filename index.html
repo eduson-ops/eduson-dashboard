@@ -468,6 +468,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
       <div class="hm-leg-item"><div class="hm-leg-dot" style="background:rgba(245,158,11,0.3)"></div>14:00–16:00 (средний спрос)</div>
       <div class="hm-leg-item"><div class="hm-leg-dot" style="background:rgba(62,207,142,0.3)"></div>17:00–21:00 (прайм тайм)</div>
     </div>
+    <div id="hm-total-banner" style="margin-bottom:10px"></div>
     <div class="hm-summary" id="hm-summary"></div>
     <div class="hm-wrap"><table class="hm" id="hm-table"></table></div>
   </div>
@@ -1403,14 +1404,32 @@ function renderSchedule() {
 
   // Summary — count only slots within the visible 7-day window
   var visibleDates=new Set(days.map(dateStr));
+  var grandTotal=0;
   var summaryHtml=managers.map(m=>{
     var total=0;
     if(scheduleData[m])Object.entries(scheduleData[m]).forEach(([ds,dSlots])=>{
       if(visibleDates.has(ds))total+=Object.keys(dSlots).length;
     });
+    grandTotal+=total;
     return`<div class="hms-card"><div class="hms-name">💼 ${m}</div><div class="hms-val">${total}</div><div class="hms-sub">слотов на нед ${hmWeek+1}</div></div>`;
   }).join('');
   document.getElementById('hm-summary').innerHTML=summaryHtml;
+
+  // Total hours banner
+  var bannerEl=document.getElementById('hm-total-banner');
+  if(bannerEl){
+    bannerEl.innerHTML=`<div style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,rgba(245,200,66,0.1),rgba(62,207,142,0.06));border:1px solid var(--y-bd);border-radius:var(--r10);padding:14px 18px">
+      <div style="flex:1">
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Итого слотов на неделю ${hmWeek+1} — все менеджеры</div>
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <span style="font-size:32px;font-weight:700;font-family:var(--mono);color:var(--y)">${grandTotal}</span>
+          <span style="font-size:13px;color:var(--sub);font-weight:500">ч открытых МК</span>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${managers.length} менеджеров · потенциал ≈ <span style="color:var(--g);font-weight:600">${fmt(Math.round(grandTotal*0.45*35000))} ₽</span></div>
+      </div>
+      <div style="font-size:42px;opacity:.15">🕐</div>
+    </div>`;
+  }
 
   var dn=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
   var html='<thead>';
