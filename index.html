@@ -443,6 +443,11 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 
   <!-- Отмены аналитика -->
   <div id="analytics-cancels" style="display:none">
+    <div id="cancels-kpi"></div>
+    <div class="panel" style="margin-bottom:10px">
+      <div class="pt">Доходимость по дням (пришли / отменили / %)</div>
+      <div style="position:relative;height:180px"><canvas id="arrivalDayC"></canvas></div>
+    </div>
     <div class="ag2">
       <div class="panel">
         <div class="pt">Причины отмен</div>
@@ -1277,9 +1282,64 @@ function switchAnalyticsTab(tab, btn) {
   if(tab==='cancels') renderCancels();
 }
 
+function visibleCancels() {
+  var data=cancelsList;
+  if(dfMode==='week'){
+    var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
+    var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
+    data=data.filter(r=>{var d=parseDate(r.ts.split(' ')[0]||r.ts.split('T')[0]);return d&&d>=mon&&d<=sun;});
+  } else if(dfMode==='custom'&&dfFrom&&dfTo){
+    data=data.filter(r=>{var d=parseDate(r.ts.split(' ')[0]||r.ts.split('T')[0]);return d&&d>=dfFrom&&d<=dfTo;});
+  }
+  return data;
+}
+
 function renderCancels() {
   var c=gc();
-  var data=cancelsList;
+  var data=visibleCancels();
+  var mkData=visible();
+
+  // ── KPI: Доходимость ──
+  var totalBooked=mkData.length+data.length;
+  var arrived=mkData.length;
+  var cancelled=data.length;
+  var pct=totalBooked>0?Math.round(arrived/totalBooked*100):0;
+  var pctColor=pct>=70?'var(--g)':pct>=50?'var(--y)':'var(--r)';
+  document.getElementById('cancels-kpi').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
+      <div class="panel" style="text-align:center;padding:14px 10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Всего записей</div>
+        <div style="font-size:26px;font-weight:700;color:var(--text);font-family:var(--display)">${totalBooked}</div>
+      </div>
+      <div class="panel" style="text-align:center;padding:14px 10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Пришли (МК)</div>
+        <div style="font-size:26px;font-weight:700;color:var(--g);font-family:var(--display)">${arrived}</div>
+      </div>
+      <div class="panel" style="text-align:center;padding:14px 10px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Отменили</div>
+        <div style="font-size:26px;font-weight:700;color:var(--r);font-family:var(--display)">${cancelled}</div>
+      </div>
+      <div class="panel" style="text-align:center;padding:14px 10px;border:1px solid ${pctColor}44">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">% доходимости</div>
+        <div style="font-size:26px;font-weight:700;color:${pctColor};font-family:var(--display)">${pct}%</div>
+      </div>
+    </div>`;
+
+  // ── График доходимости по дням ──
+  dc('arrivalDay');
+  var dayMap={};
+  mkData.forEach(r=>{if(r.date){if(!dayMap[r.date])dayMap[r.date]={mk:0,cancel:0};dayMap[r.date].mk++;}});
+  data.forEach(r=>{
+    var ds=normDate((r.ts||'').split(' ')[0]||(r.ts||'').split('T')[0]);
+    if(ds){if(!dayMap[ds])dayMap[ds]={mk:0,cancel:0};dayMap[ds].cancel++;}
+  });
+  var dayKeys=Object.keys(dayMap).sort().slice(-14);
+  if(document.getElementById('arrivalDayC')&&dayKeys.length)
+    charts.arrivalDay=new Chart(document.getElementById('arrivalDayC'),{type:'bar',data:{labels:dayKeys,datasets:[
+      {label:'Пришли',data:dayKeys.map(d=>dayMap[d].mk),backgroundColor:'#3ecf8e88',borderRadius:4,borderSkipped:false,stack:'s'},
+      {label:'Отмены',data:dayKeys.map(d=>dayMap[d].cancel),backgroundColor:'#f0525266',borderRadius:4,borderSkipped:false,stack:'s'},
+      {label:'% доходимости',data:dayKeys.map(d=>{var t=dayMap[d].mk+dayMap[d].cancel;return t?Math.round(dayMap[d].mk/t*100):null;}),type:'line',borderColor:'#f5c842',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#f5c842',yAxisID:'y2',tension:0.3,stack:undefined}
+    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.tick,font:{size:9},boxWidth:10}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid},stacked:true},y2:{position:'right',ticks:{color:'#f5c842',font:{size:9},callback:v=>v+'%'},grid:{display:false},min:0,max:100}}}});
 
   // Причины отмен
   dc('cancelReason');
