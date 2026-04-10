@@ -405,31 +405,67 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 
 <!-- ══ АНАЛИТИКА ══ -->
 <div class="page" id="page-analytics">
-  <div class="dfilter">
-    <span style="font-size:11px;color:var(--muted);font-weight:600">Период:</span>
-    <button class="dfbtn active" onclick="setDfPer('all',this)">Весь месяц</button>
-    <button class="dfbtn" onclick="setDfPer('week',this)">Эта неделя</button>
-    <button class="dfbtn" onclick="setDfPer('custom',this)">Произвольный</button>
-    <div id="custom-dates" style="display:none;align-items:center;gap:6px">
-      <label>с</label><input type="date" class="dfinput" id="df-from">
-      <label>по</label><input type="date" class="dfinput" id="df-to">
-      <button class="dfbtn active" onclick="applyCustom()">Применить</button>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+    <div class="dfilter" style="margin-bottom:0">
+      <span style="font-size:11px;color:var(--muted);font-weight:600">Период:</span>
+      <button class="dfbtn active" onclick="setDfPer('all',this)">Весь месяц</button>
+      <button class="dfbtn" onclick="setDfPer('week',this)">Эта неделя</button>
+      <button class="dfbtn" onclick="setDfPer('custom',this)">Произвольный</button>
+      <div id="custom-dates" style="display:none;align-items:center;gap:6px">
+        <label>с</label><input type="date" class="dfinput" id="df-from">
+        <label>по</label><input type="date" class="dfinput" id="df-to">
+        <button class="dfbtn active" onclick="applyCustom()">Применить</button>
+      </div>
+    </div>
+    <div class="nav-tabs">
+      <button class="tab active" id="atab-mk" onclick="switchAnalyticsTab('mk',this)">МК</button>
+      <button class="tab" id="atab-cancels" onclick="switchAnalyticsTab('cancels',this)">Отмены</button>
     </div>
   </div>
-  <div class="ag2">
-    <div class="panel"><div class="pt">Возраст детей</div><div style="position:relative;height:200px"><canvas id="ageC"></canvas></div></div>
-    <div class="panel"><div class="pt">Тип оплаты</div><div style="position:relative;height:200px"><canvas id="paytypeC"></canvas></div></div>
+
+  <!-- МК аналитика -->
+  <div id="analytics-mk">
+    <div class="ag2">
+      <div class="panel"><div class="pt">Возраст детей</div><div style="position:relative;height:200px"><canvas id="ageC"></canvas></div></div>
+      <div class="panel"><div class="pt">Тип оплаты</div><div style="position:relative;height:200px"><canvas id="paytypeC"></canvas></div></div>
+    </div>
+    <div class="ag2">
+      <div class="panel"><div class="pt">Топ возражений</div><div style="position:relative;height:200px"><canvas id="objC"></canvas></div></div>
+      <div class="panel"><div class="pt">Распределение по практикам</div><div style="position:relative;height:200px"><canvas id="practC"></canvas></div></div>
+    </div>
+    <div class="ag2">
+      <div class="panel"><div class="pt">Пакетный микс</div><div style="position:relative;height:170px"><canvas id="packC"></canvas></div></div>
+      <div class="panel"><div class="pt">Выручка по дням</div><div style="position:relative;height:170px"><canvas id="revdayC"></canvas></div></div>
+    </div>
+    <div class="panel"><div class="pt">Конверсия по дням</div><div style="position:relative;height:140px"><canvas id="convC"></canvas></div></div>
+    <div class="panel"><div class="pt">История уроков</div><div id="all-table"></div></div>
   </div>
-  <div class="ag2">
-    <div class="panel"><div class="pt">Топ возражений</div><div style="position:relative;height:200px"><canvas id="objC"></canvas></div></div>
-    <div class="panel"><div class="pt">Распределение по практикам</div><div style="position:relative;height:200px"><canvas id="practC"></canvas></div></div>
+
+  <!-- Отмены аналитика -->
+  <div id="analytics-cancels" style="display:none">
+    <div class="ag2">
+      <div class="panel">
+        <div class="pt">Причины отмен</div>
+        <div style="position:relative;height:220px"><canvas id="cancelReasonC"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="pt">Первичная / Повторная</div>
+        <div style="position:relative;height:220px"><canvas id="cancelFirstC"></canvas></div>
+      </div>
+    </div>
+    <div class="ag2">
+      <div class="panel">
+        <div class="pt">Способ связи</div>
+        <div style="position:relative;height:200px"><canvas id="cancelContactC"></canvas></div>
+      </div>
+      <div class="panel">
+        <div class="pt">Возраст (отмены)</div>
+        <div style="position:relative;height:200px"><canvas id="cancelAgeC"></canvas></div>
+      </div>
+    </div>
+    <div class="panel"><div class="pt">Отмены по менеджерам</div><div style="position:relative;height:160px"><canvas id="cancelMgrC"></canvas></div></div>
+    <div class="panel"><div class="pt">Журнал отмен</div><div id="cancels-table"></div></div>
   </div>
-  <div class="ag2">
-    <div class="panel"><div class="pt">Пакетный микс</div><div style="position:relative;height:170px"><canvas id="packC"></canvas></div></div>
-    <div class="panel"><div class="pt">Выручка по дням</div><div style="position:relative;height:170px"><canvas id="revdayC"></canvas></div></div>
-  </div>
-  <div class="panel"><div class="pt">Конверсия по дням</div><div style="position:relative;height:140px"><canvas id="convC"></canvas></div></div>
-  <div class="panel"><div class="pt">История уроков</div><div id="all-table"></div></div>
 </div>
 
 <!-- ══ МЕНЕДЖЕРЫ ══ -->
@@ -633,6 +669,7 @@ const URLS = {
   managers: GVZ + '1534781490',
   slots:    GVZ + '1587702885',
   schedule: GVZ + '462545215',
+  cancels:  GVZ + '901678043',    // Отмены МК
 };
 
 // COLUMNS Форма 1 — Отчёт о МК (0-indexed):
@@ -648,7 +685,7 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 // ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
-let lessons=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[];
+let lessons=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
 let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
 
@@ -769,8 +806,8 @@ async function loadAll() {
   var loader = document.getElementById('loader');
   if (loader) loader.classList.add('visible');
   try {
-  var [rawForm,rawPayments,rawMgrs,rawTar,rawSlots,rawSched] = await Promise.all([
-    fetchCSV('form'),fetchCSV('payments'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule')
+  var [rawForm,rawPayments,rawMgrs,rawTar,rawSlots,rawSched,rawCancels] = await Promise.all([
+    fetchCSV('form'),fetchCSV('payments'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule'),fetchCSV('cancels')
   ]);
 
   // Parse lessons (Форма 1 — без оплаты)
@@ -924,6 +961,19 @@ async function loadAll() {
     console.log('Schedule:', mgr, ds, hr);
   }
   console.log('scheduleData keys:', Object.keys(scheduleData));
+
+  // Parse cancels
+  // COLUMNS: 0=ts,1=manager,2=crm,3=reason,4=is_first,5=contact_method,6=age,7=comment
+  cancelsList = [];
+  for(var i=1;i<rawCancels.length;i++){
+    var r=rawCancels[i];
+    if(!r[0])continue;
+    cancelsList.push({
+      ts:cc(r[0]), manager:cc(r[1]), crm:cc(r[2]),
+      reason:cc(r[3]), is_first:cc(r[4]), contact:cc(r[5]),
+      age:cc(r[6]), comment:cc(r[7])
+    });
+  }
 
   renderMain();
   renderAnalytics();
@@ -1210,6 +1260,60 @@ function applyMainCustom() {
   mainDfFrom=new Date(f);mainDfFrom.setHours(0,0,0,0);
   mainDfTo=new Date(t);mainDfTo.setHours(23,59,59,999);
   renderMain();
+}
+
+function switchAnalyticsTab(tab, btn) {
+  document.querySelectorAll('#page-analytics .nav-tabs .tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('analytics-mk').style.display = tab==='mk' ? '' : 'none';
+  document.getElementById('analytics-cancels').style.display = tab==='cancels' ? '' : 'none';
+  if(tab==='cancels') renderCancels();
+}
+
+function renderCancels() {
+  var c=gc();
+  var data=cancelsList;
+
+  // Причины отмен
+  dc('cancelReason');
+  var rm={};data.forEach(r=>{if(r.reason)rm[r.reason]=(rm[r.reason]||0)+1;});
+  var rs=Object.entries(rm).sort((a,b)=>b[1]-a[1]);
+  if(document.getElementById('cancelReasonC')&&rs.length)
+    charts.cancelReason=new Chart(document.getElementById('cancelReasonC'),{type:'bar',data:{labels:rs.map(([k])=>k),datasets:[{data:rs.map(([,v])=>v),backgroundColor:'#f0525288',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}});
+
+  // Первичная / Повторная
+  dc('cancelFirst');
+  var fm={};data.forEach(r=>{var k=r.is_first||'Не указано';fm[k]=(fm[k]||0)+1;});
+  var fk=Object.keys(fm);
+  if(document.getElementById('cancelFirstC')&&fk.length)
+    charts.cancelFirst=new Chart(document.getElementById('cancelFirstC'),{type:'doughnut',data:{labels:fk,datasets:[{data:fk.map(k=>fm[k]),backgroundColor:['#f5c842','#60a5fa','#f05252'],borderColor:'#111',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:c.tick,font:{size:11},boxWidth:12}}}}});
+
+  // Способ связи
+  dc('cancelContact');
+  var cm={};data.forEach(r=>{if(r.contact)r.contact.split(',').forEach(s=>{var k=s.trim();if(k)cm[k]=(cm[k]||0)+1;});});
+  var ck=Object.keys(cm);
+  if(document.getElementById('cancelContactC')&&ck.length)
+    charts.cancelContact=new Chart(document.getElementById('cancelContactC'),{type:'bar',data:{labels:ck,datasets:[{data:ck.map(k=>cm[k]),backgroundColor:'#60a5fa88',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
+
+  // Возраст
+  dc('cancelAge');
+  var am={};data.forEach(r=>{var a=parseInt(r.age);if(!isNaN(a)&&a>0)am[a]=(am[a]||0)+1;});
+  var ak=Object.keys(am).map(Number).sort((a,b)=>a-b);
+  if(document.getElementById('cancelAgeC')&&ak.length)
+    charts.cancelAge=new Chart(document.getElementById('cancelAgeC'),{type:'bar',data:{labels:ak.map(a=>a+' лет'),datasets:[{data:ak.map(a=>am[a]),backgroundColor:'#a78bfa88',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
+
+  // По менеджерам
+  dc('cancelMgr');
+  var mm={};data.forEach(r=>{if(r.manager)mm[r.manager]=(mm[r.manager]||0)+1;});
+  var mk2=Object.entries(mm).sort((a,b)=>b[1]-a[1]);
+  if(document.getElementById('cancelMgrC')&&mk2.length)
+    charts.cancelMgr=new Chart(document.getElementById('cancelMgrC'),{type:'bar',data:{labels:mk2.map(([k])=>k),datasets:[{data:mk2.map(([,v])=>v),backgroundColor:'#fb923c88',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
+
+  // Таблица
+  var sorted=[...data].sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,100);
+  document.getElementById('cancels-table').innerHTML=sorted.length
+    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Менеджер</th><th>Причина</th><th>Первичная?</th><th>Связь</th><th>Возраст</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${r.manager||'—'}</td><td>${r.reason||'—'}</td><td style="color:${r.is_first==='Да'?'var(--r)':'var(--muted)'}">${r.is_first||'—'}</td><td style="font-size:11px">${r.contact||'—'}</td><td style="font-family:var(--mono)">${r.age||'—'}</td><td style="font-size:11px;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.comment||'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
+    :'<div class="empty"><div class="empty-ic">✅</div><div>Отмен нет</div></div>';
 }
 
 function renderAnalytics() {
