@@ -417,13 +417,18 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     </div>
   </div>
   <div class="ag2">
+    <div class="panel"><div class="pt">Возраст детей</div><div style="position:relative;height:200px"><canvas id="ageC"></canvas></div></div>
+    <div class="panel"><div class="pt">Тип оплаты</div><div style="position:relative;height:200px"><canvas id="paytypeC"></canvas></div></div>
+  </div>
+  <div class="ag2">
     <div class="panel"><div class="pt">Топ возражений</div><div style="position:relative;height:200px"><canvas id="objC"></canvas></div></div>
     <div class="panel"><div class="pt">Распределение по практикам</div><div style="position:relative;height:200px"><canvas id="practC"></canvas></div></div>
   </div>
   <div class="ag2">
     <div class="panel"><div class="pt">Пакетный микс</div><div style="position:relative;height:170px"><canvas id="packC"></canvas></div></div>
-    <div class="panel"><div class="pt">Конверсия по дням</div><div style="position:relative;height:170px"><canvas id="convC"></canvas></div></div>
+    <div class="panel"><div class="pt">Выручка по дням</div><div style="position:relative;height:170px"><canvas id="revdayC"></canvas></div></div>
   </div>
+  <div class="panel"><div class="pt">Конверсия по дням</div><div style="position:relative;height:140px"><canvas id="convC"></canvas></div></div>
   <div class="panel"><div class="pt">История уроков</div><div id="all-table"></div></div>
 </div>
 
@@ -1230,6 +1235,29 @@ function renderAnalytics() {
   data.forEach(r=>{if(r.pack)packD[r.pack]=(packD[r.pack]||0)+1;});
   if(document.getElementById('packC'))
     charts.pack=new Chart(document.getElementById('packC'),{type:'bar',data:{labels:packK,datasets:[{data:packK.map(k=>packD[k]||0),backgroundColor:['#f5c84233','#f5c84266','#f5c84299','#f5c842'],borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
+
+  // Age distribution
+  dc('age');
+  var ageMap={};
+  data.forEach(r=>{var a=parseInt(r.age);if(!isNaN(a)&&a>0){if(!ageMap[a])ageMap[a]={mk:0,paid:0};ageMap[a].mk++;if(r.paid)ageMap[a].paid++;}});
+  var ageKeys=Object.keys(ageMap).map(Number).sort((a,b)=>a-b);
+  if(document.getElementById('ageC')&&ageKeys.length)
+    charts.age=new Chart(document.getElementById('ageC'),{type:'bar',data:{labels:ageKeys.map(a=>a+' лет'),datasets:[{label:'МК',data:ageKeys.map(a=>ageMap[a].mk),backgroundColor:'#60a5fa66',borderRadius:4,borderSkipped:false,yAxisID:'y'},{label:'Оплат',data:ageKeys.map(a=>ageMap[a].paid),backgroundColor:'#3ecf8e99',borderRadius:4,borderSkipped:false,yAxisID:'y'},{label:'Конверсия %',data:ageKeys.map(a=>ageMap[a].mk?Math.round(ageMap[a].paid/ageMap[a].mk*100):0),type:'line',borderColor:'#f5c842',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#f5c842',yAxisID:'y2',tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.tick,font:{size:9},boxWidth:10}}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y2:{position:'right',ticks:{color:'#f5c842',font:{size:9},callback:v=>v+'%'},grid:{display:false},min:0,max:100}}}});
+
+  // Paytype
+  dc('paytype');
+  var ptMap={};data.forEach(r=>{if(r.paid&&r.paytype){var k=r.paytype||'Другое';ptMap[k]=(ptMap[k]||0)+1;}});
+  var ptK=Object.keys(ptMap);
+  if(document.getElementById('paytypeC')&&ptK.length)
+    charts.paytype=new Chart(document.getElementById('paytypeC'),{type:'doughnut',data:{labels:ptK,datasets:[{data:ptK.map(k=>ptMap[k]),backgroundColor:['#f5c842','#3ecf8e','#60a5fa','#a78bfa','#fb923c'],borderColor:'#111',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:c.tick,font:{size:10},boxWidth:12}}}}});
+
+  // Revenue by day
+  dc('revday');
+  var rdMap={};
+  data.forEach(r=>{var d=r.date||'';if(!d||!r.rev)return;rdMap[d]=(rdMap[d]||0)+r.rev;});
+  var rde=Object.entries(rdMap).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
+  if(document.getElementById('revdayC')&&rde.length)
+    charts.revday=new Chart(document.getElementById('revdayC'),{type:'bar',data:{labels:rde.map(([d])=>d),datasets:[{data:rde.map(([,v])=>v),backgroundColor:'#f5c84266',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>fmt(v.raw)+' ₽'}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9},callback:v=>fmt(v)},grid:{color:c.grid}}}}});
 
   // Conv by day
   dc('conv');
