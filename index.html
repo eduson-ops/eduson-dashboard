@@ -288,13 +288,13 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 (function(){
   var KEY = 'eduson_auth';
   var PWD = 'edusonkidstothemoon';
-  if(sessionStorage.getItem(KEY) !== '1'){
+  if(localStorage.getItem(KEY) !== '1'){
     var p = prompt('Введите пароль для доступа к дашборду:');
     if(p !== PWD){
       document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#888;font-size:16px;">Доступ запрещён</div>';
       return;
     }
-    sessionStorage.setItem(KEY,'1');
+    localStorage.setItem(KEY,'1');
   }
 })();
 </script>
