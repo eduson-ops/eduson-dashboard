@@ -984,15 +984,15 @@ async function loadAll() {
   console.log('scheduleData keys:', Object.keys(scheduleData));
 
   // Parse cancels
-  // COLUMNS: 0=ts, 1=crm(AMO), 2=МиМК(manager), 3=Первичная(Да/Нет), 4=Причина, 5=Возраст, 6=Комментарий, 7=Как связались
+  // COLUMNS: 0=ts, 1=crm(AMO), 2=Причина, 3=Первичная(Да/Нет), 4=Как связались, 5=Возраст, 6=Комментарий, 7=МиМК(manager)
   cancelsList = [];
   for(var i=1;i<rawCancels.length;i++){
     var r=rawCancels[i];
     if(!r[0])continue;
     cancelsList.push({
-      ts:cc(r[0]), crm:cc(r[1]), manager:cc(r[2]),
-      is_first:cc(r[3]), reason:cc(r[4]), age:cc(r[5]),
-      comment:cc(r[6]), contact:cc(r[7])
+      ts:cc(r[0]), crm:cc(r[1]), reason:cc(r[2]),
+      is_first:cc(r[3]), contact:cc(r[4]), age:cc(r[5]),
+      comment:cc(r[6]), manager:cc(r[7])
     });
   }
 
@@ -1388,7 +1388,7 @@ function renderCancels() {
   // Таблица
   var sorted=[...data].sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,100);
   document.getElementById('cancels-table').innerHTML=sorted.length
-    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>МиМК</th><th>Причина</th><th>Первичная?</th><th>Возраст</th><th>Связь</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${r.manager||'—'}</td><td>${r.reason||'—'}</td><td style="color:${r.is_first==='Да'?'var(--r)':'var(--muted)'}">${r.is_first||'—'}</td><td style="font-family:var(--mono)">${r.age||'—'}</td><td style="font-size:11px">${r.contact||'—'}</td><td style="font-size:11px;color:var(--muted);max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.comment||'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
+    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>МиМК</th><th>Причина</th><th>Первичная?</th><th>Возраст</th><th>Связь</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${r.manager||'—'}</td><td style="font-size:11px">${r.reason||'—'}</td><td style="color:${r.is_first==='Да'?'var(--r)':'var(--muted)'}">${r.is_first||'—'}</td><td style="font-family:var(--mono)">${r.age||'—'}</td><td style="font-size:11px">${r.contact||'—'}</td><td>${r.comment?agrBtn(r.comment):'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
     :'<div class="empty"><div class="empty-ic">✅</div><div>Отмен нет</div></div>';
 }
 
