@@ -478,15 +478,16 @@ async function buildMissingAlert(dateStr) {
 // DATA CONTEXT FOR Q&A
 // ═══════════════════════════════════════
 async function buildDataContext() {
-  const [mkRows, payRows, cancelRows, tarRows] = await Promise.all([
+  const [mkRows, payRows, cancelRows, tarRows, slotRows] = await Promise.all([
     fetchSheet('form'),
     fetchSheet('payments'),
     fetchSheet('cancels'),
     fetchSheet('targets'),
+    fetchSheet('slots'),
   ]);
 
-  // Таргеты текущего месяца
   const now = new Date();
+  const todayStr = fmtDate(now);
   const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
   const curMonth = monthNames[now.getMonth()];
   let targets = { mk: 52, rev: 1885140 };
@@ -497,30 +498,43 @@ async function buildDataContext() {
     }
   }
 
-  // МК — последние 60 дней
+  // МК — проведённые занятия
   const mkLines = mkRows
     .filter(r => cc(r[1]) && cc(r[2]))
     .slice(-300)
-    .map(r => `МК: дата=${normDate(cc(r[2]))} менеджер=${cc(r[1])} согласие=${cc(r[10])||'нет'}`);
+    .map(r => `МК_проведён: дата=${normDate(cc(r[2]))} менеджер=${cc(r[1])} возражение=${cc(r[11])||'нет'} согласие=${cc(r[10])||'нет'}`);
 
-  // Оплаты — последние 60 дней
+  // Оплаты
   const payLines = payRows
     .filter(r => cc(r[1]) && cc(r[3]))
     .slice(-200)
     .map(r => `Оплата: дата=${normDate(cc(r[3]))} менеджер=${cc(r[1])} сумма=${cc(r[7])} пакет=${cc(r[5])||cc(r[4])}`);
 
-  // Отмены — последние 60 дней
+  // Отмены
   const cancelLines = cancelRows
     .filter(r => cc(r[0]))
     .slice(-100)
-    .map(r => `Отмена: дата=${normDate(cc(r[0]))} менеджер=${cc(r[7])||'?'} причина=${cc(r[2])} amо=${cc(r[1])}`);
+    .map(r => `Отмена: дата=${normDate(cc(r[0]))} менеджер=${cc(r[7])||'?'} причина=${cc(r[2])} amo=${cc(r[1])}`);
+
+  // Расписание (запланированные слоты)
+  const slotLines = [];
+  for (const r of slotRows) {
+    const col0 = cc(r[0]), col1 = cc(r[1]), col2 = cc(r[2]), col3 = cc(r[3]||'');
+    const isDate = col0 && !col0.match(/^\d{1,2}:\d{2}$/) && col0.length > 5;
+    const slotDate = isDate ? normDate(col0) : todayStr;
+    const time = isDate ? col1 : col0;
+    const who  = isDate ? col2 : col1;
+    if (!time || !who) continue;
+    slotLines.push(`Слот_запланирован: дата=${slotDate} время=${time} менеджер=${who}`);
+  }
 
   return (
-    `Данные школы Eduson Kids (все даты в формате ДД.ММ.ГГГГ).\n` +
-    `Плановые цели на ${curMonth}: МК=${targets.mk}, выручка=${targets.rev} ₽\n\n` +
-    `=== МК (${mkLines.length} записей) ===\n${mkLines.join('\n')}\n\n` +
-    `=== Оплаты (${payLines.length} записей) ===\n${payLines.join('\n')}\n\n` +
-    `=== Отмены (${cancelLines.length} записей) ===\n${cancelLines.join('\n')}`
+    `Данные школы Eduson Kids. Сегодня: ${todayStr}. Даты в формате ДД.ММ.ГГГГ.\n` +
+    `План на ${curMonth}: МК=${targets.mk}, выручка=${targets.rev} ₽\n\n` +
+    `=== ПРОВЕДЁННЫЕ МК (${mkLines.length}) ===\n${mkLines.join('\n')}\n\n` +
+    `=== ОПЛАТЫ (${payLines.length}) ===\n${payLines.join('\n')}\n\n` +
+    `=== ОТМЕНЫ (${cancelLines.length}) ===\n${cancelLines.join('\n')}\n\n` +
+    `=== ЗАПЛАНИРОВАННЫЕ СЛОТЫ (${slotLines.length}) ===\n${slotLines.join('\n')}`
   );
 }
 
@@ -529,13 +543,13 @@ async function askDashboard(question) {
   const context = await buildDataContext();
 
   const prompt =
-    `Ты аналитик продаж Eduson Kids. Отвечай коротко и по делу — максимум 3-4 предложения.\n` +
-    `Правила:\n` +
-    `- Только факты из данных, никаких оговорок про "недостаточно данных"\n` +
-    `- Если список — пиши в строку через запятую, без нумерации\n` +
-    `- Никаких заголовков, никаких "Обратите внимание"\n` +
-    `- Если данных совсем нет — одно предложение: что именно не нашёл\n` +
-    `- Числа конкретные, имена менеджеров называй\n\n` +
+    `Ты РОП Eduson Kids. Отвечаешь коротко, как опытный руководитель — цифры + вывод + действие.\n\n` +
+    `ФОРМАТ (выбери подходящий под вопрос):\n` +
+    `• Фактический вопрос ("сколько", "кто", "когда"): 1-2 предложения. Только цифра и контекст.\n` +
+    `• Аналитический вопрос ("почему", "как дела", "сравни"): факт → отклонение от нормы → 1 действие.\n` +
+    `• Список (топ, возражения, причины): не более 3 пунктов в строку через "·", без нумерации.\n\n` +
+    `ЗАПРЕЩЕНО: "Обратите внимание", "недостаточно данных", длинные оговорки, повтор вопроса.\n` +
+    `Если данных нет — одно предложение что именно не найдено.\n\n` +
     `=== ДАННЫЕ ===\n${context}\n\n` +
     `=== ВОПРОС ===\n${question}`;
 
