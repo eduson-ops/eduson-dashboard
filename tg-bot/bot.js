@@ -61,13 +61,16 @@ function parseCSV(txt) {
 function normDate(s) {
   if (!s) return '';
   s = s.trim().replace(/^"|"$/g, '');
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(s)) return s;
+  // dd.MM.yyyy (с возможным временем после пробела)
+  if (/^\d{2}\.\d{2}\.\d{4}/.test(s)) return s.split(' ')[0].split('T')[0];
+  // ISO: yyyy-MM-dd
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
     const p = s.split('T')[0].split('-');
     return `${p[2]}.${p[1]}.${p[0]}`;
   }
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-    const p = s.split('/');
+  // US: M/D/YYYY или M/D/YYYY H:MM:SS (Google Forms)
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(s)) {
+    const p = s.split(' ')[0].split('/'); // отрезаем время
     return `${p[1].padStart(2, '0')}.${p[0].padStart(2, '0')}.${p[2]}`;
   }
   const d = new Date(s);
