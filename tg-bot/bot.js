@@ -892,6 +892,44 @@ if (CHAT_ID) {
 }
 
 // ═══════════════════════════════════════
+// HTTP SERVER — /ask endpoint для дашборда
+// ═══════════════════════════════════════
+const express = require('express');
+const app = express();
+app.use(express.json());
+
+// CORS — разрешаем запросы с дашборда
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
+app.post('/ask', async (req, res) => {
+  const { question } = req.body || {};
+  if (!question || !question.trim()) {
+    return res.status(400).json({ error: 'Вопрос не задан' });
+  }
+  if (!GROQ_KEY) {
+    return res.status(503).json({ error: 'GROQ_API_KEY не настроен' });
+  }
+  try {
+    const answer = await askDashboard(question.trim());
+    res.json({ answer });
+  } catch (e) {
+    console.error('[/ask]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/health', (_, res) => res.json({ ok: true }));
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`🌐 HTTP сервер запущен на порту ${PORT}`));
+
+// ═══════════════════════════════════════
 // LAUNCH
 // ═══════════════════════════════════════
 bot.launch();
