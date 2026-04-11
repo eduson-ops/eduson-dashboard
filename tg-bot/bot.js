@@ -529,18 +529,22 @@ async function askDashboard(question) {
   const context = await buildDataContext();
 
   const prompt =
-    `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
-    `Отвечай на русском, конкретно, с цифрами из данных. Без лишней воды.\n` +
-    `Если данных для ответа нет — так и скажи.\n\n` +
+    `Ты аналитик продаж Eduson Kids. Отвечай коротко и по делу — максимум 3-4 предложения.\n` +
+    `Правила:\n` +
+    `- Только факты из данных, никаких оговорок про "недостаточно данных"\n` +
+    `- Если список — пиши в строку через запятую, без нумерации\n` +
+    `- Никаких заголовков, никаких "Обратите внимание"\n` +
+    `- Если данных совсем нет — одно предложение: что именно не нашёл\n` +
+    `- Числа конкретные, имена менеджеров называй\n\n` +
     `=== ДАННЫЕ ===\n${context}\n\n` +
     `=== ВОПРОС ===\n${question}`;
 
   const res = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
-      model: 'llama-3.3-70b-versatile', // более умная модель для Q&A
+      model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: prompt }],
-      max_tokens: 400,
+      max_tokens: 180,
       temperature: 0.3,
     },
     {
