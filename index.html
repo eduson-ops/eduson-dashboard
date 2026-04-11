@@ -319,20 +319,8 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <div class="upd" id="upd">—</div>
     <button class="nbtn" id="theme-btn" onclick="toggleTheme()" title="Сменить тему" style="font-size:15px;padding:4px 8px">🌙</button>
     <button class="nbtn" onclick="loadAll()">↻</button>
-    <button id="pay-alert-btn" onclick="openPayAlert()" title="Оплаты без МК" style="display:none;width:24px;height:24px;padding:0;border-radius:50%;background:var(--r);border:none;color:#fff;font-size:11px;font-weight:700;cursor:pointer;line-height:1;flex-shrink:0">!</button>
   </div>
 </nav>
-
-<!-- Попап: оплаты без МК -->
-<div id="pay-alert-overlay" onclick="closePayAlert()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:500;backdrop-filter:blur(2px)"></div>
-<div id="pay-alert-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:501;background:var(--bg2);border:1px solid var(--r-bd);border-radius:12px;padding:20px 22px;min-width:520px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.5)">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-    <span style="font-size:13px;font-weight:600;color:var(--r)">⚠ Оплаты не привязаны к МК</span>
-    <button onclick="closePayAlert()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
-  </div>
-  <p style="font-size:11px;color:var(--sub);margin-bottom:12px;line-height:1.5">Менеджер заполнил форму оплаты, но в форме МК не указана ссылка на CRM.<br>Попроси менеджера открыть форму МК и добавить ссылку на сделку в AMO.</p>
-  <div id="pay-alert-body"></div>
-</div>
 
 <!-- ══ ГЛАВНАЯ ══ -->
 <div class="page active" id="page-main">
@@ -975,16 +963,6 @@ async function loadAll() {
       rev:pay.rev,paid:true,paytype:pay.paytype,scenario:'pay_on_lesson'
     });
   }
-  // Сохраняем для отладочного виджета
-  window._payUnmatched = payOnlyFinal;
-  window._mkList = mkList;
-  // Для диагностики: CRM IDs из обеих форм
-  window._mkCrmIds = mkList.map(function(l){return {manager:l.manager,crmId:l.crmId,crm:l.crm};});
-  window._payCrmIds = (rawPayments||[]).slice(1).filter(function(r){return cc(r[1]);}).map(function(r){
-    var u=cc(r[2]); return {manager:cc(r[1]),crmId:extractCrmId(u),crm:u};
-  });
-  console.table(window._mkCrmIds.filter(function(x){return x.crmId;}));
-  console.log('Unmatched pay crmIds:', payOnlyFinal.map(function(p){return p.crmId;}));
 
   lessons = mkList;
 
@@ -1189,61 +1167,6 @@ function renderMain() {
   renderRevChart(data);
   renderTeamChart(data);
   renderInsights(data,t);
-
-  // ! кнопка: оплаты без МК
-  var unmatched = window._payUnmatched || [];
-  var btn = document.getElementById('pay-alert-btn');
-  if(btn) btn.style.display = unmatched.length ? 'inline-flex' : 'none';
-  // Заполняем содержимое попапа
-  var body = document.getElementById('pay-alert-body');
-  if(body){
-    if(unmatched.length){
-      // Таблица нематченных оплат
-      var rows = unmatched.map(function(p){
-        return '<tr>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border)">'+p.manager+'</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px">'+p.crmId+'</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--r)">'+fmt(p.rev)+' ₽</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)">'
-          +(p.crm?'<a href="'+p.crm+'" target="_blank" style="color:var(--b);text-decoration:none">сделка ↗</a>':'—')
-          +'</td></tr>';
-      }).join('');
-      var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
-        +'<thead><tr style="font-size:10px;color:var(--muted)">'
-        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Менеджер</th>'
-        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">CRM ID оплаты</th>'
-        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Сумма</th>'
-        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">AMO</th>'
-        +'</tr></thead><tbody>'+rows+'</tbody></table>';
-
-      // Диагностика: CRM IDs из МК формы для тех же менеджеров
-      var mgrs = unmatched.map(function(p){return p.manager;});
-      var mkIds = (window._mkCrmIds||[]).filter(function(x){return mgrs.indexOf(x.manager)>=0;});
-      if(mkIds.length){
-        html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">'
-          +'<div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">CRM IDs из формы МК (те же менеджеры)</div>'
-          +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
-          +'<thead><tr style="font-size:10px;color:var(--muted)">'
-          +'<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border)">Менеджер</th>'
-          +'<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border)">CRM ID в МК</th>'
-          +'<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border)">Статус</th>'
-          +'</tr></thead><tbody>'
-          +mkIds.map(function(x){
-            var inPay = unmatched.some(function(p){return p.crmId===x.crmId;});
-            return '<tr>'
-              +'<td style="padding:3px 8px;border-bottom:1px solid var(--border)">'+x.manager+'</td>'
-              +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">'+(x.crmId||'<span style="color:var(--r)">пусто</span>')+'</td>'
-              +'<td style="padding:3px 8px;border-bottom:1px solid var(--border)">'
-              +(inPay?'<span style="color:var(--r)">∉ форме МК</span>':'<span style="color:var(--g)">✓ привязан</span>')
-              +'</td></tr>';
-          }).join('')
-          +'</tbody></table></div>';
-      }
-      body.innerHTML = html;
-    } else {
-      body.innerHTML='<p style="font-size:12px;color:var(--g);text-align:center;padding:12px 0">Всё привязано ✓</p>';
-    }
-  }
 }
 
 function renderTeamTable(data,filter) {
@@ -2176,16 +2099,6 @@ setInterval(function() { nextQuote(); }, 30000);
 // ═══════════════════════════════════════
 var savedTheme=localStorage.getItem('eks-theme')||'dark';
 document.documentElement.setAttribute('data-theme',savedTheme);
-function openPayAlert(){
-  document.getElementById('pay-alert-overlay').style.display='block';
-  document.getElementById('pay-alert-modal').style.display='block';
-}
-function closePayAlert(){
-  document.getElementById('pay-alert-overlay').style.display='none';
-  document.getElementById('pay-alert-modal').style.display='none';
-}
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closePayAlert();});
-
 function toggleTheme(){
   var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
   document.documentElement.setAttribute('data-theme',t);
