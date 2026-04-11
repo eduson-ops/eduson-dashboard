@@ -530,7 +530,7 @@ async function buildDataContext() {
 
   return (
     `Данные школы Eduson Kids. Сегодня: ${todayStr}. Даты в формате ДД.ММ.ГГГГ.\n` +
-    `!!! ПЛАН НА ${curMonth.toUpperCase()}: МК=${targets.mk} штук, выручка=${targets.rev} ₽ — используй только эти цифры для расчёта плана !!!\n\n` +
+    `ПЛАН НА ${curMonth}: МК=${targets.mk} штук, выручка=${targets.rev} ₽\n\n` +
     `=== ПРОВЕДЁННЫЕ МК (${mkLines.length}) ===\n${mkLines.join('\n')}\n\n` +
     `=== ОПЛАТЫ (${payLines.length}) ===\n${payLines.join('\n')}\n\n` +
     `=== ОТМЕНЫ (${cancelLines.length}) ===\n${cancelLines.join('\n')}\n\n` +
