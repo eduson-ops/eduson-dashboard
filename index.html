@@ -1388,7 +1388,7 @@ function renderCancels() {
   // Таблица
   var sorted=[...data].sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,100);
   document.getElementById('cancels-table').innerHTML=sorted.length
-    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>МиМК</th><th>Причина</th><th>Первичная?</th><th>Возраст</th><th>Связь</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${r.manager||'—'}</td><td style="font-size:11px">${r.reason||'—'}</td><td style="color:${r.is_first==='Да'?'var(--r)':'var(--muted)'}">${r.is_first||'—'}</td><td style="font-family:var(--mono)">${r.age||'—'}</td><td style="font-size:11px">${r.contact||'—'}</td><td>${r.comment?agrBtn(r.comment):'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
+    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>МиМК</th><th>Причина</th><th>Первичная?</th><th>Возраст</th><th>Связь</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${r.manager||'—'}</td><td style="font-size:11px">${r.reason||'—'}</td><td style="color:${r.is_first==='Нет'?'var(--r)':'var(--muted)'}">${r.is_first||'—'}</td><td style="font-family:var(--mono)">${r.age||'—'}</td><td style="font-size:11px">${r.contact||'—'}</td><td>${r.comment?agrBtn(r.comment):'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
     :'<div class="empty"><div class="empty-ic">✅</div><div>Отмен нет</div></div>';
 }
 
