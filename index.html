@@ -819,6 +819,22 @@ function parseDate(s) {
   return new Date(+p[2],+p[1]-1,+p[0]);
 }
 
+// Robust AMO CRM lead ID extraction — handles ?query, #fragment, with/without /detail/
+function extractCrmId(url) {
+  if (!url) return '';
+  // Strip query string and fragment first
+  var clean = url.split('?')[0].split('#')[0].trim();
+  // Try /detail/NNNNN pattern
+  var m = clean.match(/\/detail\/(\d+)/);
+  if (m) return m[1];
+  // Try last path segment that is 5+ digits
+  m = clean.match(/\/(\d{5,})\/?$/);
+  if (m) return m[1];
+  // Fallback: last run of 5+ digits in the original URL
+  var all = url.match(/\d{5,}/g);
+  return all ? all[all.length - 1] : url;
+}
+
 // ═══════════════════════════════════════
 // LOAD
 // ═══════════════════════════════════════
@@ -838,7 +854,7 @@ async function loadAll() {
     var r=rawForm[i];
     if(!r[1])continue;
     var crmUrl=cc(r[4]);
-    var crmId=crmUrl.replace(/.*\/detail\//,'').replace(/[^0-9]/g,'') || crmUrl;
+    var crmId=extractCrmId(crmUrl);
     var lesson = {
       ts:cc(r[0]),manager:cc(r[1]),date:cc(r[2]),time:cc(r[3]),
       crm:crmUrl,crmId:crmId,rec:cc(r[5]),practice:cc(r[6]),age:cc(r[7]),
@@ -857,7 +873,7 @@ async function loadAll() {
     var r=rawPayments[i];
     if(!r[1])continue;
     var crmUrl=cc(r[2]);
-    var crmId=crmUrl.replace(/.*\/detail\//,'').replace(/[^0-9]/g,'') || crmUrl;
+    var crmId=extractCrmId(crmUrl);
     var rev=parseFloat(cc(r[7]).replace(/[^0-9.]/g,''))||0;
     var pay = {
       ts:cc(r[0]),manager:cc(r[1]),crm:crmUrl,crmId:crmId,
@@ -865,7 +881,7 @@ async function loadAll() {
     };
     if(crmId) payMap[crmId] = pay;
     // Сценарий 2: оплата есть, МК отчёта нет → оплата на занятии
-    if(!mkMap[crmId]){
+    if(crmId && !mkMap[crmId]){
       payOnlyList.push(pay);
       console.warn('[pay-only] нет МК для crmId:', crmId, '| url:', crmUrl);
     }
