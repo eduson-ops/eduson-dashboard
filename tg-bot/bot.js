@@ -13,6 +13,8 @@ if (!BOT_TOKEN) {
   console.error('❌ BOT_TOKEN не задан в .env');
   process.exit(1);
 }
+console.log(`🔑 BOT_TOKEN: ${BOT_TOKEN.slice(0, 10)}... (длина: ${BOT_TOKEN.length})`);
+console.log(`💬 CHAT_ID: ${process.env.CHAT_ID || 'не задан'}`);
 
 const SHEET_ID = '1U5L4zrFcqPAy4_6VXA5xHxqM2xAKPkWW-At2neINj18';
 const GVZ = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&gid=`;
