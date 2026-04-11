@@ -2170,7 +2170,8 @@ function classifyHot(lesson) {
 function renderHot() {
   var today = new Date(); today.setHours(0,0,0,0);
   var rows = lessons.filter(function(l){
-    return l.objection !== 'Оплатили' && !l.paid;
+    return l.objection !== 'Оплатили' && !l.paid
+      && managers.some(function(m){ return l.manager && l.manager.includes(m.split(' ')[0]); });
   });
   if (hotMgr) rows = rows.filter(function(l){ return l.manager === hotMgr; });
 
