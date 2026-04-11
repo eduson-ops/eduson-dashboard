@@ -422,6 +422,12 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     </div>
   </div>
 
+  <!-- Фильтр по менеджеру -->
+  <div class="dfilter" id="analytics-mgr-filter" style="margin-bottom:12px">
+    <span style="font-size:11px;color:var(--muted);font-weight:600">Менеджер:</span>
+    <button class="dfbtn active" onclick="setAnalyticsMgr('',this)">Все</button>
+  </div>
+
   <!-- МК аналитика -->
   <div id="analytics-mk">
     <div class="panel" style="margin-bottom:10px">
@@ -707,6 +713,7 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 let lessons=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
 let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
+let analyticsMgr='';
 
 // ═══════════════════════════════════════
 // HELPERS
@@ -1064,6 +1071,7 @@ async function loadAll() {
   }
 
   renderMain();
+  buildAnalyticsMgrFilter();
   renderAnalytics();
   renderManagers();
   renderSchedule();
@@ -1358,8 +1366,33 @@ function switchAnalyticsTab(tab, btn) {
   if(tab==='cancels') renderCancels();
 }
 
+function visibleAnalytics() {
+  var data=visible();
+  if(analyticsMgr) data=data.filter(r=>r.manager===analyticsMgr);
+  return data;
+}
+
+function setAnalyticsMgr(mgr, btn) {
+  analyticsMgr = mgr;
+  document.querySelectorAll('#analytics-mgr-filter .dfbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderAnalytics();
+  renderCancels();
+}
+
+function buildAnalyticsMgrFilter() {
+  var wrap = document.getElementById('analytics-mgr-filter');
+  if(!wrap) return;
+  // Rebuild — keep "Все" button, replace rest
+  wrap.innerHTML='<span style="font-size:11px;color:var(--muted);font-weight:600">Менеджер:</span>'
+    +'<button class="dfbtn'+(analyticsMgr===''?' active':'')+'" onclick="setAnalyticsMgr(\'\',this)">Все</button>'
+    +managers.map(m=>'<button class="dfbtn'+(analyticsMgr===m?' active':'')+'" onclick="setAnalyticsMgr(\''+m.replace(/'/g,"\\'")
+    +'\',this)">'+m.split(' ').slice(0,1).join(' ')+'</button>').join('');
+}
+
 function visibleCancels() {
   var data=cancelsList;
+  if(analyticsMgr) data=data.filter(r=>r.manager===analyticsMgr);
   if(dfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
     var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
@@ -1460,7 +1493,7 @@ function renderCancels() {
 }
 
 function renderAnalytics() {
-  var data=visible(),c=gc();
+  var data=visibleAnalytics(),c=gc();
 
   // ── 1. Воронка ──
   var fSlots=allSlots.filter(s=>{
