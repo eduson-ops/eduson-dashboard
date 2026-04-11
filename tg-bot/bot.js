@@ -127,7 +127,7 @@ async function getManagers() {
 const mainKeyboard = Markup.keyboard([
   ['📊 Вчера', '📅 Сегодня'],
   ['📈 Неделя', '🎯 План'],
-  ['🗓 Расписание сегодня'],
+  ['🗓 Сегодня', '🗓 Завтра'],
   ['❌ Отмены', '⚠️ Алерт'],
 ]).resize();
 
@@ -509,7 +509,7 @@ async function handleCancels(ctx) {
 bot.command(['cancels', 'otmeny'], handleCancels);
 bot.hears(/^(❌ Отмены|\/отмены)/i, handleCancels);
 
-// 🗓 Расписание
+// 🗓 Расписание сегодня
 async function handleSchedule(ctx) {
   const wait = await ctx.reply('⏳ Загружаю...');
   try {
@@ -519,7 +519,20 @@ async function handleSchedule(ctx) {
   } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
 }
 bot.command(['schedule', 'rasp'], handleSchedule);
-bot.hears(/^(🗓 Расписание сегодня|\/расписание)/i, handleSchedule);
+bot.hears(/^(🗓 Сегодня|\/расписание)/i, handleSchedule);
+
+// 🗓 Расписание завтра
+async function handleTomorrow(ctx) {
+  const wait = await ctx.reply('⏳ Загружаю...');
+  try {
+    const tom = fmtDate(new Date(Date.now() + 86400000));
+    const msg = await buildScheduleToday(tom);
+    await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
+    reply(ctx, msg);
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
+}
+bot.command(['tomorrow', 'zavtra'], handleTomorrow);
+bot.hears(/^(🗓 Завтра|\/завтра)/i, handleTomorrow);
 
 // ⚠️ Алерт
 async function handleAlert(ctx) {
@@ -537,6 +550,54 @@ async function handleAlert(ctx) {
 }
 bot.command(['alert'], handleAlert);
 bot.hears(/^(⚠️ Алерт|\/алерт)/i, handleAlert);
+
+// ═══════════════════════════════════════
+// PAYMENT POLLING STATE
+// ═══════════════════════════════════════
+let lastSeenPaymentTs = null;
+
+async function checkNewPayments() {
+  const rows = await fetchSheet('payments');
+  if (!rows.length) return;
+
+  // Берём timestamp последней строки (col 0)
+  const latest = cc(rows[rows.length - 1][0]);
+  if (!latest) return;
+
+  // Первый запуск — просто запоминаем, не алертим
+  if (lastSeenPaymentTs === null) {
+    lastSeenPaymentTs = latest;
+    console.log('[payments] Инициализация, последняя оплата:', latest);
+    return;
+  }
+
+  if (latest === lastSeenPaymentTs) return; // ничего нового
+
+  // Найти все новые строки после lastSeenPaymentTs
+  const lastIdx = rows.findIndex(r => cc(r[0]) === lastSeenPaymentTs);
+  const newRows  = lastIdx >= 0 ? rows.slice(lastIdx + 1) : rows.slice(-3);
+
+  for (const r of newRows) {
+    const mgr     = cc(r[1]) || '—';
+    const crm     = cc(r[2]) || '—';
+    const pack    = cc(r[5]) || cc(r[4]) || '—';
+    const paytype = cc(r[6]) || '—';
+    const rev     = parseFloat(cc(r[7]).replace(/[^\d.]/g, '') || 0);
+
+    const msg =
+      `💰 *Новая оплата!*\n\n` +
+      `👤 ${mgr}\n` +
+      `🔗 AMO: ${crm}\n` +
+      `💵 Сумма: *${fmtNum(rev)} ₽*\n` +
+      `📦 Пакет: ${pack}\n` +
+      `💳 Тип: ${paytype}`;
+
+    bot.telegram.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
+    console.log('[payments] Новая оплата:', mgr, rev);
+  }
+
+  lastSeenPaymentTs = latest;
+}
 
 // ═══════════════════════════════════════
 // CRON — автоматические сообщения
@@ -584,10 +645,18 @@ if (CHAT_ID) {
     }
   }, { timezone: 'Europe/Moscow' });
 
+  // Polling новых оплат — каждые 10 минут
+  checkNewPayments(); // инициализация при старте
+  cron.schedule('*/10 * * * *', async () => {
+    try { await checkNewPayments(); }
+    catch (e) { console.error('[payments] Ошибка polling:', e.message); }
+  });
+
   console.log('⏰ Cron задачи запущены (МСК):');
   console.log('   Сводка:    пн–пт 9:00');
   console.log('   Алерт:     пн–пт 19:30');
   console.log('   Неделя:    пт 18:00');
+  console.log('   Оплаты:    каждые 10 мин');
 } else {
   console.log('⚠️  CHAT_ID не задан — автосообщения отключены');
 }
