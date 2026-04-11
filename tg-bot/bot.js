@@ -554,28 +554,23 @@ bot.hears(/^(⚠️ Алерт|\/алерт)/i, handleAlert);
 // ═══════════════════════════════════════
 // PAYMENT POLLING STATE
 // ═══════════════════════════════════════
-let lastSeenPaymentTs = null;
+let lastPaymentCount = null;
 
 async function checkNewPayments() {
   const rows = await fetchSheet('payments');
-  if (!rows.length) return;
+  const count = rows.length;
 
-  // Берём timestamp последней строки (col 0)
-  const latest = cc(rows[rows.length - 1][0]);
-  if (!latest) return;
-
-  // Первый запуск — просто запоминаем, не алертим
-  if (lastSeenPaymentTs === null) {
-    lastSeenPaymentTs = latest;
-    console.log('[payments] Инициализация, последняя оплата:', latest);
+  // Первый запуск — запоминаем сколько строк сейчас
+  if (lastPaymentCount === null) {
+    lastPaymentCount = count;
+    console.log(`[payments] Инициализация: ${count} строк`);
     return;
   }
 
-  if (latest === lastSeenPaymentTs) return; // ничего нового
+  if (count <= lastPaymentCount) return; // ничего нового
 
-  // Найти все новые строки после lastSeenPaymentTs
-  const lastIdx = rows.findIndex(r => cc(r[0]) === lastSeenPaymentTs);
-  const newRows  = lastIdx >= 0 ? rows.slice(lastIdx + 1) : rows.slice(-3);
+  const newRows = rows.slice(lastPaymentCount);
+  console.log(`[payments] Новых строк: ${newRows.length}`);
 
   for (const r of newRows) {
     const mgr     = cc(r[1]) || '—';
@@ -592,11 +587,11 @@ async function checkNewPayments() {
       `📦 Пакет: ${pack}\n` +
       `💳 Тип: ${paytype}`;
 
-    bot.telegram.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
-    console.log('[payments] Новая оплата:', mgr, rev);
+    await bot.telegram.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
+    console.log(`[payments] Алерт отправлен: ${mgr} ${fmtNum(rev)} ₽`);
   }
 
-  lastSeenPaymentTs = latest;
+  lastPaymentCount = count;
 }
 
 // ═══════════════════════════════════════
