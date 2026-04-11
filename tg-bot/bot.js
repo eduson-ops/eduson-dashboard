@@ -253,27 +253,42 @@ async function buildWeeklySummary() {
   return msg;
 }
 
-async function buildCancels(limit = 15) {
-  const rows = await fetchSheet('cancels');
-  // 0=ts, 1=crm, 2=reason, 3=is_first, 4=contact, 5=age, 6=comment, 7=manager
+async function buildCancels(dateStr) {
+  const [slotRows, mkRows, cancelRows] = await Promise.all([
+    fetchSheet('slots'),
+    fetchSheet('form'),
+    fetchSheet('cancels'),
+  ]);
+  // cancels: 0=ts, 1=crm, 2=reason, 3=is_first, 4=contact, 5=age, 6=comment, 7=manager
 
-  const recent = rows.filter(r => cc(r[0])).slice(-limit).reverse();
+  // Записей сегодня (слоты)
+  let totalSlots = 0;
+  for (const r of slotRows) {
+    const col0 = cc(r[0]);
+    const isDate = col0 && !col0.match(/^\d{1,2}:\d{2}$/) && col0.length > 5;
+    const slotDate = isDate ? normDate(col0) : dateStr;
+    if (slotDate === dateStr) totalSlots++;
+  }
 
-  if (!recent.length) return '✅ Отмен нет';
+  // Успешных уроков (МК за сегодня)
+  const successful = mkRows.filter(r => normDate(cc(r[2])) === dateStr).length;
 
-  let msg = `❌ *Последние отмены* (${recent.length})\n\n`;
+  // Отмены за сегодня (по дате timestamp)
+  const todayCancels = cancelRows.filter(r => normDate(cc(r[0])) === dateStr);
 
-  for (const r of recent) {
-    const date    = normDate(cc(r[0])) || cc(r[0]);
-    const mgr     = cc(r[7]) || '—';
-    const reason  = cc(r[2]) || '—';
-    const isFirst = cc(r[3]);
-    const name    = mgr.split(' ')[0];
+  let msg = `📋 *Итог за ${dateStr}*\n\n`;
+  msg += `📅 Записей: *${totalSlots}*\n`;
+  msg += `✅ Успешных: *${successful}*\n`;
+  msg += `❌ Отмен: *${todayCancels.length}*\n`;
 
-    msg += `• *${date}* — ${name}\n`;
-    msg += `  Причина: ${reason}`;
-    if (isFirst) msg += ` · ${isFirst === 'Да' ? '1й МК' : 'повторный'}`;
-    msg += '\n';
+  if (todayCancels.length > 0) {
+    msg += `\n`;
+    for (const r of todayCancels) {
+      const crm  = cc(r[1]) || '—';
+      const mgr  = cc(r[7]) || '—';
+      const name = mgr.split(' ')[0];
+      msg += `• AMO: ${crm} — ${name}\n`;
+    }
   }
 
   return msg;
@@ -505,7 +520,7 @@ bot.hears(/^(🎯 План|\/план)/i, handlePlan);
 async function handleCancels(ctx) {
   const wait = await ctx.reply('⏳ Загружаю...');
   try {
-    const msg = await buildCancels(15);
+    const msg = await buildCancels(today());
     await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
     reply(ctx, msg);
   } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
