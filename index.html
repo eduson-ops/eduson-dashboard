@@ -977,6 +977,14 @@ async function loadAll() {
   }
   // Сохраняем для отладочного виджета
   window._payUnmatched = payOnlyFinal;
+  window._mkList = mkList;
+  // Для диагностики: CRM IDs из обеих форм
+  window._mkCrmIds = mkList.map(function(l){return {manager:l.manager,crmId:l.crmId,crm:l.crm};});
+  window._payCrmIds = (rawPayments||[]).slice(1).filter(function(r){return cc(r[1]);}).map(function(r){
+    var u=cc(r[2]); return {manager:cc(r[1]),crmId:extractCrmId(u),crm:u};
+  });
+  console.table(window._mkCrmIds.filter(function(x){return x.crmId;}));
+  console.log('Unmatched pay crmIds:', payOnlyFinal.map(function(p){return p.crmId;}));
 
   lessons = mkList;
 
@@ -1190,22 +1198,48 @@ function renderMain() {
   var body = document.getElementById('pay-alert-body');
   if(body){
     if(unmatched.length){
+      // Таблица нематченных оплат
       var rows = unmatched.map(function(p){
         return '<tr>'
           +'<td style="padding:5px 8px;border-bottom:1px solid var(--border)">'+p.manager+'</td>'
           +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px">'+p.crmId+'</td>'
           +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--r)">'+fmt(p.rev)+' ₽</td>'
-          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
-          +(p.crm?'<a href="'+p.crm+'" target="_blank" style="color:var(--b);text-decoration:none">открыть сделку ↗</a>':'—')
+          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted)">'
+          +(p.crm?'<a href="'+p.crm+'" target="_blank" style="color:var(--b);text-decoration:none">сделка ↗</a>':'—')
           +'</td></tr>';
       }).join('');
-      body.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:12px">'
         +'<thead><tr style="font-size:10px;color:var(--muted)">'
         +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Менеджер</th>'
-        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">CRM ID</th>'
+        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">CRM ID оплаты</th>'
         +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Сумма</th>'
-        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Сделка</th>'
+        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">AMO</th>'
         +'</tr></thead><tbody>'+rows+'</tbody></table>';
+
+      // Диагностика: CRM IDs из МК формы для тех же менеджеров
+      var mgrs = unmatched.map(function(p){return p.manager;});
+      var mkIds = (window._mkCrmIds||[]).filter(function(x){return mgrs.indexOf(x.manager)>=0;});
+      if(mkIds.length){
+        html += '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border)">'
+          +'<div style="font-size:10px;color:var(--muted);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">CRM IDs из формы МК (те же менеджеры)</div>'
+          +'<table style="width:100%;border-collapse:collapse;font-size:11px">'
+          +'<thead><tr style="font-size:10px;color:var(--muted)">'
+          +'<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border)">Менеджер</th>'
+          +'<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border)">CRM ID в МК</th>'
+          +'<th style="text-align:left;padding:3px 8px;border-bottom:1px solid var(--border)">Статус</th>'
+          +'</tr></thead><tbody>'
+          +mkIds.map(function(x){
+            var inPay = unmatched.some(function(p){return p.crmId===x.crmId;});
+            return '<tr>'
+              +'<td style="padding:3px 8px;border-bottom:1px solid var(--border)">'+x.manager+'</td>'
+              +'<td style="padding:3px 8px;border-bottom:1px solid var(--border);font-family:var(--mono)">'+(x.crmId||'<span style="color:var(--r)">пусто</span>')+'</td>'
+              +'<td style="padding:3px 8px;border-bottom:1px solid var(--border)">'
+              +(inPay?'<span style="color:var(--r)">∉ форме МК</span>':'<span style="color:var(--g)">✓ привязан</span>')
+              +'</td></tr>';
+          }).join('')
+          +'</tbody></table></div>';
+      }
+      body.innerHTML = html;
     } else {
       body.innerHTML='<p style="font-size:12px;color:var(--g);text-align:center;padding:12px 0">Всё привязано ✓</p>';
     }
