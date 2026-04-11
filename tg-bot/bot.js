@@ -200,9 +200,14 @@ async function buildDailySummary(dateStr) {
   }
 
   // AI insight
+  const now = new Date();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysLeft    = daysInMonth - now.getDate();
   const insight = await getAIInsight('daily', {
     date: dateStr,
-    totalMK, totalPay, totalRev,
+    totalMK, totalPay, totalRev: Math.round(totalRev),
+    revLeft: Math.round(Math.max(0, 1885140 - totalRev)), // fallback target
+    daysLeft,
     managers: active.map(([mgr, s]) => ({ name: mgr.split(' ')[0], mk: s.mk, pays: s.pays, rev: Math.round(s.rev) })),
   });
   if (insight) msg += `\n🤖 _${insight}_`;
@@ -390,7 +395,7 @@ async function buildPlanProgress() {
 
   // AI insight
   const insight = await getAIInsight('plan', {
-    daysPassed, daysInMonth, daysLeft,
+    daysPassed, daysInMonth, daysLeft, timePct,
     totalMK, targetMK: targets.mk, mkPct,
     totalRev: Math.round(totalRev), targetRev: targets.rev, revPct,
   });
@@ -477,29 +482,43 @@ async function getAIInsight(type, data) {
   let prompt = '';
 
   if (type === 'daily') {
+    const needPerDay = data.daysLeft > 0 ? Math.round(data.revLeft / data.daysLeft) : 0;
     prompt =
-      `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
-      `Напиши 2-3 предложения — разбор дня. Без заголовков, живым языком. Отмечай лидеров и отстающих.\n\n` +
-      `Данные за ${data.date}:\n` +
-      `МК: ${data.totalMK}, оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽\n` +
-      `Менеджеры: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽`).join(' | ')}`;
+      `Ты жёсткий, конкретный РОП детской онлайн-школы Eduson Kids.\n` +
+      `Пиши как живой человек — коротко, без воды, с конкретными именами и цифрами.\n` +
+      `Формат: 2-3 коротких предложения. Никаких заголовков и списков.\n` +
+      `Обязательно: кто молодец (конкретно), кто отстаёт (конкретно), одно действие на сегодня.\n\n` +
+      `День: ${data.date}\n` +
+      `МК проведено: ${data.totalMK} | Оплат: ${data.totalPay} | Выручка: ${data.totalRev.toLocaleString('ru')} ₽\n` +
+      `До плана осталось: ${data.revLeft.toLocaleString('ru')} ₽, нужно ~${needPerDay.toLocaleString('ru')} ₽/день\n` +
+      `Менеджеры: ${data.managers.map(m => `${m.name} — ${m.mk} МК, ${m.pays} оплат, ${m.rev.toLocaleString('ru')} ₽`).join(' | ')}\n` +
+      `Если данных мало или все нули — скажи что день ещё идёт или выходной.`;
   }
 
   if (type === 'weekly') {
+    const convAvg = data.totalMK > 0 ? Math.round(data.totalPay / data.totalMK * 100) : 0;
     prompt =
-      `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
-      `Напиши 3-4 предложения — итог недели. Без заголовков, живым языком. Лидер, отстающий, один вывод.\n\n` +
-      `МК: ${data.totalMK}, оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽\n` +
-      `Менеджеры: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽, конв ${m.conv}%`).join(' | ')}`;
+      `Ты жёсткий, конкретный РОП детской онлайн-школы Eduson Kids.\n` +
+      `Напиши итог недели — 3 предложения, без заголовков, с именами и цифрами.\n` +
+      `Структура: 1) кто лучший и почему, 2) кто тянет вниз и что конкретно не так, 3) главный фокус на следующую неделю.\n\n` +
+      `Итог недели:\n` +
+      `МК: ${data.totalMK} | Оплат: ${data.totalPay} | Выручка: ${data.totalRev.toLocaleString('ru')} ₽ | Конверсия: ${convAvg}%\n` +
+      `Менеджеры (сортировка по выручке):\n` +
+      data.managers.map(m => `  ${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev.toLocaleString('ru')} ₽, конв ${m.conv}%`).join('\n');
   }
 
   if (type === 'plan') {
+    const dailyRevNeeded = data.daysLeft > 0 ? Math.round((data.targetRev - data.totalRev) / data.daysLeft) : 0;
+    const dailyMkNeeded  = data.daysLeft > 0 ? ((data.targetMK - data.totalMK) / data.daysLeft).toFixed(1) : 0;
+    const behindSchedule = data.revPct < data.timePct;
     prompt =
-      `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
-      `Напиши 2 предложения: как идёт месяц и что нужно чтобы выполнить план. Без заголовков.\n\n` +
-      `День ${data.daysPassed} из ${data.daysInMonth}, осталось ${data.daysLeft} дней.\n` +
-      `Выручка: ${data.totalRev} ₽ из ${data.targetRev} ₽ (${data.revPct}%).\n` +
-      `МК: ${data.totalMK} из ${data.targetMK} (${data.mkPct}%).`;
+      `Ты жёсткий, конкретный РОП детской онлайн-школы Eduson Kids.\n` +
+      `Напиши 2 предложения про ход месяца — конкретно, без воды.\n` +
+      `Скажи отстаём или опережаем график, и одно чёткое действие.\n\n` +
+      `День ${data.daysPassed} из ${data.daysInMonth} (${data.timePct}% месяца прошло)\n` +
+      `Выручка: ${data.totalRev.toLocaleString('ru')} ₽ из ${data.targetRev.toLocaleString('ru')} ₽ — выполнено ${data.revPct}% ${behindSchedule ? '⚠️ ОТСТАЁМ' : '✅ ОПЕРЕЖАЕМ'}\n` +
+      `МК: ${data.totalMK} из ${data.targetMK} — ${data.mkPct}%\n` +
+      `Чтобы закрыть план нужно: ${dailyRevNeeded.toLocaleString('ru')} ₽/день и ${dailyMkNeeded} МК/день до конца месяца.`;
   }
 
   try {
