@@ -1,0 +1,16 @@
+{
+  "name": "eduson-tg-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for Eduson Kids sales dashboard",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "node --watch bot.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "telegraf": "^4.16.3"
+  }
+}
