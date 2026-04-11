@@ -126,6 +126,7 @@ async function getManagers() {
 const mainKeyboard = Markup.keyboard([
   ['📊 Вчера', '📅 Сегодня'],
   ['📈 Неделя', '🎯 План'],
+  ['🗓 Расписание сегодня'],
   ['❌ Отмены', '⚠️ Алерт'],
 ]).resize();
 
@@ -345,6 +346,47 @@ async function buildPlanProgress() {
   return msg;
 }
 
+async function buildScheduleToday(dateStr) {
+  const rows = await fetchSheet('slots');
+  // Cols: Date, Time, Manager, Status  (или Time, Manager, Status — старый формат)
+  const now = new Date();
+
+  const slots = [];
+  for (const r of rows) {
+    const col0 = cc(r[0]), col1 = cc(r[1]), col2 = cc(r[2]), col3 = cc(r[3] || '');
+    const isDate = col0 && !col0.match(/^\d{1,2}:\d{2}$/) && col0.length > 5;
+    const slotDate = isDate ? normDate(col0) : dateStr;
+    const time     = isDate ? col1 : col0;
+    const who      = isDate ? col2 : col1;
+    if (!time || !who) continue;
+    if (slotDate !== dateStr) continue;
+
+    // Статус по времени
+    const [hh, mm] = time.split(':').map(Number);
+    const start = new Date(now); start.setHours(hh, mm, 0, 0);
+    const end   = new Date(start.getTime() + 3600000);
+    let status;
+    if (end < now)             status = 'done';
+    else if (start <= now)     status = 'live';
+    else                       status = 'wait';
+
+    slots.push({ time, who, status });
+  }
+
+  if (!slots.length) return `📅 *Записи на ${dateStr}*\n\n_Слоты не найдены_`;
+
+  slots.sort((a, b) => a.time.localeCompare(b.time));
+
+  const icons = { done: '✅', live: '🔴', wait: '⏳' };
+  let msg = `📅 *Записи на ${dateStr}*\n\n`;
+  for (const s of slots) {
+    const name = s.who.split(' ')[0];
+    msg += `${icons[s.status]} \`${s.time}\` — ${name}\n`;
+  }
+  msg += `\nВсего: *${slots.length}* слотов`;
+  return msg;
+}
+
 async function buildMissingAlert(dateStr) {
   const [mkRows, managers] = await Promise.all([
     fetchSheet('form'),
@@ -455,6 +497,18 @@ async function handleCancels(ctx) {
 bot.command(['cancels', 'otmeny'], handleCancels);
 bot.hears(/^(❌ Отмены|\/отмены)/i, handleCancels);
 
+// 🗓 Расписание
+async function handleSchedule(ctx) {
+  const wait = await ctx.reply('⏳ Загружаю...');
+  try {
+    const msg = await buildScheduleToday(today());
+    await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
+    reply(ctx, msg);
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
+}
+bot.command(['schedule', 'rasp'], handleSchedule);
+bot.hears(/^(🗓 Расписание сегодня|\/расписание)/i, handleSchedule);
+
 // ⚠️ Алерт
 async function handleAlert(ctx) {
   const date = today();
@@ -480,12 +534,14 @@ if (CHAT_ID) {
   cron.schedule('0 9 * * 1-5', async () => {
     console.log('[cron] Утренняя сводка...');
     try {
-      const [svod, plan] = await Promise.all([
+      const [svod, plan, sched] = await Promise.all([
         buildDailySummary(yesterday()),
         buildPlanProgress(),
+        buildScheduleToday(today()),
       ]);
-      bot.telegram.sendMessage(CHAT_ID, svod, { parse_mode: 'Markdown' });
-      bot.telegram.sendMessage(CHAT_ID, plan, { parse_mode: 'Markdown' });
+      bot.telegram.sendMessage(CHAT_ID, svod,  { parse_mode: 'Markdown' });
+      bot.telegram.sendMessage(CHAT_ID, plan,  { parse_mode: 'Markdown' });
+      bot.telegram.sendMessage(CHAT_ID, sched, { parse_mode: 'Markdown' });
     } catch (e) {
       bot.telegram.sendMessage(CHAT_ID, '❌ Ошибка автосводки: ' + e.message);
     }
