@@ -138,6 +138,7 @@ const mainKeyboard = Markup.keyboard([
   ['📈 Неделя', '🎯 План'],
   ['🗓 Сегодня', '🗓 Завтра'],
   ['❌ Отмены', '⚠️ Алерт'],
+  ['💬 Спросить'],
 ]).resize();
 
 // ═══════════════════════════════════════
@@ -474,6 +475,83 @@ async function buildMissingAlert(dateStr) {
 }
 
 // ═══════════════════════════════════════
+// DATA CONTEXT FOR Q&A
+// ═══════════════════════════════════════
+async function buildDataContext() {
+  const [mkRows, payRows, cancelRows, tarRows] = await Promise.all([
+    fetchSheet('form'),
+    fetchSheet('payments'),
+    fetchSheet('cancels'),
+    fetchSheet('targets'),
+  ]);
+
+  // Таргеты текущего месяца
+  const now = new Date();
+  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const curMonth = monthNames[now.getMonth()];
+  let targets = { mk: 52, rev: 1885140 };
+  for (const r of tarRows) {
+    if (cc(r[0]).includes(curMonth)) {
+      targets = { mk: parseInt(cc(r[1])) || 52, rev: parseInt(cc(r[2]).replace(/[^\d]/g,'')) || 1885140 };
+      break;
+    }
+  }
+
+  // МК — последние 60 дней
+  const mkLines = mkRows
+    .filter(r => cc(r[1]) && cc(r[2]))
+    .slice(-300)
+    .map(r => `МК: дата=${normDate(cc(r[2]))} менеджер=${cc(r[1])} согласие=${cc(r[10])||'нет'}`);
+
+  // Оплаты — последние 60 дней
+  const payLines = payRows
+    .filter(r => cc(r[1]) && cc(r[3]))
+    .slice(-200)
+    .map(r => `Оплата: дата=${normDate(cc(r[3]))} менеджер=${cc(r[1])} сумма=${cc(r[7])} пакет=${cc(r[5])||cc(r[4])}`);
+
+  // Отмены — последние 60 дней
+  const cancelLines = cancelRows
+    .filter(r => cc(r[0]))
+    .slice(-100)
+    .map(r => `Отмена: дата=${normDate(cc(r[0]))} менеджер=${cc(r[7])||'?'} причина=${cc(r[2])} amо=${cc(r[1])}`);
+
+  return (
+    `Данные школы Eduson Kids (все даты в формате ДД.ММ.ГГГГ).\n` +
+    `Плановые цели на ${curMonth}: МК=${targets.mk}, выручка=${targets.rev} ₽\n\n` +
+    `=== МК (${mkLines.length} записей) ===\n${mkLines.join('\n')}\n\n` +
+    `=== Оплаты (${payLines.length} записей) ===\n${payLines.join('\n')}\n\n` +
+    `=== Отмены (${cancelLines.length} записей) ===\n${cancelLines.join('\n')}`
+  );
+}
+
+async function askDashboard(question) {
+  if (!GROQ_KEY) return '❌ GROQ_API_KEY не задан — AI недоступен.';
+  const context = await buildDataContext();
+
+  const prompt =
+    `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
+    `Отвечай на русском, конкретно, с цифрами из данных. Без лишней воды.\n` +
+    `Если данных для ответа нет — так и скажи.\n\n` +
+    `=== ДАННЫЕ ===\n${context}\n\n` +
+    `=== ВОПРОС ===\n${question}`;
+
+  const res = await axios.post(
+    'https://api.groq.com/openai/v1/chat/completions',
+    {
+      model: 'llama-3.3-70b-versatile', // более умная модель для Q&A
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 400,
+      temperature: 0.3,
+    },
+    {
+      headers: { Authorization: `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
+      timeout: 20000,
+    }
+  );
+  return res.data.choices[0].message.content.trim();
+}
+
+// ═══════════════════════════════════════
 // AI INSIGHT
 // ═══════════════════════════════════════
 async function getAIInsight(type, data) {
@@ -720,6 +798,36 @@ async function checkNewPayments() {
 
   lastPaymentCount = count;
 }
+
+// 💬 Кнопка "Спросить" — показывает подсказку
+bot.hears('💬 Спросить', ctx => {
+  ctx.reply(
+    '💬 Просто напиши вопрос — я загружу данные и отвечу.\n\n' +
+    'Например:\n' +
+    '• Как у нас дела по отменам на первой неделе апреля?\n' +
+    '• Кто лучший менеджер за март?\n' +
+    '• Сколько МК провёл Папашвили на этой неделе?\n' +
+    '• Почему падает конверсия?'
+  );
+});
+
+// 💬 Свободный вопрос — любой текст не из кнопок
+bot.on('text', async ctx => {
+  const text = ctx.message.text.trim();
+  // Пропускаем команды и кнопки клавиатуры
+  if (text.startsWith('/')) return;
+  const buttons = ['📊 Вчера','📅 Сегодня','📈 Неделя','🎯 План','🗓 Сегодня','🗓 Завтра','❌ Отмены','⚠️ Алерт','💬 Спросить'];
+  if (buttons.includes(text)) return;
+
+  const wait = await ctx.reply('🤔 Анализирую данные...');
+  try {
+    const answer = await askDashboard(text);
+    await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
+    ctx.reply(`💬 ${answer}`, mainKeyboard);
+  } catch (e) {
+    ctx.reply('❌ Ошибка: ' + e.message);
+  }
+});
 
 // ═══════════════════════════════════════
 // CRON — автоматические сообщения
