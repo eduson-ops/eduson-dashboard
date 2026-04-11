@@ -924,6 +924,21 @@ async function loadAll() {
         if(mkUrl.includes(pay.crmId)){ fuzzyMk = mkMap[id]; break; }
       }
     }
+    // Попытка 3: МК от того же менеджера, без CRM ID, ещё не оплачен, дата ± 14 дней
+    if(!fuzzyMk && pay.manager){
+      var payD = parseDate(normDate(pay.paydate || pay.ts));
+      var candidates = mkList.filter(function(l){
+        if(l.paid || l.manager !== pay.manager || l.crmId) return false;
+        if(!payD) return true; // нет даты — берём любой неоплаченный от менеджера
+        var lesD = parseDate(normDate(l.date));
+        return !lesD || Math.abs(lesD - payD) / 86400000 <= 14;
+      });
+      if(candidates.length === 1){
+        fuzzyMk = candidates[0];
+        // Обновляем mkMap чтобы будущие платежи не матчили тот же МК
+        if(pay.crmId) mkMap[pay.crmId] = fuzzyMk;
+      }
+    }
     if(fuzzyMk){
       // Нашли нечёткий матч — мёрджим оплату в найденный МК
       fuzzyMk.rev = pay.rev; fuzzyMk.paid = true;
