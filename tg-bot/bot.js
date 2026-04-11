@@ -2,18 +2,14 @@ require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const cron = require('node-cron');
 const axios = require('axios');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+// Groq — free LLM API (llama-3)
 
 // ═══════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════
 const BOT_TOKEN    = process.env.BOT_TOKEN;
 const CHAT_ID      = process.env.CHAT_ID;
-const GEMINI_KEY   = process.env.GEMINI_API_KEY;
-
-const gemini = GEMINI_KEY
-  ? new GoogleGenerativeAI(GEMINI_KEY).getGenerativeModel({ model: 'gemini-1.5-flash' })
-  : null;
+const GROQ_KEY = process.env.GROQ_API_KEY;
 
 if (!BOT_TOKEN) {
   console.error('❌ BOT_TOKEN не задан в .env');
@@ -476,46 +472,53 @@ async function buildMissingAlert(dateStr) {
 // AI INSIGHT
 // ═══════════════════════════════════════
 async function getAIInsight(type, data) {
-  if (!gemini) return null;
+  if (!GROQ_KEY) return null;
+
+  let prompt = '';
+
+  if (type === 'daily') {
+    prompt =
+      `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
+      `Напиши 2-3 предложения — разбор дня. Без заголовков, живым языком. Отмечай лидеров и отстающих.\n\n` +
+      `Данные за ${data.date}:\n` +
+      `МК: ${data.totalMK}, оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽\n` +
+      `Менеджеры: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽`).join(' | ')}`;
+  }
+
+  if (type === 'weekly') {
+    prompt =
+      `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
+      `Напиши 3-4 предложения — итог недели. Без заголовков, живым языком. Лидер, отстающий, один вывод.\n\n` +
+      `МК: ${data.totalMK}, оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽\n` +
+      `Менеджеры: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽, конв ${m.conv}%`).join(' | ')}`;
+  }
+
+  if (type === 'plan') {
+    prompt =
+      `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.\n` +
+      `Напиши 2 предложения: как идёт месяц и что нужно чтобы выполнить план. Без заголовков.\n\n` +
+      `День ${data.daysPassed} из ${data.daysInMonth}, осталось ${data.daysLeft} дней.\n` +
+      `Выручка: ${data.totalRev} ₽ из ${data.targetRev} ₽ (${data.revPct}%).\n` +
+      `МК: ${data.totalMK} из ${data.targetMK} (${data.mkPct}%).`;
+  }
+
   try {
-    let prompt = '';
-
-    if (type === 'daily') {
-      prompt = `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.
-Напиши короткий (2-3 предложения) разбор дня на русском языке.
-Без заголовков, без списков — только живой текст. Будь конкретным, отмечай лидеров и отстающих.
-
-Данные за ${data.date}:
-- Всего МК: ${data.totalMK}
-- Оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽
-- По менеджерам: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽`).join(' | ')}`;
-    }
-
-    if (type === 'weekly') {
-      prompt = `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.
-Напиши короткий (3-4 предложения) итог недели на русском языке.
-Без заголовков — только живой текст. Отметь лидера, отстающего, и один конкретный вывод.
-
-Данные за неделю:
-- Всего МК: ${data.totalMK}, оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽
-- По менеджерам: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽, конв ${m.conv}%`).join(' | ')}`;
-    }
-
-    if (type === 'plan') {
-      prompt = `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.
-Напиши 2 предложения на русском: как идёт месяц и что нужно сделать чтобы выполнить план.
-Без заголовков, конкретно и по делу.
-
-День ${data.daysPassed} из ${data.daysInMonth}.
-Выручка: ${data.totalRev} ₽ из ${data.targetRev} ₽ (${data.revPct}%).
-МК: ${data.totalMK} из ${data.targetMK} (${data.mkPct}%).
-Осталось дней: ${data.daysLeft}.`;
-    }
-
-    const result = await gemini.generateContent(prompt);
-    return result.response.text().trim();
+    const res = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.1-8b-instant',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 200,
+        temperature: 0.7,
+      },
+      {
+        headers: { Authorization: `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
+        timeout: 10000,
+      }
+    );
+    return res.data.choices[0].message.content.trim();
   } catch (e) {
-    console.error('[gemini] Ошибка:', e.message);
+    console.error('[groq] Ошибка:', e.response?.data || e.message);
     return null;
   }
 }
