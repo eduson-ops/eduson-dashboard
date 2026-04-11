@@ -400,6 +400,19 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
   </div>
 
   <div class="insight"><div class="pt" style="margin-bottom:8px">Что делать сейчас</div><div class="ilist" id="insights"></div></div>
+
+  <!-- ══ ГОРЯЩИЕ СЕГОДНЯ ══ -->
+  <div class="panel" style="margin-top:10px">
+    <div class="pt" style="margin-bottom:10px">
+      Горящие сегодня
+      <span class="ptb" id="hot-cnt">—</span>
+    </div>
+    <div class="dfilter" id="hot-mgr-filter" style="margin-bottom:10px">
+      <span style="font-size:11px;color:var(--muted);font-weight:600">Менеджер:</span>
+      <button class="dfbtn active" onclick="setHotMgr('',this)">Все</button>
+    </div>
+    <div id="hot-table"><div class="empty" style="padding:20px 0"><div class="empty-ic">⏳</div><div>Загрузка...</div></div></div>
+  </div>
 </div>
 
 <!-- ══ АНАЛИТИКА ══ -->
@@ -713,7 +726,7 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 let lessons=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
 let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
-let analyticsMgr='';
+let analyticsMgr='', hotMgr='';
 
 // ═══════════════════════════════════════
 // HELPERS
@@ -1071,6 +1084,8 @@ async function loadAll() {
   }
 
   renderMain();
+  buildHotMgrFilter();
+  renderHot();
   buildAnalyticsMgrFilter();
   renderAnalytics();
   renderManagers();
@@ -2132,6 +2147,96 @@ setInterval(function() { nextQuote(); }, 30000);
 // ═══════════════════════════════════════
 var savedTheme=localStorage.getItem('eks-theme')||'dark';
 document.documentElement.setAttribute('data-theme',savedTheme);
+// ═══════════════════════════════════════
+// ГОРЯЩИЕ СЕГОДНЯ
+// ═══════════════════════════════════════
+function classifyHot(lesson) {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var ld = parseDate(lesson.date);
+  var days = ld ? Math.floor((today - ld) / 86400000) : 0;
+  var agr = (lesson.agreement || '').toLowerCase();
+  var todayNum = today.getDate();
+
+  // СЕГОДНЯ: есть слово "сегодня" или число совпадает с сегодняшним днём
+  var isToday = agr.includes('сегодня')
+    || new RegExp('(?<![0-9])' + todayNum + '(?![0-9])').test(agr);
+
+  if (isToday) return {days, priority:0, label:'Сегодня', bg:'var(--r-bg)', color:'var(--r)'};
+  if (days <= 2) return {days, priority:1, label:'Горячий', bg:'rgba(245,158,11,.13)', color:'#f59e0b'};
+  if (days <= 5) return {days, priority:2, label:'Тёплый',  bg:'rgba(249,115,22,.13)', color:'#f97316'};
+  return              {days, priority:3, label:'Холодный', bg:'rgba(255,255,255,.05)', color:'var(--muted)'};
+}
+
+function renderHot() {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var rows = lessons.filter(function(l){
+    return l.objection !== 'Оплатили' && !l.paid;
+  });
+  if (hotMgr) rows = rows.filter(function(l){ return l.manager === hotMgr; });
+
+  rows = rows.map(function(l){ return Object.assign({}, l, {_h: classifyHot(l)}); })
+    .sort(function(a,b){ return a._h.priority - b._h.priority || a._h.days - b._h.days; });
+
+  var cntEl = document.getElementById('hot-cnt');
+  var el = document.getElementById('hot-table');
+  if (!cntEl || !el) return;
+
+  // Badge: СЕГОДНЯ красным если есть
+  var todayCnt = rows.filter(function(r){ return r._h.priority===0; }).length;
+  cntEl.textContent = rows.length;
+  cntEl.style.background = todayCnt ? 'var(--r-bg)' : '';
+  cntEl.style.color = todayCnt ? 'var(--r)' : '';
+
+  if (!rows.length) {
+    el.innerHTML = '<div class="empty" style="padding:20px 0"><div class="empty-ic">🎉</div><div>Нет горящих — все закрыты</div></div>';
+    return;
+  }
+
+  var statEmoji = {0:'🔴', 1:'🟡', 2:'🟠', 3:'⚪'};
+
+  el.innerHTML = '<div style="overflow-x:auto"><table class="tt" style="min-width:700px"><thead><tr>'
+    + '<th style="text-align:left">Менеджер</th>'
+    + '<th style="text-align:left">Курс / возраст</th>'
+    + '<th>Дней</th>'
+    + '<th style="text-align:left">Возражение</th>'
+    + '<th style="text-align:left">Договорённость</th>'
+    + '<th>Статус</th>'
+    + '<th></th>'
+    + '</tr></thead><tbody>'
+    + rows.map(function(l){
+        var h = l._h;
+        var agr = l.agreement ? (l.agreement.length > 60 ? l.agreement.slice(0,60)+'…' : l.agreement) : '—';
+        var obj = l.objection || '—';
+        return '<tr>'
+          + '<td style="text-align:left;white-space:nowrap">' + l.manager + '</td>'
+          + '<td style="text-align:left;white-space:nowrap">' + (l.practice||'—') + (l.age ? ' · ' + l.age : '') + '</td>'
+          + '<td style="color:' + h.color + ';font-weight:600">' + h.days + '</td>'
+          + '<td style="text-align:left"><span style="background:var(--bg3);border-radius:4px;padding:1px 7px;font-size:10px;white-space:nowrap">' + obj + '</span></td>'
+          + '<td style="text-align:left;color:var(--sub);font-size:11px">' + agr + '</td>'
+          + '<td style="white-space:nowrap"><span style="background:' + h.bg + ';color:' + h.color + ';border-radius:99px;padding:2px 9px;font-size:10px;font-weight:600">' + statEmoji[h.priority] + ' ' + h.label + '</span></td>'
+          + '<td>' + (l.crm ? '<a href="' + l.crm + '" target="_blank" style="color:var(--b);font-size:11px;font-weight:500;text-decoration:none;white-space:nowrap">→ AMO</a>' : '') + '</td>'
+          + '</tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+function setHotMgr(mgr, btn) {
+  hotMgr = mgr;
+  document.querySelectorAll('#hot-mgr-filter .dfbtn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  renderHot();
+}
+
+function buildHotMgrFilter() {
+  var wrap = document.getElementById('hot-mgr-filter');
+  if (!wrap) return;
+  wrap.innerHTML = '<span style="font-size:11px;color:var(--muted);font-weight:600">Менеджер:</span>'
+    + '<button class="dfbtn' + (hotMgr===''?' active':'') + '" onclick="setHotMgr(\'\',this)">Все</button>'
+    + managers.map(function(m){
+        return '<button class="dfbtn' + (hotMgr===m?' active':'') + '" onclick="setHotMgr(\'' + m.replace(/'/g,"\\'") + '\',this)">' + m.split(' ')[0] + '</button>';
+      }).join('');
+}
+
 function toggleTheme(){
   var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
   document.documentElement.setAttribute('data-theme',t);
