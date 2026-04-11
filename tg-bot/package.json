@@ -8,6 +8,7 @@
     "dev": "node --watch bot.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "axios": "^1.7.2",
     "dotenv": "^16.4.5",
     "node-cron": "^3.0.3",

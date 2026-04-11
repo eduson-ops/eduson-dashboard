@@ -2,12 +2,18 @@ require('dotenv').config();
 const { Telegraf, Markup } = require('telegraf');
 const cron = require('node-cron');
 const axios = require('axios');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // ═══════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const CHAT_ID   = process.env.CHAT_ID;
+const BOT_TOKEN    = process.env.BOT_TOKEN;
+const CHAT_ID      = process.env.CHAT_ID;
+const GEMINI_KEY   = process.env.GEMINI_API_KEY;
+
+const gemini = GEMINI_KEY
+  ? new GoogleGenerativeAI(GEMINI_KEY).getGenerativeModel({ model: 'gemini-1.5-flash' })
+  : null;
 
 if (!BOT_TOKEN) {
   console.error('❌ BOT_TOKEN не задан в .env');
@@ -189,13 +195,21 @@ async function buildDailySummary(dateStr) {
   }
 
   for (const [mgr, s] of active) {
-    const name = mgr.split(' ')[0]; // фамилия
+    const name = mgr.split(' ')[0];
     msg += `\n👤 *${name}*`;
     msg += `\n  МК: ${s.mk}`;
     if (s.agreed > 0) msg += ` · согл: ${s.agreed}`;
     if (s.pays > 0)   msg += `\n  Оплат: ${s.pays} · ${fmtNum(s.rev)} ₽`;
     msg += '\n';
   }
+
+  // AI insight
+  const insight = await getAIInsight('daily', {
+    date: dateStr,
+    totalMK, totalPay, totalRev,
+    managers: active.map(([mgr, s]) => ({ name: mgr.split(' ')[0], mk: s.mk, pays: s.pays, rev: Math.round(s.rev) })),
+  });
+  if (insight) msg += `\n🤖 _${insight}_`;
 
   return msg;
 }
@@ -252,6 +266,17 @@ async function buildWeeklySummary() {
     if (conv > 0) msg += ` · конв ${conv}%`;
     msg += '\n';
   }
+
+  // AI insight
+  const insight = await getAIInsight('weekly', {
+    totalMK: mkWeek.length, totalPay: payWeek.length,
+    totalRev: Math.round(Object.values(stats).reduce((s, v) => s + v.rev, 0)),
+    managers: sorted.map(([mgr, s]) => ({
+      name: mgr.split(' ')[0], mk: s.mk, pays: s.pays,
+      rev: Math.round(s.rev), conv: s.mk > 0 ? Math.round(s.pays / s.mk * 100) : 0,
+    })),
+  });
+  if (insight) msg += `\n🤖 _${insight}_`;
 
   return msg;
 }
@@ -366,6 +391,15 @@ async function buildPlanProgress() {
   msg += '\n';
 
   msg += `Оплат: *${totalPay}* · Конверсия: *${conv}%*`;
+
+  // AI insight
+  const insight = await getAIInsight('plan', {
+    daysPassed, daysInMonth, daysLeft,
+    totalMK, targetMK: targets.mk, mkPct,
+    totalRev: Math.round(totalRev), targetRev: targets.rev, revPct,
+  });
+  if (insight) msg += `\n\n🤖 _${insight}_`;
+
   return msg;
 }
 
@@ -436,6 +470,54 @@ async function buildMissingAlert(dateStr) {
   // Алерт только для тех у кого были слоты сегодня
   const missing = [...withSlots].filter(m => !submitted.has(m));
   return missing;
+}
+
+// ═══════════════════════════════════════
+// AI INSIGHT
+// ═══════════════════════════════════════
+async function getAIInsight(type, data) {
+  if (!gemini) return null;
+  try {
+    let prompt = '';
+
+    if (type === 'daily') {
+      prompt = `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.
+Напиши короткий (2-3 предложения) разбор дня на русском языке.
+Без заголовков, без списков — только живой текст. Будь конкретным, отмечай лидеров и отстающих.
+
+Данные за ${data.date}:
+- Всего МК: ${data.totalMK}
+- Оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽
+- По менеджерам: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽`).join(' | ')}`;
+    }
+
+    if (type === 'weekly') {
+      prompt = `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.
+Напиши короткий (3-4 предложения) итог недели на русском языке.
+Без заголовков — только живой текст. Отметь лидера, отстающего, и один конкретный вывод.
+
+Данные за неделю:
+- Всего МК: ${data.totalMK}, оплат: ${data.totalPay}, выручка: ${data.totalRev} ₽
+- По менеджерам: ${data.managers.map(m => `${m.name}: ${m.mk} МК, ${m.pays} оплат, ${m.rev} ₽, конв ${m.conv}%`).join(' | ')}`;
+    }
+
+    if (type === 'plan') {
+      prompt = `Ты аналитик отдела продаж детской онлайн-школы Eduson Kids.
+Напиши 2 предложения на русском: как идёт месяц и что нужно сделать чтобы выполнить план.
+Без заголовков, конкретно и по делу.
+
+День ${data.daysPassed} из ${data.daysInMonth}.
+Выручка: ${data.totalRev} ₽ из ${data.targetRev} ₽ (${data.revPct}%).
+МК: ${data.totalMK} из ${data.targetMK} (${data.mkPct}%).
+Осталось дней: ${data.daysLeft}.`;
+    }
+
+    const result = await gemini.generateContent(prompt);
+    return result.response.text().trim();
+  } catch (e) {
+    console.error('[gemini] Ошибка:', e.message);
+    return null;
+  }
 }
 
 // ═══════════════════════════════════════
