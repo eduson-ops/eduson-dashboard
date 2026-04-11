@@ -867,6 +867,7 @@ async function loadAll() {
     // Сценарий 2: оплата есть, МК отчёта нет → оплата на занятии
     if(!mkMap[crmId]){
       payOnlyList.push(pay);
+      console.warn('[pay-only] нет МК для crmId:', crmId, '| url:', crmUrl);
     }
   }
 
