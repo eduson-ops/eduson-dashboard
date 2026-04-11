@@ -25,6 +25,7 @@ const URLS = {
   cancels:  GVZ + '901678043',    // Отмены      — 0=ts,1=crm,2=reason,3=is_first,4=contact,5=age,6=comment,7=manager
   managers: GVZ + '1534781490',
   targets:  GVZ + '325926893',
+  slots:    GVZ + '1587702885',   // Слоты       — Date,Time,Manager,Status
 };
 
 const FALLBACK_MGRS = ['Перебейносов А.', 'Куюмджу Д.', 'Николаев Г.', 'Папашвили Д.', 'Федяинов Е.', 'Масимова Р.'];
