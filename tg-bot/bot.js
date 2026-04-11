@@ -389,10 +389,20 @@ async function buildScheduleToday(dateStr) {
 }
 
 async function buildMissingAlert(dateStr) {
-  const [mkRows, managers] = await Promise.all([
+  const [mkRows, slotRows] = await Promise.all([
     fetchSheet('form'),
-    getManagers(),
+    fetchSheet('slots'),
   ]);
+
+  // Кто имеет слоты сегодня
+  const withSlots = new Set();
+  for (const r of slotRows) {
+    const col0 = cc(r[0]), col1 = cc(r[1]), col2 = cc(r[2]);
+    const isDate = col0 && !col0.match(/^\d{1,2}:\d{2}$/) && col0.length > 5;
+    const slotDate = isDate ? normDate(col0) : dateStr;
+    const who      = isDate ? col2 : col1;
+    if (slotDate === dateStr && who) withSlots.add(who);
+  }
 
   // Кто внёс МК за этот день
   const submitted = new Set(
@@ -401,7 +411,8 @@ async function buildMissingAlert(dateStr) {
       .map(r => cc(r[1]))
   );
 
-  const missing = managers.filter(m => !submitted.has(m));
+  // Алерт только для тех у кого были слоты сегодня
+  const missing = [...withSlots].filter(m => !submitted.has(m));
   return missing;
 }
 
