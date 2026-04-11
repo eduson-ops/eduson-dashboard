@@ -325,6 +325,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
 <!-- ══ ГЛАВНАЯ ══ -->
 <div class="page active" id="page-main">
   <div class="alert"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px"><path d="M8 1.5L14.5 13.5H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".75" fill="currentColor"/></svg><span id="alert-text">Загрузка...</span></div>
+  <div id="pay-debug" style="display:none;background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--r)"></div>
 
   <div class="cdown">
     <div class="ring-wrap">
@@ -903,9 +904,43 @@ async function loadAll() {
     }
   }
 
-  // Сценарий 2: оплата на занятии (нет отчёта МК) → создаём виртуальный урок из оплаты
+  // Второй проход: fuzzy-матч для оставшихся payOnlyList
+  // Если crmId из оплаты содержится в URL МК (или наоборот) — считаем матчем
+  var payOnlyFinal = [];
   for(var j=0;j<payOnlyList.length;j++){
     var pay = payOnlyList[j];
+    var payUrl = pay.crm || '';
+    var fuzzyMk = null;
+    // Попытка 1: crmId МК содержится в URL оплаты
+    for(var id in mkMap){
+      if(id && id.length >= 5 && payUrl.includes(id)){
+        fuzzyMk = mkMap[id]; break;
+      }
+    }
+    // Попытка 2: crmId оплаты содержится в URL МК
+    if(!fuzzyMk && pay.crmId && pay.crmId.length >= 5){
+      for(var id in mkMap){
+        var mkUrl = mkMap[id].crm || '';
+        if(mkUrl.includes(pay.crmId)){ fuzzyMk = mkMap[id]; break; }
+      }
+    }
+    if(fuzzyMk){
+      // Нашли нечёткий матч — мёрджим оплату в найденный МК
+      fuzzyMk.rev = pay.rev; fuzzyMk.paid = true;
+      fuzzyMk.paytype = pay.paytype; fuzzyMk.paydate = pay.paydate;
+      fuzzyMk.pack = pay.pack || fuzzyMk.pack;
+      fuzzyMk.practice = pay.practice || fuzzyMk.practice;
+      fuzzyMk.scenario = 'pay_later';
+      console.info('[pay-fuzzy] matched:', pay.crmId, '→', fuzzyMk.crmId, pay.crm);
+    } else {
+      payOnlyFinal.push(pay);
+      console.warn('[pay-unmatched]', pay.manager, '| crmId:', pay.crmId, '| url:', pay.crm);
+    }
+  }
+
+  // Сценарий 2: только если реально нет МК (не нашли даже нечётко)
+  for(var j=0;j<payOnlyFinal.length;j++){
+    var pay = payOnlyFinal[j];
     mkList.push({
       ts:pay.ts,manager:pay.manager,date:pay.paydate,time:'',
       crm:pay.crm,crmId:pay.crmId,rec:'',practice:pay.practice,age:'',
@@ -913,6 +948,8 @@ async function loadAll() {
       rev:pay.rev,paid:true,paytype:pay.paytype,scenario:'pay_on_lesson'
     });
   }
+  // Сохраняем для отладочного виджета
+  window._payUnmatched = payOnlyFinal;
 
   lessons = mkList;
 
@@ -1117,6 +1154,29 @@ function renderMain() {
   renderRevChart(data);
   renderTeamChart(data);
   renderInsights(data,t);
+
+  // Debug: показываем оплаты без МК
+  var dbg = document.getElementById('pay-debug');
+  var unmatched = window._payUnmatched || [];
+  if(unmatched.length){
+    var rows = unmatched.map(function(p){
+      return '<tr><td style="padding:2px 6px">'+p.manager+'</td>'
+        +'<td style="padding:2px 6px;font-family:var(--mono)">'+p.crmId+'</td>'
+        +'<td style="padding:2px 6px;font-family:var(--mono)">'+fmt(p.rev)+' ₽</td>'
+        +'<td style="padding:2px 6px;color:var(--muted);font-size:10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.crm+'</td>'
+        +'</tr>';
+    }).join('');
+    dbg.innerHTML='<strong>⚠️ '+unmatched.length+' оплат не привязаны к МК</strong> — проверь ссылки AMO CRM:'
+      +'<table style="margin-top:6px;width:100%;border-collapse:collapse">'
+      +'<tr style="color:var(--muted);font-size:10px"><th style="text-align:left;padding:2px 6px">Менеджер</th>'
+      +'<th style="text-align:left;padding:2px 6px">CRM ID</th>'
+      +'<th style="text-align:left;padding:2px 6px">Сумма</th>'
+      +'<th style="text-align:left;padding:2px 6px">URL из формы оплаты</th></tr>'
+      +rows+'</table>';
+    dbg.style.display='block';
+  } else {
+    dbg.style.display='none';
+  }
 }
 
 function renderTeamTable(data,filter) {
