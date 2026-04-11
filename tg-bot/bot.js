@@ -106,7 +106,11 @@ function cc(s) {
 }
 
 async function fetchSheet(key) {
-  const res = await axios.get(URLS[key], { timeout: 12000 });
+  const url = `${URLS[key]}&t=${Date.now()}`; // cache-bust
+  const res = await axios.get(url, {
+    timeout: 12000,
+    headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+  });
   const rows = parseCSV(res.data);
   return rows.slice(1); // без заголовка
 }
@@ -567,6 +571,7 @@ async function checkNewPayments() {
     return;
   }
 
+  console.log(`[payments] Строк: ${count}, было: ${lastPaymentCount}`);
   if (count <= lastPaymentCount) return; // ничего нового
 
   const newRows = rows.slice(lastPaymentCount);
