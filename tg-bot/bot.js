@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Telegraf } = require('telegraf');
+const { Telegraf, Markup } = require('telegraf');
 const cron = require('node-cron');
 const axios = require('axios');
 
@@ -119,6 +119,15 @@ async function getManagers() {
     return FALLBACK_MGRS;
   }
 }
+
+// ═══════════════════════════════════════
+// KEYBOARD
+// ═══════════════════════════════════════
+const mainKeyboard = Markup.keyboard([
+  ['📊 Вчера', '📅 Сегодня'],
+  ['📈 Неделя', '🎯 План'],
+  ['❌ Отмены', '⚠️ Алерт'],
+]).resize();
 
 // ═══════════════════════════════════════
 // REPORT BUILDERS
@@ -264,6 +273,78 @@ async function buildCancels(limit = 15) {
   return msg;
 }
 
+async function buildPlanProgress() {
+  const now = new Date();
+  const monthNames = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  const currentMonth = monthNames[now.getMonth()];
+  const currentYear = now.getFullYear();
+
+  const [mkRows, payRows, tarRows] = await Promise.all([
+    fetchSheet('form'),
+    fetchSheet('payments'),
+    fetchSheet('targets'),
+  ]);
+
+  // Таргеты текущего месяца
+  let targets = { mk: 52, rev: 1885140, avg: 36000 };
+  for (const r of tarRows) {
+    const rm = cc(r[0]);
+    if (rm.includes(currentMonth) && rm.includes(String(currentYear))) {
+      targets = {
+        mk:  parseInt(cc(r[1])) || 52,
+        rev: parseInt(cc(r[2]).replace(/[^\d]/g, '')) || 1885140,
+        avg: parseInt(cc(r[3]).replace(/[^\d]/g, '')) || 36000,
+      };
+      break;
+    }
+  }
+
+  // Фильтр по текущему месяцу (даты в формате dd.MM.yyyy)
+  const monthSuffix = `${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
+  const mkMonth  = mkRows.filter(r => normDate(cc(r[2])).endsWith(monthSuffix));
+  const payMonth = payRows.filter(r => normDate(cc(r[3])).endsWith(monthSuffix));
+
+  const totalMK  = mkMonth.length;
+  const totalPay = payMonth.length;
+  const totalRev = payMonth.reduce((s, r) => s + parseFloat(cc(r[7]).replace(/[^\d.]/g, '') || 0), 0);
+
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysPassed  = now.getDate();
+  const daysLeft    = daysInMonth - daysPassed;
+  const timePct     = Math.round(daysPassed / daysInMonth * 100);
+  const revPct      = Math.min(999, Math.round(totalRev / targets.rev * 100));
+  const mkPct       = Math.min(999, Math.round(totalMK / targets.mk * 100));
+
+  const revLeft = Math.max(0, targets.rev - totalRev);
+  const mkLeft  = Math.max(0, targets.mk - totalMK);
+  const conv    = totalMK > 0 ? Math.round(totalPay / totalMK * 100) : 0;
+
+  function bar(pct) {
+    const filled = Math.min(10, Math.round(pct / 10));
+    return '▓'.repeat(filled) + '░'.repeat(10 - filled) + ` ${pct}%`;
+  }
+
+  let msg = `🎯 *План на ${currentMonth} ${currentYear}*\n`;
+  msg += `День ${daysPassed} из ${daysInMonth} (${timePct}% месяца)\n\n`;
+
+  msg += `💰 *Выручка*\n`;
+  msg += `${bar(revPct)}\n`;
+  msg += `${fmtNum(totalRev)} из ${fmtNum(targets.rev)} ₽\n`;
+  if (daysLeft > 0 && revLeft > 0) msg += `_нужно ~${fmtNum(revLeft / daysLeft)} ₽/день_\n`;
+  else if (revLeft <= 0) msg += `_✅ план выполнен!_\n`;
+  msg += '\n';
+
+  msg += `📋 *МК*\n`;
+  msg += `${bar(mkPct)}\n`;
+  msg += `${totalMK} из ${targets.mk}\n`;
+  if (daysLeft > 0 && mkLeft > 0) msg += `_нужно ~${(mkLeft / daysLeft).toFixed(1)} МК/день_\n`;
+  else if (mkLeft <= 0) msg += `_✅ план выполнен!_\n`;
+  msg += '\n';
+
+  msg += `Оплат: *${totalPay}* · Конверсия: *${conv}%*`;
+  return msg;
+}
+
 async function buildMissingAlert(dateStr) {
   const [mkRows, managers] = await Promise.all([
     fetchSheet('form'),
@@ -300,74 +381,81 @@ bot.command('chatid', ctx => {
 // /start
 bot.command('start', ctx => {
   ctx.reply(
-    '👋 Привет! Я бот дашборда Eduson Kids.\n\n' +
-    'Команды:\n' +
-    '/svod — МК и оплаты за вчера\n' +
-    '/week — итог последних 7 дней\n' +
-    '/cancels — последние отмены МК\n' +
-    '/alert — кто не внёс МК сегодня\n' +
-    '/help — этот список\n\n' +
-    'Работают и русские: /сводка /неделя /отмены /алерт'
+    '👋 Привет! Я бот дашборда Eduson Kids.\nНажимай кнопки внизу 👇',
+    mainKeyboard
   );
 });
 
 // /помощь
 bot.command(['help', 'помощь'], ctx => {
-  ctx.reply(
-    '📋 *Команды*\n\n' +
-    '/svod — МК и оплаты за вчера\n' +
-    '/week — итог за 7 дней\n' +
-    '/cancels — последние 15 отмен\n' +
-    '/alert — кто не внёс МК сегодня\n\n' +
-    'Русские варианты тоже работают:\n/сводка /неделя /отмены /алерт',
-    { parse_mode: 'Markdown' }
-  );
+  ctx.reply('📋 Используй кнопки внизу или команды:\n/svod /week /cancels /alert /plan', mainKeyboard);
 });
 
-// /svod + /сводка
+async function reply(ctx, msg) {
+  ctx.replyWithMarkdown(msg, mainKeyboard);
+}
+
+// 📊 Вчера
 async function handleSvod(ctx) {
-  const date = yesterday();
   const wait = await ctx.reply('⏳ Загружаю...');
   try {
-    const msg = await buildDailySummary(date);
+    const msg = await buildDailySummary(yesterday());
     await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
-    ctx.replyWithMarkdown(msg);
-  } catch (e) {
-    ctx.reply('❌ Ошибка: ' + e.message);
-  }
+    reply(ctx, msg);
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
 }
 bot.command(['svod', 'stats'], handleSvod);
-bot.hears(/^\/сводка/i, handleSvod);
+bot.hears(/^(📊 Вчера|\/сводка)/i, handleSvod);
 
-// /week + /неделя
+// 📅 Сегодня
+async function handleToday(ctx) {
+  const wait = await ctx.reply('⏳ Загружаю...');
+  try {
+    const msg = await buildDailySummary(today());
+    await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
+    reply(ctx, msg);
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
+}
+bot.command(['today', 'segodnya'], handleToday);
+bot.hears(/^(📅 Сегодня|\/сегодня)/i, handleToday);
+
+// 📈 Неделя
 async function handleWeek(ctx) {
   const wait = await ctx.reply('⏳ Загружаю...');
   try {
     const msg = await buildWeeklySummary();
     await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
-    ctx.replyWithMarkdown(msg);
-  } catch (e) {
-    ctx.reply('❌ Ошибка: ' + e.message);
-  }
+    reply(ctx, msg);
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
 }
 bot.command(['week', 'nedelya'], handleWeek);
-bot.hears(/^\/неделя/i, handleWeek);
+bot.hears(/^(📈 Неделя|\/неделя)/i, handleWeek);
 
-// /cancels + /отмены
+// 🎯 План
+async function handlePlan(ctx) {
+  const wait = await ctx.reply('⏳ Загружаю...');
+  try {
+    const msg = await buildPlanProgress();
+    await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
+    reply(ctx, msg);
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
+}
+bot.command(['plan'], handlePlan);
+bot.hears(/^(🎯 План|\/план)/i, handlePlan);
+
+// ❌ Отмены
 async function handleCancels(ctx) {
   const wait = await ctx.reply('⏳ Загружаю...');
   try {
     const msg = await buildCancels(15);
     await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
-    ctx.replyWithMarkdown(msg);
-  } catch (e) {
-    ctx.reply('❌ Ошибка: ' + e.message);
-  }
+    reply(ctx, msg);
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
 }
 bot.command(['cancels', 'otmeny'], handleCancels);
-bot.hears(/^\/отмены/i, handleCancels);
+bot.hears(/^(❌ Отмены|\/отмены)/i, handleCancels);
 
-// /alert + /алерт
+// ⚠️ Алерт
 async function handleAlert(ctx) {
   const date = today();
   const wait = await ctx.reply('⏳ Проверяю...');
@@ -375,27 +463,29 @@ async function handleAlert(ctx) {
     const missing = await buildMissingAlert(date);
     await ctx.telegram.deleteMessage(ctx.chat.id, wait.message_id).catch(() => {});
     if (!missing.length) {
-      ctx.reply('✅ Все менеджеры внесли МК сегодня');
+      ctx.reply('✅ Все менеджеры внесли МК сегодня', mainKeyboard);
     } else {
-      ctx.replyWithMarkdown(`⚠️ *Не внесли МК за ${date}:*\n${missing.map(m => `• ${m}`).join('\n')}`);
+      reply(ctx, `⚠️ *Не внесли МК за ${date}:*\n${missing.map(m => `• ${m}`).join('\n')}`);
     }
-  } catch (e) {
-    ctx.reply('❌ Ошибка: ' + e.message);
-  }
+  } catch (e) { ctx.reply('❌ Ошибка: ' + e.message); }
 }
 bot.command(['alert'], handleAlert);
-bot.hears(/^\/алерт/i, handleAlert);
+bot.hears(/^(⚠️ Алерт|\/алерт)/i, handleAlert);
 
 // ═══════════════════════════════════════
 // CRON — автоматические сообщения
 // ═══════════════════════════════════════
 if (CHAT_ID) {
-  // Утренняя сводка за вчера — 9:00 МСК (пн–пт)
+  // Утренняя сводка за вчера + прогресс плана — 9:00 МСК (пн–пт)
   cron.schedule('0 9 * * 1-5', async () => {
     console.log('[cron] Утренняя сводка...');
     try {
-      const msg = await buildDailySummary(yesterday());
-      bot.telegram.sendMessage(CHAT_ID, msg, { parse_mode: 'Markdown' });
+      const [svod, plan] = await Promise.all([
+        buildDailySummary(yesterday()),
+        buildPlanProgress(),
+      ]);
+      bot.telegram.sendMessage(CHAT_ID, svod, { parse_mode: 'Markdown' });
+      bot.telegram.sendMessage(CHAT_ID, plan, { parse_mode: 'Markdown' });
     } catch (e) {
       bot.telegram.sendMessage(CHAT_ID, '❌ Ошибка автосводки: ' + e.message);
     }
