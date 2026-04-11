@@ -319,14 +319,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <div class="upd" id="upd">—</div>
     <button class="nbtn" id="theme-btn" onclick="toggleTheme()" title="Сменить тему" style="font-size:15px;padding:4px 8px">🌙</button>
     <button class="nbtn" onclick="loadAll()">↻</button>
+    <button id="pay-alert-btn" onclick="openPayAlert()" title="Оплаты без МК" style="display:none;width:24px;height:24px;padding:0;border-radius:50%;background:var(--r);border:none;color:#fff;font-size:11px;font-weight:700;cursor:pointer;line-height:1;flex-shrink:0">!</button>
   </div>
 </nav>
+
+<!-- Попап: оплаты без МК -->
+<div id="pay-alert-overlay" onclick="closePayAlert()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:500;backdrop-filter:blur(2px)"></div>
+<div id="pay-alert-modal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:501;background:var(--bg2);border:1px solid var(--r-bd);border-radius:12px;padding:20px 22px;min-width:520px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.5)">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+    <span style="font-size:13px;font-weight:600;color:var(--r)">⚠ Оплаты не привязаны к МК</span>
+    <button onclick="closePayAlert()" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;padding:0 2px">&times;</button>
+  </div>
+  <p style="font-size:11px;color:var(--sub);margin-bottom:12px;line-height:1.5">Менеджер заполнил форму оплаты, но в форме МК не указана ссылка на CRM.<br>Попроси менеджера открыть форму МК и добавить ссылку на сделку в AMO.</p>
+  <div id="pay-alert-body"></div>
+</div>
 
 <!-- ══ ГЛАВНАЯ ══ -->
 <div class="page active" id="page-main">
   <div class="alert"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px"><path d="M8 1.5L14.5 13.5H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".75" fill="currentColor"/></svg><span id="alert-text">Загрузка...</span></div>
-  <div id="pay-debug" style="display:none;background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--r)"></div>
-
   <div class="cdown">
     <div class="ring-wrap">
       <svg viewBox="0 0 76 76">
@@ -1172,27 +1182,33 @@ function renderMain() {
   renderTeamChart(data);
   renderInsights(data,t);
 
-  // Debug: показываем оплаты без МК
-  var dbg = document.getElementById('pay-debug');
+  // ! кнопка: оплаты без МК
   var unmatched = window._payUnmatched || [];
-  if(unmatched.length){
-    var rows = unmatched.map(function(p){
-      return '<tr><td style="padding:2px 6px">'+p.manager+'</td>'
-        +'<td style="padding:2px 6px;font-family:var(--mono)">'+p.crmId+'</td>'
-        +'<td style="padding:2px 6px;font-family:var(--mono)">'+fmt(p.rev)+' ₽</td>'
-        +'<td style="padding:2px 6px;color:var(--muted);font-size:10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+p.crm+'</td>'
-        +'</tr>';
-    }).join('');
-    dbg.innerHTML='<strong>⚠️ '+unmatched.length+' оплат не привязаны к МК</strong> — проверь ссылки AMO CRM:'
-      +'<table style="margin-top:6px;width:100%;border-collapse:collapse">'
-      +'<tr style="color:var(--muted);font-size:10px"><th style="text-align:left;padding:2px 6px">Менеджер</th>'
-      +'<th style="text-align:left;padding:2px 6px">CRM ID</th>'
-      +'<th style="text-align:left;padding:2px 6px">Сумма</th>'
-      +'<th style="text-align:left;padding:2px 6px">URL из формы оплаты</th></tr>'
-      +rows+'</table>';
-    dbg.style.display='block';
-  } else {
-    dbg.style.display='none';
+  var btn = document.getElementById('pay-alert-btn');
+  if(btn) btn.style.display = unmatched.length ? 'inline-flex' : 'none';
+  // Заполняем содержимое попапа
+  var body = document.getElementById('pay-alert-body');
+  if(body){
+    if(unmatched.length){
+      var rows = unmatched.map(function(p){
+        return '<tr>'
+          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border)">'+p.manager+'</td>'
+          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px">'+p.crmId+'</td>'
+          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--r)">'+fmt(p.rev)+' ₽</td>'
+          +'<td style="padding:5px 8px;border-bottom:1px solid var(--border);font-size:10px;color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+          +(p.crm?'<a href="'+p.crm+'" target="_blank" style="color:var(--b);text-decoration:none">открыть сделку ↗</a>':'—')
+          +'</td></tr>';
+      }).join('');
+      body.innerHTML='<table style="width:100%;border-collapse:collapse;font-size:12px">'
+        +'<thead><tr style="font-size:10px;color:var(--muted)">'
+        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Менеджер</th>'
+        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">CRM ID</th>'
+        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Сумма</th>'
+        +'<th style="text-align:left;padding:4px 8px;border-bottom:1px solid var(--border)">Сделка</th>'
+        +'</tr></thead><tbody>'+rows+'</tbody></table>';
+    } else {
+      body.innerHTML='<p style="font-size:12px;color:var(--g);text-align:center;padding:12px 0">Всё привязано ✓</p>';
+    }
   }
 }
 
@@ -2126,6 +2142,16 @@ setInterval(function() { nextQuote(); }, 30000);
 // ═══════════════════════════════════════
 var savedTheme=localStorage.getItem('eks-theme')||'dark';
 document.documentElement.setAttribute('data-theme',savedTheme);
+function openPayAlert(){
+  document.getElementById('pay-alert-overlay').style.display='block';
+  document.getElementById('pay-alert-modal').style.display='block';
+}
+function closePayAlert(){
+  document.getElementById('pay-alert-overlay').style.display='none';
+  document.getElementById('pay-alert-modal').style.display='none';
+}
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closePayAlert();});
+
 function toggleTheme(){
   var t=document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark';
   document.documentElement.setAttribute('data-theme',t);
