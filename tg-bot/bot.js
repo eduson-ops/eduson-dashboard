@@ -559,24 +559,31 @@ async function askDashboard(question, history = []) {
     content: m.content,
   }));
 
-  const res = await axios.post(
-    'https://api.groq.com/openai/v1/chat/completions',
-    {
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...historyMessages,
-        { role: 'user', content: question },
-      ],
-      max_tokens: 180,
-      temperature: 0.3,
-    },
-    {
-      headers: { Authorization: `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
-      timeout: 20000,
+  try {
+    const res = await axios.post(
+      'https://api.groq.com/openai/v1/chat/completions',
+      {
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          ...historyMessages,
+          { role: 'user', content: question },
+        ],
+        max_tokens: 180,
+        temperature: 0.3,
+      },
+      {
+        headers: { Authorization: `Bearer ${GROQ_KEY}`, 'Content-Type': 'application/json' },
+        timeout: 20000,
+      }
+    );
+    return res.data.choices[0].message.content.trim();
+  } catch (err) {
+    if (err.response?.status === 429) {
+      return '⏳ Слишком много запросов — подожди 30 секунд и спроси снова.';
     }
-  );
-  return res.data.choices[0].message.content.trim();
+    throw err;
+  }
 }
 
 // ═══════════════════════════════════════
