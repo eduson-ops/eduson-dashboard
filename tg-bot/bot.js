@@ -538,28 +538,36 @@ async function buildDataContext() {
   );
 }
 
-async function askDashboard(question) {
+async function askDashboard(question, history = []) {
   if (!GROQ_KEY) return '❌ GROQ_API_KEY не задан — AI недоступен.';
   const context = await buildDataContext();
 
-  const prompt =
-    `Ты РОП Eduson Kids. Отвечаешь коротко — цифры из данных + вывод.\n\n` +
+  const systemPrompt =
+    `Ты РОП Eduson Kids. Отвечаешь коротко — цифры из данных + вывод.\n` +
     `ФОРМАТ:\n` +
     `• Фактический ("сколько", "кто"): 1-2 предложения, только цифра и контекст.\n` +
     `• Список (топ, причины): максимум 3 пункта через " · ", без нумерации, без пояснений в скобках.\n` +
     `• Аналитический ("как дела", "почему"): факт → отклонение → 1 действие.\n` +
-    `• Если список длинный (менеджеры с цифрами) — пиши компактно в одну строку: "Иванов 6 · Петров 4 · Сидоров 2".\n\n` +
-    `КРИТИЧЕСКИ ВАЖНО: план по МК и выручке берёшь ТОЛЬКО из строки "План на ..." в начале данных. Не придумывай цифры.\n` +
-    `ЗАПРЕЩЕНО: "Обратите внимание", оговорки, повтор вопроса, значения-плейсхолдеры из форм ("Другое (опиши...)").\n` +
-    `Данных нет — одно предложение.\n\n` +
-    `=== ДАННЫЕ ===\n${context}\n\n` +
-    `=== ВОПРОС ===\n${question}`;
+    `• Список с цифрами — компактно: "Иванов 6 · Петров 4 · Сидоров 2".\n` +
+    `КРИТИЧЕСКИ ВАЖНО: план берёшь ТОЛЬКО из строки "ПЛАН НА..." в данных.\n` +
+    `ЗАПРЕЩЕНО: оговорки, повтор вопроса, плейсхолдеры форм ("Другое (опиши...)").\n\n` +
+    `=== ДАННЫЕ ===\n${context}`;
+
+  // История диалога (последние 3 обмена = 6 сообщений)
+  const historyMessages = history.slice(-6).map(m => ({
+    role: m.role,
+    content: m.content,
+  }));
 
   const res = await axios.post(
     'https://api.groq.com/openai/v1/chat/completions',
     {
       model: 'llama-3.3-70b-versatile',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...historyMessages,
+        { role: 'user', content: question },
+      ],
       max_tokens: 180,
       temperature: 0.3,
     },
@@ -928,7 +936,7 @@ app.use((req, res, next) => {
 });
 
 app.post('/ask', async (req, res) => {
-  const { question } = req.body || {};
+  const { question, history } = req.body || {};
   if (!question || !question.trim()) {
     return res.status(400).json({ error: 'Вопрос не задан' });
   }
@@ -936,7 +944,7 @@ app.post('/ask', async (req, res) => {
     return res.status(503).json({ error: 'GROQ_API_KEY не настроен' });
   }
   try {
-    const answer = await askDashboard(question.trim());
+    const answer = await askDashboard(question.trim(), Array.isArray(history) ? history : []);
     res.json({ answer });
   } catch (e) {
     console.error('[/ask]', e.message);

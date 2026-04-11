@@ -362,7 +362,10 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
   <div class="mg">
     <div class="panel">
       <div class="pt">Рейтинг команды
-        <div class="sw"><span style="font-size:11px;color:var(--muted)">🔍</span><input type="text" id="search" placeholder="Поиск..." oninput="filterTeam(this.value)"></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button onclick="shareReport()" style="background:none;border:1px solid var(--border-s);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;white-space:nowrap" title="Скопировать сводку">📋 Поделиться</button>
+          <div class="sw"><span style="font-size:11px;color:var(--muted)">🔍</span><input type="text" id="search" placeholder="Поиск..." oninput="filterTeam(this.value)"></div>
+        </div>
       </div>
       <table class="tt"><thead><tr><th>Менеджер</th><th>МК</th><th>Оплат</th><th>Конв.</th><th>Выручка</th><th>₽/МК</th><th></th></tr></thead><tbody id="tbody"></tbody></table>
     </div>
@@ -2371,6 +2374,7 @@ function showCopyToast(name, empty) {
 <script>
 // ═══ CHAT CONFIG ═══
 var AI_URL = 'https://eduson-dashboard-production.up.railway.app/ask';
+var chatHistory = [];
 
 function toggleChat() {
   var chat = document.getElementById('ai-chat');
@@ -2411,11 +2415,15 @@ async function sendQuestion(e) {
     var res = await fetch(AI_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question: q })
+      body: JSON.stringify({ question: q, history: chatHistory.slice(-6) })
     });
     var data = await res.json();
-    typing.textContent = data.answer || data.error || 'Нет ответа';
+    var answer = data.answer || data.error || 'Нет ответа';
+    typing.textContent = answer;
     typing.classList.remove('typing');
+    chatHistory.push({ role: 'user', content: q });
+    chatHistory.push({ role: 'assistant', content: answer });
+    if (chatHistory.length > 12) chatHistory = chatHistory.slice(-12);
   } catch(err) {
     typing.textContent = '❌ Ошибка соединения с сервером';
     typing.classList.remove('typing');
@@ -2423,6 +2431,56 @@ async function sendQuestion(e) {
 
   btn.disabled = false;
   input.focus();
+}
+
+function shareReport() {
+  var data = visibleMain(), t = calcTotals(data);
+  var now = new Date();
+  var months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  var month = months[now.getMonth()] + ' ' + now.getFullYear();
+  var rp = targets.rev > 0 ? Math.round(t.rev / targets.rev * 100) : 0;
+  var mp = targets.mk > 0 ? Math.round(t.mk / targets.mk * 100) : 0;
+
+  var mgrs = {};
+  data.forEach(function(r){ if (!mgrs[r.manager]) mgrs[r.manager] = []; mgrs[r.manager].push(r); });
+  var sorted = Object.entries(mgrs)
+    .map(function(e){ var tt = calcTotals(e[1]); return { name: e[0], mk: tt.mk, rev: tt.rev, paid: tt.paid }; })
+    .sort(function(a, b){ return b.rev - a.rev; })
+    .slice(0, 5);
+
+  var lines = [
+    '📊 Eduson Kids — ' + month,
+    '',
+    '💰 Выручка: ' + fmt(t.rev) + ' ₽ (' + rp + '% плана)',
+    '🎯 МК: ' + t.mk + ' / ' + targets.mk + ' (' + mp + '%)',
+    '📈 Конверсия: ' + t.conv + '%',
+    '💳 Оплат: ' + t.paid,
+    '',
+    '👥 Команда:',
+  ];
+  sorted.forEach(function(r, i){
+    var badge = i === 0 ? '👑' : '•';
+    lines.push('  ' + badge + ' ' + r.name.split(' ')[0] + ' — ' + r.mk + ' МК · ' + fmt(r.rev) + ' ₽');
+  });
+
+  var text = lines.join('\n');
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function(){ shareToast(); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    shareToast();
+  }
+}
+function shareToast() {
+  var t = document.getElementById('copy-toast');
+  t.textContent = '✓ Сводка скопирована';
+  t.classList.add('visible');
+  setTimeout(function(){ t.classList.remove('visible'); }, 2500);
 }
 </script>
 </body>
