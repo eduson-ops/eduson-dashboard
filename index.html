@@ -2279,9 +2279,10 @@ function renderRetention() {
       });
       var rows=sorted.map(function(r){
         var d=normDate(r.paydate||r.ts)||'—';
-        return '<tr><td>'+d+'</td><td style="color:var(--text);font-weight:500">'+(r.manager||'—').split(' ')[0]+'</td><td>'+(r.pack||'—')+'</td><td class="yc" style="text-align:right">'+fmt(r.rev)+' ₽</td></tr>';
+        var crmCell=r.crm?'<a href="'+r.crm+'" target="_blank" style="color:var(--b);font-family:var(--mono);font-size:10px;text-decoration:none" title="'+r.crm+'">#'+r.crmId+'↗</a>':'<span style="color:var(--muted)">—</span>';
+        return '<tr><td>'+d+'</td><td style="color:var(--text);font-weight:500">'+(r.manager||'—').split(' ')[0]+'</td><td>'+(r.pack||'—')+'</td><td>'+crmCell+'</td><td class="yc" style="text-align:right">'+fmt(r.rev)+' ₽</td></tr>';
       }).join('');
-      logEl.innerHTML='<table class="tt"><thead><tr><th>Дата</th><th>Менеджер</th><th>Пакет</th><th style="text-align:right">Сумма</th></tr></thead><tbody>'+rows+'</tbody></table>';
+      logEl.innerHTML='<table class="tt"><thead><tr><th>Дата</th><th>Менеджер</th><th>Пакет</th><th>AMO</th><th style="text-align:right">Сумма</th></tr></thead><tbody>'+rows+'</tbody></table>';
     }
   }
 }
