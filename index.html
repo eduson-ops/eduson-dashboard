@@ -1175,6 +1175,18 @@ function visibleMain() {
   return data;
 }
 
+function visibleRenewalsMain() {
+  var data=renewals.filter(r=>managers.some(m=>r.manager&&r.manager.includes(m.split(' ')[0])));
+  if(mainDfMode==='week'){
+    var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
+    var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
+    data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=mon&&d<=sun;});
+  } else if(mainDfMode==='custom'&&mainDfFrom&&mainDfTo){
+    data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=mainDfFrom&&d<=mainDfTo;});
+  }
+  return data;
+}
+
 function calcTotals(data) {
   var mk=data.length,paid=data.filter(r=>r.paid).length,rev=data.reduce((s,r)=>s+r.rev,0);
   return{mk,paid,rev,conv:mk?Math.round(paid/mk*1000)/10:0,avg:paid?Math.round(rev/paid):0,rpm:mk?Math.round(rev/mk):0};
@@ -1185,6 +1197,10 @@ function calcTotals(data) {
 // ═══════════════════════════════════════
 function renderMain() {
   var data=visibleMain(),t=calcTotals(data);
+  var renRev=visibleRenewalsMain().reduce((s,r)=>s+r.rev,0);
+  t.rev+=renRev;
+  if(t.paid) t.avg=Math.round(t.rev/t.paid);
+  if(t.mk) t.rpm=Math.round(t.rev/t.mk);
   var now=new Date();
 
   // Countdown — calendar days
