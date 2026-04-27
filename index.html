@@ -313,6 +313,7 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
     <button class="tab" onclick="showPage('managers')">Менеджеры</button>
     <button class="tab" onclick="showPage('schedule')">Расписание</button>
     <button class="tab" onclick="showPage('guide')">Справка</button>
+    <button class="tab" onclick="showPage('retention')">Ретеншн</button>
   </div>
   <div class="nav-right">
     <div class="live-b"><div class="ldot"></div>LIVE</div>
@@ -588,6 +589,38 @@ body{background:var(--bg);color:var(--text);font-family:var(--sans);font-size:13
   </div>
 </div>
 
+<!-- ══ РЕТЕНШН ══ -->
+<div class="page" id="page-retention">
+  <div style="margin-bottom:14px">
+    <div style="font-family:var(--display);font-size:16px;font-weight:700;color:var(--text)">Retention & LTV</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:3px">Продления, удержание клиентов, когортный анализ</div>
+  </div>
+  <div class="kpis" id="ret-kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+    <div class="kpi info"><div class="kl">Продлений всего</div><div class="kv bc" id="ret-k-count">—</div><div class="ks" id="ret-k-count-s">—</div></div>
+    <div class="kpi ok"><div class="kl">Выручка продлений</div><div class="kv gc" id="ret-k-rev">—</div><div class="ks" id="ret-k-rev-s">—</div></div>
+    <div class="kpi warn" id="ret-k-churn-card"><div class="kl">Churn rate M+1</div><div class="kv" id="ret-k-churn">—</div><div class="ks" id="ret-k-churn-s">—</div></div>
+    <div class="kpi ok"><div class="kl">LTV</div><div class="kv yc" id="ret-k-ltv">—</div><div class="ks" id="ret-k-ltv-s">—</div></div>
+  </div>
+  <div class="ag2" style="margin-bottom:10px">
+    <div class="panel">
+      <div class="pt">Динамика: первичные vs продления</div>
+      <div style="position:relative;height:200px"><canvas id="retMonthC"></canvas></div>
+    </div>
+    <div class="panel">
+      <div class="pt">Продления по менеджерам</div>
+      <div id="ret-mgr-table"></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-bottom:10px">
+    <div class="pt">Когортный анализ <span style="font-size:9px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">— месяц первой оплаты → доля продлений (матч по CRM ID)</span></div>
+    <div id="ret-cohort"></div>
+  </div>
+  <div class="panel">
+    <div class="pt">Журнал продлений</div>
+    <div id="ret-log"></div>
+  </div>
+</div>
+
 <!-- ══ СПРАВКА ══ -->
 <div class="page" id="page-guide">
   <div style="margin-bottom:18px">
@@ -726,7 +759,7 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 // ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
-let lessons=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
+let lessons=[], renewals=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
 let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
 let analyticsMgr='', hotMgr='';
@@ -891,6 +924,7 @@ async function loadAll() {
   // Cols: 0=ts,1=manager,2=crm,3=paydate,4=practice,5=pack,6=paytype,7=revenue
   var payMap = {}; // crmId → payment object
   var payOnlyList = []; // оплаты без МК (сценарий 2)
+  var renewalsList = []; // paytype='продление' — отдельная сущность, не мёрджится
   for(var i=1;i<rawPayments.length;i++){
     var r=rawPayments[i];
     if(!r[1])continue;
@@ -901,6 +935,7 @@ async function loadAll() {
       ts:cc(r[0]),manager:cc(r[1]),crm:crmUrl,crmId:crmId,
       paydate:cc(r[3]),practice:cc(r[4]),pack:cc(r[5]),paytype:cc(r[6]),rev:rev
     };
+    if(cc(r[6]).toLowerCase()==='продление'){renewalsList.push(pay);continue;}
     if(crmId) payMap[crmId] = pay;
     // Сценарий 2: оплата есть, МК отчёта нет → оплата на занятии
     if(crmId && !mkMap[crmId]){
@@ -988,6 +1023,7 @@ async function loadAll() {
   }
 
   lessons = mkList;
+  renewals = renewalsList;
 
   // Parse managers
   managers=[];
@@ -1093,6 +1129,7 @@ async function loadAll() {
   renderAnalytics();
   renderManagers();
   renderSchedule();
+  renderRetention();
 
   var n=new Date();
   document.getElementById('upd').textContent=
@@ -2086,13 +2123,177 @@ async function submitSchedule(){
 }
 
 // ═══════════════════════════════════════
+// RETENTION
+// ═══════════════════════════════════════
+function renderRetention() {
+  var now = new Date();
+  var curMk = now.getFullYear() * 12 + now.getMonth();
+  var mnames = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+  // First-time paid: all lessons with paid=true (renewals already excluded from lessons)
+  var firstPays = lessons.filter(function(l){return l.paid;});
+
+  // ── Build cohort map ──
+  // cohortMk → { size, renewals:{offset→count}, rev }
+  var cohortMap = {};
+  var firstPayByCrm = {}; // crmId → earliest cohortMk
+  firstPays.forEach(function(l){
+    var d = parseDate(normDate(l.paydate || l.date));
+    if(!d) return;
+    var mk = d.getFullYear()*12 + d.getMonth();
+    if(!cohortMap[mk]) cohortMap[mk] = {mk:mk, size:0, renewalMap:{}, rev:0};
+    cohortMap[mk].size++;
+    cohortMap[mk].rev += l.rev;
+    if(l.crmId && (firstPayByCrm[l.crmId]===undefined || firstPayByCrm[l.crmId]>mk))
+      firstPayByCrm[l.crmId] = mk;
+  });
+
+  // Place renewals into cohorts via crmId match
+  renewals.forEach(function(r){
+    var d = parseDate(normDate(r.paydate || r.ts));
+    if(!d) return;
+    var renMk = d.getFullYear()*12 + d.getMonth();
+    if(r.crmId && firstPayByCrm[r.crmId]!==undefined){
+      var cohMk = firstPayByCrm[r.crmId];
+      var offset = renMk - cohMk;
+      if(offset>=1 && offset<=6 && cohortMap[cohMk]){
+        cohortMap[cohMk].renewalMap[offset] = (cohortMap[cohMk].renewalMap[offset]||0)+1;
+      }
+    }
+  });
+
+  // ── KPIs ──
+  var totalRen = renewals.length;
+  var renRev = renewals.reduce(function(s,r){return s+r.rev;},0);
+  var avgRen = totalRen ? Math.round(renRev/totalRen) : 0;
+
+  // Churn: completed cohort months (mk < current month)
+  var completedC = Object.values(cohortMap).filter(function(c){return c.mk<curMk && c.size>0;});
+  var retainedM1 = completedC.reduce(function(s,c){return s+(c.renewalMap[1]||0);},0);
+  var cohortTotal = completedC.reduce(function(s,c){return s+c.size;},0);
+  var retRateM1 = cohortTotal ? Math.round(retainedM1/cohortTotal*100) : 0;
+  var churnRate = 100 - retRateM1;
+
+  // LTV
+  var firstRev = firstPays.reduce(function(s,l){return s+l.rev;},0);
+  var uniq = firstPays.length || 1;
+  var ltv = Math.round((firstRev+renRev)/uniq);
+
+  // ── Render KPIs ──
+  var el;
+  el=document.getElementById('ret-k-count'); if(el) el.textContent=totalRen;
+  el=document.getElementById('ret-k-count-s'); if(el) el.textContent='из '+firstPays.length+' первичных оплат';
+  el=document.getElementById('ret-k-rev'); if(el) el.textContent=fmt(renRev)+' ₽';
+  el=document.getElementById('ret-k-rev-s'); if(el) el.textContent='ср. чек '+fmt(avgRen)+' ₽';
+  var churnEl=document.getElementById('ret-k-churn');
+  if(churnEl){
+    churnEl.textContent=cohortTotal>0 ? churnRate+'%' : '—';
+    var cl=churnRate<50?'gc':churnRate<70?'yc':'rc';
+    churnEl.className='kv '+cl;
+    var card=document.getElementById('ret-k-churn-card');
+    if(card) card.className='kpi '+(churnRate<50?'ok':churnRate<70?'warn':'bad');
+  }
+  el=document.getElementById('ret-k-churn-s'); if(el) el.textContent='retention M+1: '+retRateM1+'%'+(cohortTotal===0?' (нет данных)':'');
+  el=document.getElementById('ret-k-ltv'); if(el) el.textContent=fmt(ltv)+' ₽';
+  el=document.getElementById('ret-k-ltv-s'); if(el) el.textContent='ср. на клиента всего';
+
+  // ── Monthly chart ──
+  var months6=[]; for(var i=5;i>=0;i--) months6.push(curMk-i);
+  var firstPerMk={}, renPerMk={};
+  firstPays.forEach(function(l){
+    var d=parseDate(normDate(l.paydate||l.date)); if(!d) return;
+    var mk=d.getFullYear()*12+d.getMonth(); firstPerMk[mk]=(firstPerMk[mk]||0)+1;
+  });
+  renewals.forEach(function(r){
+    var d=parseDate(normDate(r.paydate||r.ts)); if(!d) return;
+    var mk=d.getFullYear()*12+d.getMonth(); renPerMk[mk]=(renPerMk[mk]||0)+1;
+  });
+  dc('retMonthC');
+  var cEl=document.getElementById('retMonthC');
+  if(cEl) charts.retMonth=new Chart(cEl,{type:'bar',data:{
+    labels:months6.map(function(m){return mnames[m%12];}),
+    datasets:[
+      {label:'Первичные',data:months6.map(function(m){return firstPerMk[m]||0;}),backgroundColor:'rgba(96,165,250,0.65)',borderColor:'#60a5fa',borderWidth:1,borderRadius:4},
+      {label:'Продления',data:months6.map(function(m){return renPerMk[m]||0;}),backgroundColor:'rgba(62,207,142,0.65)',borderColor:'#3ecf8e',borderWidth:1,borderRadius:4}
+    ]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#a0a0a0',font:{size:10},boxWidth:10}}},scales:{
+    x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#606060',font:{size:10}}},
+    y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#606060',font:{size:10}}}
+  }}});
+
+  // ── Manager breakdown ──
+  var mgrFirst={}, mgrRen={};
+  firstPays.forEach(function(l){if(l.manager) mgrFirst[l.manager]=(mgrFirst[l.manager]||0)+1;});
+  renewals.forEach(function(r){if(r.manager) mgrRen[r.manager]=(mgrRen[r.manager]||0)+1;});
+  var allM=[...new Set([...Object.keys(mgrFirst),...Object.keys(mgrRen)])];
+  allM.sort(function(a,b){return (mgrRen[b]||0)-(mgrRen[a]||0);});
+  var mgrEl=document.getElementById('ret-mgr-table');
+  if(mgrEl){
+    if(!allM.length){
+      mgrEl.innerHTML='<div class="empty"><div class="empty-ic">📊</div><div>Нет данных</div></div>';
+    } else {
+      var rows=allM.map(function(m){
+        var fp=mgrFirst[m]||0, rn=mgrRen[m]||0;
+        var rt=fp>0?Math.round(rn/fp*100):0;
+        var cl=rt>=30?'gc':rt>=15?'yc':fp>0?'rc':'mc';
+        return '<tr><td style="font-weight:500;color:var(--text)">'+m.split(' ')[0]+'</td><td>'+fp+'</td><td>'+rn+'</td><td class="'+cl+'" style="font-weight:600">'+(fp>0?rt+'%':'—')+'</td></tr>';
+      }).join('');
+      mgrEl.innerHTML='<table class="tt"><thead><tr><th>Менеджер</th><th style="text-align:right">Первичных</th><th style="text-align:right">Продлений</th><th style="text-align:right">Retention</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    }
+  }
+
+  // ── Cohort table ──
+  var cohEl=document.getElementById('ret-cohort');
+  if(cohEl){
+    var cohMonths=months6.filter(function(m){return cohortMap[m]&&cohortMap[m].size>0;});
+    if(!cohMonths.length){
+      cohEl.innerHTML='<div class="empty"><div class="empty-ic">📊</div><div>Нет данных для когортного анализа</div></div>';
+    } else {
+      var thead='<tr><th>Когорта</th><th style="text-align:right">Клиентов</th><th style="text-align:right">M+1</th><th style="text-align:right">M+2</th><th style="text-align:right">M+3</th></tr>';
+      var tbody=cohMonths.map(function(mk){
+        var c=cohortMap[mk];
+        var lbl=mnames[mk%12]+' '+Math.floor(mk/12);
+        var cells=[1,2,3].map(function(off){
+          if(mk+off>curMk) return '<td style="text-align:right;color:var(--muted)">—</td>';
+          var cnt=c.renewalMap[off]||0;
+          var p=c.size>0?Math.round(cnt/c.size*100):0;
+          var bg=p>=40?'var(--g-bg)':p>=20?'var(--y-bg)':'var(--r-bg)';
+          var fc=p>=40?'var(--g)':p>=20?'var(--y)':'var(--r)';
+          return '<td style="text-align:right"><span style="background:'+bg+';color:'+fc+';border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);white-space:nowrap">'+cnt+' ('+p+'%)</span></td>';
+        }).join('');
+        return '<tr><td style="font-weight:500;color:var(--text)">'+lbl+'</td><td style="text-align:right;font-family:var(--mono)">'+c.size+'</td>'+cells+'</tr>';
+      }).join('');
+      cohEl.innerHTML='<table class="tt"><thead>'+thead+'</thead><tbody>'+tbody+'</tbody></table>';
+    }
+  }
+
+  // ── Renewals log ──
+  var logEl=document.getElementById('ret-log');
+  if(logEl){
+    if(!renewals.length){
+      logEl.innerHTML='<div class="empty"><div class="empty-ic">🔄</div><div>Продлений пока нет</div></div>';
+    } else {
+      var sorted=[...renewals].sort(function(a,b){
+        var da=parseDate(normDate(a.paydate||a.ts)), db=parseDate(normDate(b.paydate||b.ts));
+        return (db||0)-(da||0);
+      });
+      var rows=sorted.map(function(r){
+        var d=normDate(r.paydate||r.ts)||'—';
+        return '<tr><td>'+d+'</td><td style="color:var(--text);font-weight:500">'+(r.manager||'—').split(' ')[0]+'</td><td>'+(r.pack||'—')+'</td><td class="yc" style="text-align:right">'+fmt(r.rev)+' ₽</td></tr>';
+      }).join('');
+      logEl.innerHTML='<table class="tt"><thead><tr><th>Дата</th><th>Менеджер</th><th>Пакет</th><th style="text-align:right">Сумма</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    }
+  }
+}
+
+// ═══════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  var labels={main:'Главная',analytics:'Аналитика',managers:'Менеджеры',schedule:'Расписание'};
+  var labels={main:'Главная',analytics:'Аналитика',managers:'Менеджеры',schedule:'Расписание',guide:'Справка',retention:'Ретеншн'};
   document.querySelectorAll('.tab').forEach(b=>{if(b.textContent.trim()===labels[id])b.classList.add('active');});
   if(id!=='managers'){backMgr();}
 }
