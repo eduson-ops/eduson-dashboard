@@ -367,6 +367,85 @@ body{
 #copy-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--g);color:#000;font-size:12px;font-weight:600;padding:8px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9999;white-space:nowrap}
 #copy-toast.visible{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* ── BODY GRAIN TEXTURE ── */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;opacity:.032;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+.app-layout,.loader-overlay{position:relative;z-index:1}
+
+/* ── MANAGER CARDS (redesigned) ── */
+.mgr-card{
+  padding:18px;background:var(--bg2);
+  border:1px solid var(--border);border-radius:var(--r14);
+  cursor:pointer;transition:all var(--dur) var(--ease);
+  box-shadow:var(--shadow-md);
+}
+.mgr-card:hover{border-color:var(--y-bd);transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,0.45),0 0 0 1px var(--y-bd)}
+.mgr-card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.mgr-card-avatar{
+  width:40px;height:40px;border-radius:10px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:12px;font-weight:800;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.35);
+}
+.mgr-card-avatar.c1{background:linear-gradient(135deg,#ffd967,#c89a1e);color:#1a1a17}
+.mgr-card-avatar.c2{background:linear-gradient(135deg,#6ad4a0,#1f8a5a);color:#0a1a12}
+.mgr-card-avatar.c3{background:linear-gradient(135deg,#79b8ff,#2563c4);color:#f0f8ff}
+.mgr-card-avatar.c4{background:linear-gradient(135deg,#ff8b8b,#c0392b);color:#fff}
+.mgr-card-avatar.c5{background:linear-gradient(135deg,#c4a8ff,#7950d4);color:#fff}
+.mgr-card-avatar.c6{background:linear-gradient(135deg,#ffac6f,#c47a16);color:#1a1a17}
+.mgr-card-name{font-weight:700;font-size:13px;color:var(--text);font-family:var(--display);letter-spacing:-.01em}
+.mgr-card-sub{font-size:10px;color:var(--muted);margin-top:3px;font-family:var(--mono)}
+.mgr-card-stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:12px;border-top:1px solid var(--border)}
+.mgr-stat{background:var(--bg3);border-radius:var(--r6);padding:8px 10px}
+.mgr-stat-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-family:var(--mono)}
+.mgr-stat-val{font-size:15px;font-weight:700;font-family:var(--mono);margin-top:4px}
+.mgr-badge{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:2px 8px;border-radius:999px;
+  font-size:9.5px;font-weight:700;font-family:var(--mono);
+}
+.mgr-badge.top{background:rgba(245,200,66,0.16);color:var(--y);border:1px solid var(--y-bd)}
+.mgr-badge.up{background:var(--g-bg);color:var(--g);border:1px solid var(--g-bd)}
+.mgr-badge.down{background:var(--r-bg);color:var(--r);border:1px solid var(--r-bd)}
+.mgr-badge.risk{background:var(--r-bg);color:var(--r);border:1px solid var(--r-bd);opacity:.8}
+
+/* ── TABLE AVATAR CHIPS ── */
+.av-chip{
+  width:24px;height:24px;border-radius:6px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--display);font-size:8px;font-weight:800;
+}
+.av-chip.c1{background:linear-gradient(135deg,#ffd967,#c89a1e);color:#1a1a17}
+.av-chip.c2{background:linear-gradient(135deg,#6ad4a0,#1f8a5a);color:#0a1a12}
+.av-chip.c3{background:linear-gradient(135deg,#79b8ff,#2563c4);color:#f0f8ff}
+.av-chip.c4{background:linear-gradient(135deg,#ff8b8b,#c0392b);color:#fff}
+.av-chip.c5{background:linear-gradient(135deg,#c4a8ff,#7950d4);color:#fff}
+.av-chip.c6{background:linear-gradient(135deg,#ffac6f,#c47a16);color:#1a1a17}
+
+/* ── FUNNEL (redesigned) ── */
+.funnel-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.funnel-lbl{width:130px;font-size:10.5px;color:var(--muted);text-align:right;flex-shrink:0;font-family:var(--mono)}
+.funnel-track{flex:1;height:30px;background:var(--bg3);border-radius:var(--r6);overflow:hidden;position:relative}
+.funnel-fill{
+  position:absolute;top:0;left:0;bottom:0;border-radius:var(--r6);
+  display:flex;align-items:center;padding-left:10px;
+  transition:width .7s var(--ease);
+}
+.funnel-fill-inner{position:absolute;inset:0;border-radius:var(--r6);opacity:.22}
+.funnel-num{font-size:12px;font-weight:700;position:relative;z-index:1}
+.funnel-meta{width:90px;font-size:10px;color:var(--muted);flex-shrink:0;font-family:var(--mono);line-height:1.4}
+
+/* ── GRADIENT PROGRESS BARS ── */
+.pf.y{background:linear-gradient(90deg,#c89a1e,var(--y))}
+.pf.g{background:linear-gradient(90deg,#1f8a5a,var(--g))}
+.pf.r{background:linear-gradient(90deg,#8a2020,var(--r))}
+.pf.b{background:linear-gradient(90deg,#1a4a8a,var(--b))}
+
+/* ── SIDEBAR ACTIVE GLOW ── */
+.sb-item.active{box-shadow:inset 3px 0 0 var(--y),inset 0 0 0 1px var(--y-bg)}
+
 /* ── RESPONSIVE ── */
 @media(max-width:1024px){.sidebar{width:200px}.main-col{margin-left:200px}}
 @media(max-width:768px){
@@ -1415,20 +1494,26 @@ function renderTeamTable(data,filter) {
   if(filter)sorted=sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase()));
   var t=calcTotals(data);
   var tbody=document.getElementById('tbody');
+  var avCls=['c1','c2','c3','c4','c5','c6'];
   tbody.innerHTML='';
   sorted.forEach((r,i)=>{
     var conv=r.mk?(r.paid/r.mk*100).toFixed(1):'—';
     var cn=parseFloat(conv);
-    var badge=i===0?'👑':cn>=50?'⭐':cn>=35?'😊':r.mk>0?'⚠️':'🔴';
     var cc2=cn>=40?'var(--g)':cn>=30?'var(--y)':'var(--r)';
+    var badgeHtml='';
+    if(i===0&&r.mk>0) badgeHtml='<span class="mgr-badge top" style="font-size:9px">👑 Топ</span>';
+    else if(cn>=50) badgeHtml='<span class="mgr-badge up" style="font-size:9px">↑ Сильный</span>';
+    else if(r.mk===0) badgeHtml='<span class="mgr-badge risk" style="font-size:9px">⚠ 0 МК</span>';
+    var ini=r.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+    var ac=avCls[i%avCls.length];
     tbody.innerHTML+=`<tr onclick="openMgr('${r.name}')">
-      <td class="tn">${r.name}</td><td>${r.mk}</td><td>${r.paid}</td>
+      <td class="tn"><div class="av-chip ${ac}">${ini}</div>${r.name}${badgeHtml?'&nbsp;'+badgeHtml:''}</td>
+      <td>${r.mk}</td><td>${r.paid}</td>
       <td style="color:${r.mk?cc2:'var(--muted)'}">${conv!=='—'?conv+'%':'—'}</td>
       <td style="color:${r.rev>100000?'var(--g)':'var(--sub)'}">${fmt(r.rev)}</td>
-      <td style="color:var(--b)">${r.rpm?fmt(r.rpm):'—'}</td>
-      <td><span class="eb">${badge}</span></td></tr>`;
+      <td style="color:var(--b)">${r.rpm?fmt(r.rpm):'—'}</td></tr>`;
   });
-  tbody.innerHTML+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc">${fmt(t.rev)} ₽</td><td class="bc">${fmt(t.rpm)}</td><td></td></tr>`;
+  tbody.innerHTML+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc">${fmt(t.rev)} ₽</td><td class="bc">${fmt(t.rpm)}</td></tr>`;
 }
 
 function filterTeam(v){renderTeamTable(visibleMain(),v);}
@@ -1492,13 +1577,13 @@ function setSlotDay(day,btn){} // legacy stub
 
 function renderProg(t) {
   var bars=[
-    {l:'МК',v:pct(t.mk,targets.mk),c:pct(t.mk,targets.mk)>=80?'var(--g)':'var(--y)'},
-    {l:'Выручка',v:pct(t.rev,targets.rev),c:pct(t.rev,targets.rev)<40?'var(--r)':'var(--y)'},
-    {l:'Конверсия',v:Math.min(100,pct(t.conv,targets.conv)),c:'var(--g)'},
-    {l:'Ср. чек',v:pct(t.avg,targets.avg),c:'var(--g)'},
+    {l:'МК',v:pct(t.mk,targets.mk),cls:pct(t.mk,targets.mk)>=80?'g':'y',c:pct(t.mk,targets.mk)>=80?'var(--g)':'var(--y)'},
+    {l:'Выручка',v:pct(t.rev,targets.rev),cls:pct(t.rev,targets.rev)<40?'r':'y',c:pct(t.rev,targets.rev)<40?'var(--r)':'var(--y)'},
+    {l:'Конверсия',v:Math.min(100,pct(t.conv,targets.conv)),cls:'g',c:'var(--g)'},
+    {l:'Ср. чек',v:pct(t.avg,targets.avg),cls:'g',c:'var(--g)'},
   ];
   document.getElementById('prog').innerHTML=bars.map(b=>
-    `<div class="pr"><span class="pl">${b.l}</span><div class="pt2"><div class="pf" style="width:${b.v}%;background:${b.c}"></div></div><span class="pp" style="color:${b.c}">${b.v}%</span></div>`
+    `<div class="pr"><span class="pl">${b.l}</span><div class="pt2"><div class="pf ${b.cls}" style="width:${b.v}%"></div></div><span class="pp" style="color:${b.c}">${b.v}%</span></div>`
   ).join('');
 }
 
@@ -1742,16 +1827,16 @@ function renderAnalytics() {
   document.getElementById('funnel-chart').innerHTML=fSteps.map((s,i)=>{
     var pct=fTotal>0?Math.round(s.val/fTotal*100):0;
     var prev=i>0&&fSteps[i-1].val>0?Math.round(s.val/fSteps[i-1].val*100):null;
-    var w=fTotal>0?Math.max(20,Math.round(s.val/fTotal*100)):0;
-    return`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div style="width:130px;font-size:11px;color:var(--muted);text-align:right;flex-shrink:0">${s.label}</div>
-      <div style="flex:1;height:28px;background:var(--bg3);border-radius:4px;overflow:hidden">
-        <div style="width:${w}%;height:100%;background:${s.color}55;border-left:3px solid ${s.color};border-radius:4px;transition:width .4s;display:flex;align-items:center;padding-left:8px">
-          <span style="font-size:12px;font-weight:700;color:${s.color}">${s.val}</span>
+    var w=fTotal>0?Math.max(14,Math.round(s.val/fTotal*100)):0;
+    return`<div class="funnel-row">
+      <div class="funnel-lbl">${s.label}</div>
+      <div class="funnel-track">
+        <div class="funnel-fill" style="width:${w}%">
+          <div class="funnel-fill-inner" style="background:${s.color}"></div>
+          <span class="funnel-num" style="color:${s.color}">${s.val}</span>
         </div>
       </div>
-      <div style="width:80px;font-size:11px;color:var(--muted);flex-shrink:0">
-        ${pct}% от всех${prev!==null?`<span style="color:${s.color};margin-left:4px">(${prev}% шаг)</span>`:''}
+      <div class="funnel-meta">${pct}% всех${prev!==null?`<br><span style="color:${s.color}">${prev}% шаг</span>`:''}
       </div>
     </div>`;
   }).join('');
@@ -1867,26 +1952,32 @@ function renderManagers() {
   managers.forEach(m=>{var k=Object.keys(mgrs).find(k=>k.includes(m.split(' ')[0]))||m;if(!mgrs[k])mgrs[k]=[];});
   var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,rows,...t};}).sort((a,b)=>b.rev-a.rev);
   var bgs=['#f5c842','#3ecf8e','#60a5fa','#f05252','#a78bfa','#fb923c'];
+  var avCls=['c1','c2','c3','c4','c5','c6'];
   document.getElementById('mgr-cards').innerHTML=sorted.map((m,i)=>{
     var conv=m.mk?(m.paid/m.mk*100).toFixed(1):'0';
+    var cn=parseFloat(conv);
     var ini=m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-    var col=bgs[i%bgs.length];
+    var ac=avCls[i%avCls.length];
     var thisW=weekConv(m.name,0),lastW=weekConv(m.name,1);
-    var trendHtml='';
-    if(thisW!==null&&lastW!==null){
-      var diff=thisW-lastW;
-      var arrow=diff>0?'↑':diff<0?'↓':'→';
-      var tCol=diff>0?'var(--g)':diff<0?'var(--r)':'var(--muted)';
-      trendHtml=`<span style="font-size:11px;color:${tCol};margin-left:6px;font-weight:700">${arrow}${Math.abs(diff)}% нед.</span>`;
-    }
-    return`<div class="panel" style="cursor:pointer" onclick="openMgr('${m.name}')">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-        <div style="width:38px;height:38px;border-radius:9px;background:${col}22;border:2px solid ${col}55;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:${col};font-family:var(--display)">${ini}</div>
-        <div><div style="font-weight:600;font-size:13px;color:var(--text)">${m.name}</div><div style="font-size:10px;color:var(--muted)">${m.mk} МК · ${conv}% конв.${trendHtml}</div></div>
+    var badge='';
+    if(i===0&&m.mk>0) badge='<span class="mgr-badge top">👑 Топ</span>';
+    else if(thisW!==null&&lastW!==null&&thisW-lastW>5) badge='<span class="mgr-badge up">↑ Растёт</span>';
+    else if(thisW!==null&&lastW!==null&&thisW-lastW<-10) badge='<span class="mgr-badge down">↓ Просадка</span>';
+    else if(m.mk===0) badge='<span class="mgr-badge risk">⚠ Риск</span>';
+    var trendTxt='';
+    if(thisW!==null&&lastW!==null){var d=thisW-lastW;trendTxt=`<span style="color:${d>0?'var(--g)':d<0?'var(--r)':'var(--muted)'}">${d>0?'↑':'↓'}${Math.abs(d)}%</span> нед`;}
+    return`<div class="mgr-card" onclick="openMgr('${m.name}')">
+      <div class="mgr-card-head">
+        <div class="mgr-card-avatar ${ac}">${ini}</div>
+        <div style="flex:1;min-width:0">
+          <div class="mgr-card-name">${m.name}</div>
+          <div class="mgr-card-sub">${m.mk} МК · ${conv}% конв. ${trendTxt}</div>
+        </div>
+        ${badge}
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px">
-        <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">Выручка</div><div style="font-size:14px;font-weight:600;color:${m.rev>0?'var(--y)':'var(--muted)'}">${fmt(m.rev)} ₽</div></div>
-        <div style="background:var(--bg3);border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:var(--muted);margin-bottom:2px">Оплат</div><div style="font-size:14px;font-weight:600;color:var(--g)">${m.paid}</div></div>
+      <div class="mgr-card-stats">
+        <div class="mgr-stat"><div class="mgr-stat-lbl">Выручка</div><div class="mgr-stat-val" style="color:${m.rev>0?'var(--y)':'var(--muted)'}">${fmt(m.rev)} ₽</div></div>
+        <div class="mgr-stat"><div class="mgr-stat-lbl">Оплат</div><div class="mgr-stat-val" style="color:var(--g)">${m.paid}</div></div>
       </div></div>`;
   }).join('');
 }
