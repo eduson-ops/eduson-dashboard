@@ -33,11 +33,18 @@ body { font-family: var(--font); background: var(--bg-main); color: var(--text-p
 /* ── LOGIN ─────────────────────────────────── */
 #login-screen {
   position: fixed; inset: 0; background: var(--bg-main);
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; z-index: 100;
 }
 #login-screen h1 { font-size: 26px; font-weight: 700; color: var(--text-heading); letter-spacing: -0.5px; }
 #login-screen p { color: var(--text-secondary); font-size: 14px; }
 .login-logo { width: 64px; height: 64px; background: var(--accent); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 32px; }
+.login-box { background: var(--bg-input); border: 1px solid var(--border); border-radius: 10px; padding: 24px; width: 320px; display: flex; flex-direction: column; gap: 12px; }
+.login-box select, .login-box input { width: 100%; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px; color: var(--text-primary); font-family: var(--font); font-size: 14px; padding: 9px 12px; outline: none; transition: border-color 0.2s; }
+.login-box select:focus, .login-box input:focus { border-color: var(--accent); }
+.login-box select { cursor: pointer; }
+.login-submit { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 10px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+.login-submit:hover { background: var(--accent-hover); }
+.login-error { color: var(--red); font-size: 13px; text-align: center; display: none; }
 
 /* ── SIDEBAR ─────────────────────────────── */
 #sidebar { width: 240px; min-width: 240px; background: var(--bg-sidebar); display: flex; flex-direction: column; overflow: hidden; }
@@ -163,14 +170,15 @@ body { font-family: var(--font); background: var(--bg-main); color: var(--text-p
 <div id="login-screen">
   <div class="login-logo">💬</div>
   <h1>Eduson Sales</h1>
-  <p>Войдите через Telegram чтобы продолжить</p>
-  <script async src="https://telegram.org/js/telegram-widget.js?22"
-    data-telegram-login="edusonkidsnotificationbot"
-    data-size="large"
-    data-radius="8"
-    data-onauth="onTelegramAuth(user)"
-    data-request-access="write">
-  </script>
+  <p>Войдите чтобы продолжить</p>
+  <div class="login-box">
+    <select id="login-name">
+      <option value="">Выберите своё имя...</option>
+    </select>
+    <input type="password" id="login-pass" placeholder="Пароль" onkeydown="if(event.key==='Enter')doLogin()">
+    <div class="login-error" id="login-error">Неверный пароль</div>
+    <button class="login-submit" onclick="doLogin()">Войти →</button>
+  </div>
 </div>
 
 <!-- ── NOTIFY MODAL ────────────────────────────────────── -->
@@ -277,6 +285,8 @@ const TEAM = [
 // Telegram ID РОПа
 const ROP_ID = '7826400541';
 
+const CHAT_PASSWORD = 'edusonkidstothemoon';
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
 
 let db, me = null, activeCh = null, activeRef = null;
@@ -284,24 +294,45 @@ let db, me = null, activeCh = null, activeRef = null;
 firebase.initializeApp(FIREBASE);
 db = firebase.database();
 
+// заполняем дропдаун именами
+(function fillLoginSelect() {
+  const sel = document.getElementById('login-name');
+  const all = [{ id: ROP_ID, name: 'Кирилл Цуканов (РОП)' }, ...TEAM.filter(m => m.id !== ROP_ID)];
+  all.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = m.name;
+    sel.appendChild(o);
+  });
+})();
+
+// восстановление сессии
 (function restoreSession() {
   try {
     const raw = localStorage.getItem('eks_chat_user');
     if (!raw) return;
     const u = JSON.parse(raw);
-    if (u && u.id) onTelegramAuth(u);
+    if (u && u.id) enterApp(u);
   } catch (e) { localStorage.removeItem('eks_chat_user'); }
 })();
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-function onTelegramAuth(raw) {
-  me = {
-    id:    String(raw.id),
-    name:  [raw.first_name, raw.last_name].filter(Boolean).join(' ') || 'Без имени',
-    photo: raw.photo_url || '',
-  };
-  localStorage.setItem('eks_chat_user', JSON.stringify(raw));
+function doLogin() {
+  const nameId = document.getElementById('login-name').value;
+  const pass   = document.getElementById('login-pass').value;
+  const err    = document.getElementById('login-error');
+  if (!nameId) { err.textContent = 'Выберите имя'; err.style.display = 'block'; return; }
+  if (pass !== CHAT_PASSWORD) { err.style.display = 'block'; err.textContent = 'Неверный пароль'; return; }
+  err.style.display = 'none';
+  const member = TEAM.find(m => m.id === nameId) || { id: nameId, name: 'Кирилл Цуканов', tg: '@eduson-ops' };
+  const user = { id: member.id, name: member.name, photo: '' };
+  localStorage.setItem('eks_chat_user', JSON.stringify(user));
+  enterApp(user);
+}
+
+function enterApp(user) {
+  me = { id: String(user.id), name: user.name, photo: user.photo || '' };
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').classList.add('on');
   renderSidebar();
