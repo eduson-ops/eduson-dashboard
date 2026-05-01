@@ -1151,6 +1151,11 @@ async function loadAll() {
 // ═══════════════════════════════════════
 // VISIBLE DATA
 // ═══════════════════════════════════════
+function curMonthBounds() {
+  var now=new Date();
+  return {from:new Date(now.getFullYear(),now.getMonth(),1), to:new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59,999)};
+}
+
 function visible() {
   var data=lessons.filter(r=>managers.some(m=>r.manager&&r.manager.includes(m.split(' ')[0])));
   if(dfMode==='week'){
@@ -1159,6 +1164,9 @@ function visible() {
     data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mon&&d<=sun;});
   } else if(dfMode==='custom'&&dfFrom&&dfTo){
     data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=dfFrom&&d<=dfTo;});
+  } else {
+    var b=curMonthBounds();
+    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=b.from&&d<=b.to;});
   }
   return data;
 }
@@ -1171,6 +1179,9 @@ function visibleMain() {
     data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mon&&d<=sun;});
   } else if(mainDfMode==='custom'&&mainDfFrom&&mainDfTo){
     data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mainDfFrom&&d<=mainDfTo;});
+  } else {
+    var b=curMonthBounds();
+    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=b.from&&d<=b.to;});
   }
   return data;
 }
@@ -1183,6 +1194,9 @@ function visibleRenewalsMain() {
     data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=mon&&d<=sun;});
   } else if(mainDfMode==='custom'&&mainDfFrom&&mainDfTo){
     data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=mainDfFrom&&d<=mainDfTo;});
+  } else {
+    var b=curMonthBounds();
+    data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=b.from&&d<=b.to;});
   }
   return data;
 }
