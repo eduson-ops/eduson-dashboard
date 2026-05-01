@@ -671,6 +671,15 @@ bot.command('chatid', ctx => {
   ctx.reply(`Твой Chat ID: \`${ctx.chat.id}\``, { parse_mode: 'Markdown' });
 });
 
+// /myid — каждый менеджер может узнать свой Telegram ID
+bot.command('myid', ctx => {
+  const u = ctx.from;
+  ctx.reply(
+    `👤 *${u.first_name}${u.last_name ? ' ' + u.last_name : ''}*\nTelegram ID: \`${u.id}\``,
+    { parse_mode: 'Markdown' }
+  );
+});
+
 // /start
 bot.command('start', ctx => {
   ctx.reply(
@@ -955,6 +964,25 @@ app.post('/ask', async (req, res) => {
     res.json({ answer });
   } catch (e) {
     console.error('[/ask]', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// /notify — отправить сообщение конкретному пользователю из чата
+app.post('/notify', async (req, res) => {
+  const secret = process.env.NOTIFY_SECRET;
+  if (secret && req.headers['x-secret'] !== secret) {
+    return res.status(403).json({ error: 'unauthorized' });
+  }
+  const { telegram_id, message } = req.body || {};
+  if (!telegram_id || !message?.trim()) {
+    return res.status(400).json({ error: 'telegram_id and message required' });
+  }
+  try {
+    await bot.telegram.sendMessage(String(telegram_id), message.trim(), { parse_mode: 'Markdown' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[/notify]', e.message);
     res.status(500).json({ error: e.message });
   }
 });

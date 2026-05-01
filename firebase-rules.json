@@ -1,0 +1,13 @@
+{
+  "rules": {
+    "messages": {
+      "$channel": {
+        ".read": true,
+        ".write": true,
+        "$messageId": {
+          ".validate": "newData.hasChildren(['text','uid','name','ts']) && newData.child('text').isString() && newData.child('text').val().length >= 1 && newData.child('text').val().length <= 4000 && newData.child('ts').isNumber()"
+        }
+      }
+    }
+  }
+}

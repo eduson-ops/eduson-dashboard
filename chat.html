@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eduson Sales — Chat</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg-sidebar: #1a1d21;
+  --bg-sidebar-hover: #27292d;
+  --bg-main: #1e1f22;
+  --bg-input: #2b2d31;
+  --bg-msg-hover: #232428;
+  --bg-modal: #2b2d31;
+  --text-primary: #dbdee1;
+  --text-secondary: #80848e;
+  --text-heading: #f2f3f5;
+  --text-sidebar: #b5bac1;
+  --border: #2e3035;
+  --accent: #5865f2;
+  --accent-hover: #4752c4;
+  --green: #23a55a;
+  --red: #f23f43;
+  --font: 'Manrope', sans-serif;
+}
+
+body { font-family: var(--font); background: var(--bg-main); color: var(--text-primary); height: 100vh; overflow: hidden; display: flex; }
+
+/* ── LOGIN ─────────────────────────────────── */
+#login-screen {
+  position: fixed; inset: 0; background: var(--bg-main);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; z-index: 100;
+}
+#login-screen h1 { font-size: 26px; font-weight: 700; color: var(--text-heading); letter-spacing: -0.5px; }
+#login-screen p { color: var(--text-secondary); font-size: 14px; }
+.login-logo { width: 64px; height: 64px; background: var(--accent); border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 32px; }
+
+/* ── SIDEBAR ─────────────────────────────── */
+#sidebar { width: 240px; min-width: 240px; background: var(--bg-sidebar); display: flex; flex-direction: column; overflow: hidden; }
+.workspace-header { height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--border); }
+.workspace-name { font-size: 15px; font-weight: 700; color: var(--text-heading); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.workspace-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+
+.channel-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
+.sidebar-label { padding: 16px 8px 4px 12px; font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; }
+
+.ch-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px 5px 12px; cursor: pointer; border-radius: 4px; margin: 1px 8px;
+  color: var(--text-sidebar); font-size: 14px; font-weight: 500; transition: background 0.1s, color 0.1s;
+}
+.ch-item:hover { background: var(--bg-sidebar-hover); color: var(--text-heading); }
+.ch-item.active { background: rgba(88,101,242,0.3); color: #fff; }
+.ch-item .ch-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+.ch-item .ch-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.dm-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px 5px 12px; cursor: pointer; border-radius: 4px; margin: 1px 8px;
+  color: var(--text-sidebar); font-size: 14px; font-weight: 500; transition: background 0.1s, color 0.1s;
+}
+.dm-item:hover { background: var(--bg-sidebar-hover); color: var(--text-heading); }
+.dm-item.active { background: rgba(88,101,242,0.3); color: #fff; }
+.dm-ava { width: 24px; height: 24px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; overflow: hidden; flex-shrink: 0; }
+.dm-ava img { width: 100%; height: 100%; object-fit: cover; }
+
+.notify-btn {
+  margin: 8px; padding: 8px 12px; background: rgba(88,101,242,0.15); border: 1px solid rgba(88,101,242,0.3);
+  border-radius: 6px; color: #a5b4fc; font-size: 13px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 6px; transition: background 0.15s;
+}
+.notify-btn:hover { background: rgba(88,101,242,0.25); }
+
+.sidebar-footer { height: 52px; padding: 0 8px; display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--border); }
+.footer-ava { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; overflow: hidden; flex-shrink: 0; }
+.footer-ava img { width: 100%; height: 100%; object-fit: cover; }
+.footer-info { flex: 1; overflow: hidden; }
+.footer-name { font-size: 13px; font-weight: 600; color: var(--text-heading); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.footer-status { font-size: 11px; color: var(--green); }
+.footer-logout { background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 4px 6px; border-radius: 4px; font-size: 13px; transition: color 0.1s, background 0.1s; }
+.footer-logout:hover { color: var(--text-primary); background: var(--bg-sidebar-hover); }
+
+/* ── MAIN ─────────────────────────────────── */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.main-header { height: 48px; padding: 0 16px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.main-header-icon { font-size: 18px; }
+.main-header-name { font-size: 15px; font-weight: 700; color: var(--text-heading); }
+.main-header-sep { color: var(--border); font-size: 18px; margin: 0 2px; }
+.main-header-desc { font-size: 13px; color: var(--text-secondary); }
+.header-dash-link { margin-left: auto; font-size: 12px; color: var(--text-secondary); text-decoration: none; padding: 4px 10px; border-radius: 4px; border: 1px solid var(--border); transition: color 0.1s, border-color 0.1s; }
+.header-dash-link:hover { color: var(--text-primary); border-color: #555; }
+
+/* ── MESSAGES ─────────────────────────────── */
+#msg-area { flex: 1; overflow-y: auto; padding: 16px 0 0; }
+.day-div { display: flex; align-items: center; gap: 10px; padding: 8px 16px 4px; color: var(--text-secondary); font-size: 12px; font-weight: 600; }
+.day-div::before, .day-div::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.msg-row { display: flex; gap: 12px; padding: 2px 16px; transition: background 0.08s; }
+.msg-row:hover { background: var(--bg-msg-hover); }
+.msg-row.is-first { margin-top: 16px; padding-top: 4px; }
+.msg-ava { width: 40px; height: 40px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; color: #fff; overflow: hidden; flex-shrink: 0; margin-top: 2px; }
+.msg-ava img { width: 100%; height: 100%; object-fit: cover; }
+.msg-ava.ghost { visibility: hidden; }
+.msg-content { flex: 1; min-width: 0; }
+.msg-meta { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+.msg-author { font-size: 14px; font-weight: 700; color: var(--text-heading); }
+.msg-time { font-size: 11px; color: var(--text-secondary); }
+.msg-text { font-size: 14px; line-height: 1.5; color: var(--text-primary); word-break: break-word; white-space: pre-wrap; }
+
+.state-msg { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
+.state-msg .si { font-size: 52px; margin-bottom: 12px; }
+.state-msg p { font-size: 14px; }
+
+/* ── INPUT ────────────────────────────────── */
+.input-wrap { padding: 0 16px 20px; flex-shrink: 0; }
+.input-box { background: var(--bg-input); border-radius: 8px; display: flex; align-items: flex-end; gap: 6px; padding: 10px 12px; border: 1px solid transparent; transition: border-color 0.2s; }
+.input-box:focus-within { border-color: rgba(88,101,242,0.5); }
+#msg-input { flex: 1; background: none; border: none; outline: none; color: var(--text-primary); font-family: var(--font); font-size: 14px; resize: none; min-height: 22px; max-height: 120px; line-height: 1.5; }
+#msg-input::placeholder { color: var(--text-secondary); }
+.send-btn { background: var(--accent); border: none; border-radius: 6px; width: 34px; height: 34px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #fff; flex-shrink: 0; transition: background 0.15s; }
+.send-btn:hover { background: var(--accent-hover); }
+.send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ── MODAL ────────────────────────────────── */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 200; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--bg-modal); border-radius: 12px; padding: 24px; width: 420px; max-width: 90vw; border: 1px solid var(--border); }
+.modal h3 { font-size: 16px; font-weight: 700; color: var(--text-heading); margin-bottom: 16px; }
+.modal label { font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px; }
+.modal select, .modal textarea, .modal input {
+  width: 100%; background: var(--bg-main); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-primary); font-family: var(--font); font-size: 14px; padding: 8px 10px; outline: none;
+  transition: border-color 0.2s;
+}
+.modal select:focus, .modal textarea:focus, .modal input:focus { border-color: var(--accent); }
+.modal select { margin-bottom: 14px; cursor: pointer; }
+.modal textarea { resize: vertical; min-height: 80px; margin-bottom: 16px; }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn { padding: 8px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; border: none; transition: background 0.15s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-secondary { background: var(--bg-sidebar-hover); color: var(--text-primary); }
+.btn-secondary:hover { background: #333; }
+
+/* toast */
+.toast { position: fixed; bottom: 24px; right: 24px; background: #2d2f36; border: 1px solid var(--border); color: var(--text-heading); padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 300; opacity: 0; transform: translateY(8px); transition: opacity 0.2s, transform 0.2s; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateY(0); }
+
+/* ── APP/SCROLLBAR ────────────────────────── */
+#app { display: none; }
+#app.on { display: flex; width: 100%; height: 100vh; }
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #3a3c40; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ──────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-logo">💬</div>
+  <h1>Eduson Sales</h1>
+  <p>Войдите через Telegram чтобы продолжить</p>
+  <script async src="https://telegram.org/js/telegram-widget.js?22"
+    data-telegram-login="edusonkidsnotificationbot"
+    data-size="large"
+    data-radius="8"
+    data-onauth="onTelegramAuth(user)"
+    data-request-access="write">
+  </script>
+</div>
+
+<!-- ── NOTIFY MODAL ────────────────────────────────────── -->
+<div class="modal-overlay" id="notify-modal">
+  <div class="modal">
+    <h3>📲 Push-уведомление в Telegram</h3>
+    <label>Получатель</label>
+    <select id="notify-target">
+      <option value="all">Всем менеджерам</option>
+    </select>
+    <label>Сообщение</label>
+    <textarea id="notify-msg" placeholder="Текст уведомления..."></textarea>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeNotifyModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="sendNotify()">Отправить 📲</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ── APP ────────────────────────────────────────────── -->
+<div id="app">
+
+  <div id="sidebar">
+    <div class="workspace-header">
+      <div class="workspace-name">Eduson Kids Sales</div>
+      <div class="workspace-dot"></div>
+    </div>
+    <div class="channel-scroll">
+      <div class="sidebar-label">Каналы</div>
+      <div id="ch-list"></div>
+      <div class="sidebar-label" style="margin-top:8px">Переход</div>
+      <div id="links-list"></div>
+      <div id="notify-section"></div>
+    </div>
+    <div class="sidebar-footer">
+      <div class="footer-ava" id="f-ava"></div>
+      <div class="footer-info">
+        <div class="footer-name" id="f-name">—</div>
+        <div class="footer-status">в сети</div>
+      </div>
+      <button class="footer-logout" onclick="logout()" title="Выйти">✕</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <div class="main-header">
+      <span class="main-header-icon" id="h-icon">#</span>
+      <span class="main-header-name" id="h-name">—</span>
+      <span class="main-header-sep">|</span>
+      <span class="main-header-desc" id="h-desc"></span>
+      <a class="header-dash-link" href="index.html" target="_blank">📊 Дашборд</a>
+    </div>
+    <div id="msg-area"><div class="state-msg"><p>Загрузка...</p></div></div>
+    <div class="input-wrap">
+      <div class="input-box">
+        <textarea id="msg-input" placeholder="Сообщение..." rows="1"></textarea>
+        <button class="send-btn" onclick="send()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+
+const FIREBASE = {
+  apiKey: "AIzaSyAlgt5X94vmjVUPdZHNwlj4EwVvupGrKVc",
+  authDomain: "edusonops.firebaseapp.com",
+  databaseURL: "https://edusonops-default-rtdb.firebaseio.com",
+  projectId: "edusonops",
+  storageBucket: "edusonops.firebasestorage.app",
+  messagingSenderId: "210379865831",
+  appId: "1:210379865831:web:0121d3da80591f2519ec42"
+};
+
+const RAILWAY_URL  = 'https://eduson-dashboard-production.up.railway.app';
+const NOTIFY_SECRET = 'eks2026'; // должен совпадать с NOTIFY_SECRET в Railway
+
+const CHANNELS = [
+  { id: 'announcements', name: 'Объявления',       desc: 'Важные объявления',      icon: '📢' },
+  { id: 'start-selfie',  name: 'Start-day-selfie', desc: 'Начинаем день!',          icon: '🌅' },
+  { id: 'evening',       name: 'Вечерний отчёт',   desc: 'Итоги дня',              icon: '🌙' },
+  { id: 'lessons',       name: 'Уроки',             desc: 'Обсуждение МК',          icon: '📚' },
+  { id: 'cancellations', name: 'Отмены',            desc: 'Отмены и переносы',      icon: '❌' },
+  { id: 'flood',         name: 'Флудилка',          desc: 'Свободное общение',      icon: '💬' },
+  { id: 'm1',            name: 'M1',                desc: 'Мотивация и победы',     icon: '🏆' },
+];
+
+// Telegram ID команды — добавляй по мере сбора через /myid
+// { id: '123456789', name: 'Перебейносов А.', tg: '@lucky_8_8' }
+const TEAM = [
+  // заполни после сбора ID через /myid у бота
+];
+
+// Telegram ID Кирилла (РОП) — вставь после /myid
+const ROP_ID = '';
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+
+let db, me = null, activeCh = null, activeRef = null;
+
+firebase.initializeApp(FIREBASE);
+db = firebase.database();
+
+(function restoreSession() {
+  try {
+    const raw = localStorage.getItem('eks_chat_user');
+    if (!raw) return;
+    const u = JSON.parse(raw);
+    if (u && u.id) onTelegramAuth(u);
+  } catch (e) { localStorage.removeItem('eks_chat_user'); }
+})();
+
+// ── AUTH ──────────────────────────────────────────────────────────────────────
+
+function onTelegramAuth(raw) {
+  me = {
+    id:    String(raw.id),
+    name:  [raw.first_name, raw.last_name].filter(Boolean).join(' ') || 'Без имени',
+    photo: raw.photo_url || '',
+  };
+  localStorage.setItem('eks_chat_user', JSON.stringify(raw));
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('on');
+  renderSidebar();
+  openChannel(CHANNELS[0].id);
+}
+
+function logout() { localStorage.removeItem('eks_chat_user'); location.reload(); }
+
+// ── SIDEBAR ───────────────────────────────────────────────────────────────────
+
+function renderSidebar() {
+  const fAva = document.getElementById('f-ava');
+  document.getElementById('f-name').textContent = me.name;
+  fAva.innerHTML = me.photo ? `<img src="${me.photo}" alt="">` : initials(me.name);
+
+  document.getElementById('ch-list').innerHTML = CHANNELS.map(ch => `
+    <div class="ch-item" id="chi-${ch.id}" onclick="openChannel('${ch.id}')">
+      <span class="ch-icon">${ch.icon}</span>
+      <span class="ch-name">${ch.name}</span>
+    </div>`).join('');
+
+  document.getElementById('links-list').innerHTML = `
+    <div class="dm-item" onclick="window.open('index.html','_blank')">
+      <div class="dm-ava">📊</div><span>Дашборд продаж</span>
+    </div>`;
+
+  // Кнопка push — видна всем (РОП не выделяем пока нет ROP_ID)
+  document.getElementById('notify-section').innerHTML = `
+    <button class="notify-btn" onclick="openNotifyModal()">
+      📲 Push в Telegram
+    </button>`;
+
+  buildNotifySelect();
+}
+
+// ── CHANNELS ──────────────────────────────────────────────────────────────────
+
+function openChannel(id) {
+  const ch = CHANNELS.find(c => c.id === id);
+  if (!ch) return;
+  document.querySelectorAll('.ch-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('chi-' + id);
+  if (el) el.classList.add('active');
+  activeCh = id;
+  document.getElementById('h-icon').textContent = ch.icon;
+  document.getElementById('h-name').textContent  = ch.name;
+  document.getElementById('h-desc').textContent  = ch.desc;
+  document.getElementById('msg-input').placeholder = `Сообщение в ${ch.name}...`;
+  if (activeRef) { activeRef.off(); activeRef = null; }
+  loadMessages(id);
+}
+
+// ── MESSAGES ──────────────────────────────────────────────────────────────────
+
+function loadMessages(chId) {
+  document.getElementById('msg-area').innerHTML = '<div class="state-msg"><p>Загрузка...</p></div>';
+  const ref = db.ref(`messages/${chId}`).limitToLast(150);
+  activeRef = ref;
+  ref.on('value', snap => {
+    const msgs = [];
+    snap.forEach(c => msgs.push({ key: c.key, ...c.val() }));
+    renderMessages(msgs, chId);
+  });
+}
+
+function renderMessages(msgs, chId) {
+  const area = document.getElementById('msg-area');
+  const ch   = CHANNELS.find(c => c.id === chId);
+  if (!msgs.length) {
+    area.innerHTML = `<div class="state-msg"><div class="si">${ch ? ch.icon : '💬'}</div><p>Начни общение в ${ch ? ch.name : chId}</p></div>`;
+    return;
+  }
+  let html = '', prevUid = null, prevDay = null;
+  msgs.forEach(msg => {
+    const d    = new Date(msg.ts);
+    const day  = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    const time = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    const today = new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+    if (day !== prevDay) {
+      html += `<div class="day-div">${day === today ? 'Сегодня' : day}</div>`;
+      prevUid = null; prevDay = day;
+    }
+    const isFirst = msg.uid !== prevUid;
+    if (isFirst) {
+      const ava = msg.photo ? `<img src="${esc(msg.photo)}" alt="">` : initials(msg.name || '?');
+      html += `<div class="msg-row is-first">
+        <div class="msg-ava">${ava}</div>
+        <div class="msg-content">
+          <div class="msg-meta"><span class="msg-author">${esc(msg.name || 'Аноним')}</span><span class="msg-time">${time}</span></div>
+          <div class="msg-text">${esc(msg.text)}</div>
+        </div></div>`;
+    } else {
+      html += `<div class="msg-row">
+        <div class="msg-ava ghost"></div>
+        <div class="msg-content"><div class="msg-text">${esc(msg.text)}</div></div>
+      </div>`;
+    }
+    prevUid = msg.uid;
+  });
+  area.innerHTML = html;
+  area.scrollTop = area.scrollHeight;
+}
+
+// ── SEND ──────────────────────────────────────────────────────────────────────
+
+function send() {
+  const input = document.getElementById('msg-input');
+  const text  = input.value.trim();
+  if (!text || !activeCh || !me) return;
+  db.ref(`messages/${activeCh}`).push({ text, uid: me.id, name: me.name, photo: me.photo, ts: Date.now() });
+  input.value = '';
+  input.style.height = 'auto';
+}
+
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+document.getElementById('msg-input').addEventListener('input', function () {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// ── PUSH NOTIFICATIONS ────────────────────────────────────────────────────────
+
+function buildNotifySelect() {
+  const sel = document.getElementById('notify-target');
+  if (!sel) return;
+  sel.innerHTML = '<option value="all">Всем менеджерам</option>';
+  TEAM.forEach(m => {
+    const opt = document.createElement('option');
+    opt.value = m.id;
+    opt.textContent = `${m.name} (${m.tg})`;
+    sel.appendChild(opt);
+  });
+}
+
+function openNotifyModal() {
+  document.getElementById('notify-msg').value = '';
+  document.getElementById('notify-modal').classList.add('open');
+  document.getElementById('notify-msg').focus();
+}
+
+function closeNotifyModal() {
+  document.getElementById('notify-modal').classList.remove('open');
+}
+
+async function sendNotify() {
+  const target = document.getElementById('notify-target').value;
+  const msg    = document.getElementById('notify-msg').value.trim();
+  if (!msg) return;
+
+  const targets = target === 'all' ? TEAM.map(m => m.id) : [target];
+  if (!targets.length) { showToast('⚠️ Нет пользователей — добавь TEAM в config'); closeNotifyModal(); return; }
+
+  const prefix = `📲 *Уведомление от РОП:*\n\n`;
+  let sent = 0;
+  for (const tid of targets) {
+    try {
+      await fetch(`${RAILWAY_URL}/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Secret': NOTIFY_SECRET },
+        body: JSON.stringify({ telegram_id: tid, message: prefix + msg }),
+      });
+      sent++;
+    } catch (e) { console.error('notify error', e); }
+  }
+
+  closeNotifyModal();
+  showToast(`✅ Отправлено ${sent} из ${targets.length}`);
+}
+
+// Закрытие по клику на overlay
+document.getElementById('notify-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeNotifyModal();
+});
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+
+function showToast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function initials(name) {
+  return (name || '?').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+}
+</script>
+</body>
+</html>
