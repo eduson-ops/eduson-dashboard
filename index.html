@@ -1869,17 +1869,26 @@ function visible() {
 
 function visibleMain() {
   var data=lessons.filter(r=>managers.some(m=>r.manager&&r.manager.includes(m.split(' ')[0])));
+  var from,to;
   if(mainDfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
     var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mon&&d<=sun;});
+    from=mon;to=sun;
   } else if(mainDfMode==='custom'&&mainDfFrom&&mainDfTo){
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mainDfFrom&&d<=mainDfTo;});
+    from=mainDfFrom;to=mainDfTo;
   } else {
-    var b=curMonthBounds();
-    data=data.filter(r=>{var d=parseDate(r.date);if(d&&d>=b.from&&d<=b.to)return true;if(r.paid&&r.paydate){var pd=parseDate(normDate(r.paydate));if(pd&&pd>=b.from&&pd<=b.to)return true;}return false;});
+    var b=curMonthBounds();from=b.from;to=b.to;
   }
-  return data;
+  // Attribution: paid records → by paydate; unpaid → by MK date.
+  // This ensures every payment counts in exactly one period (the month it was paid).
+  return data.filter(function(r){
+    if(r.paid && r.paydate){
+      var pd=parseDate(normDate(r.paydate));
+      return pd && pd>=from && pd<=to;
+    }
+    var d=parseDate(r.date);
+    return d && d>=from && d<=to;
+  });
 }
 
 function visibleRenewalsMain() {
