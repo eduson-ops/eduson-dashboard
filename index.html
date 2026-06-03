@@ -2660,13 +2660,17 @@ function renderSchedule() {
   // Summary — count only slots within the visible 7-day window
   var visibleDates=new Set(days.map(dateStr));
   var grandTotal=0;
+  var emptyMgrs=[];
   var summaryHtml=managers.map(m=>{
     var total=0;
     if(scheduleData[m])Object.entries(scheduleData[m]).forEach(([ds,dSlots])=>{
       if(visibleDates.has(ds))total+=Object.keys(dSlots).length;
     });
     grandTotal+=total;
-    return`<div class="hms-card"><div class="hms-name">💼 ${m}</div><div class="hms-val">${total}</div><div class="hms-sub">слотов на нед ${hmWeek+1}</div></div>`;
+    if(total===0)emptyMgrs.push(m);
+    var warnStyle=total===0?'background:var(--r-bg);border-color:var(--r-bd)':'';
+    var valColor=total===0?'color:var(--r)':'';
+    return`<div class="hms-card" style="${warnStyle}"><div class="hms-name">💼 ${m}</div><div class="hms-val" style="${valColor}">${total}</div><div class="hms-sub">${total===0?'⚠ не заполнил':'слотов на нед '+(hmWeek+1)}</div></div>`;
   }).join('');
   document.getElementById('hm-summary').innerHTML=summaryHtml;
 
@@ -2896,6 +2900,28 @@ function selectEditMgr(name){
       Object.keys(hrs).forEach(h=>{selectedSlots[ds][parseInt(h)]=true;});
     });
   }
+
+  // Check for unsaved backup from a previous failed submit
+  try{
+    var raw=localStorage.getItem('eks-slots-backup-'+name);
+    if(raw){
+      var b=JSON.parse(raw);
+      var ageMin=(Date.now()-new Date(b.ts).getTime())/60000;
+      if(b.slots && b.slots.length && ageMin<24*60){
+        if(confirm('Нашёл несохранённое расписание ('+b.slots.length+' слотов, '+Math.round(ageMin)+' мин назад). Восстановить?')){
+          selectedSlots={};
+          b.slots.forEach(function(s){
+            var hr=parseInt(s.time.split(':')[0]);
+            if(!selectedSlots[s.date])selectedSlots[s.date]={};
+            selectedSlots[s.date][hr]=true;
+          });
+        } else {
+          localStorage.removeItem('eks-slots-backup-'+name);
+        }
+      }
+    }
+  }catch(e){}
+
   renderMgrPicker();
   renderMgrPickerMobile();
   var sp=document.getElementById('slots-panel');if(sp)sp.style.display='block';
@@ -2991,7 +3017,7 @@ function updateSelCount(){
 }
 
 async function submitSchedule(){
-  if(!currentEditMgr){alert('Выбери менеджера!');return;}
+  if(!currentEditMgr){alert('Сначала выбери менеджера!');return;}
   var slots_arr=[];
   Object.entries(selectedSlots).forEach(function(entry){
     var ds=entry[0],hrs=entry[1];
@@ -2999,6 +3025,21 @@ async function submitSchedule(){
       slots_arr.push({date:ds,time:(parseInt(h)<10?'0':'')+h+':00'});
     });
   });
+
+  // ⚠ Block empty submission — Apps Script clears all existing slots,
+  // so submitting [] would WIPE the manager's schedule. Confirm explicitly.
+  if(slots_arr.length===0){
+    if(!confirm('У тебя не выбран ни один слот. Это сотрёт ВСЁ твоё расписание. Уверен?')){
+      return;
+    }
+  }
+
+  // Backup to localStorage so the user doesn't lose work if submit fails
+  try{
+    localStorage.setItem('eks-slots-backup-'+currentEditMgr, JSON.stringify({
+      ts:new Date().toISOString(), manager:currentEditMgr, slots:slots_arr
+    }));
+  }catch(e){}
 
   var btn=document.getElementById('submit-btn');
   var btnM=document.getElementById('submit-btn-mobile');
@@ -3008,38 +3049,102 @@ async function submitSchedule(){
   var resultEl=document.getElementById('submit-result');
   resultEl.style.display='none';
 
+  var managerToSubmit=currentEditMgr;
+  var sentCount=slots_arr.length;
+
   try{
-    // Apps Script requires no-cors — we can't read response, but data arrives
+    // Apps Script requires no-cors — we can't read response, but data arrives.
+    // Errors here only catch network failures, NOT Apps Script errors.
     await fetch(WEB_APP_URL,{
       method:'POST',
       mode:'no-cors',
       headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({manager:currentEditMgr,slots:slots_arr}),
+      body:JSON.stringify({manager:managerToSubmit,slots:slots_arr}),
     });
 
-    // Since no-cors = opaque response, assume success if no exception
-    // Update local scheduleData immediately
-    if(!scheduleData[currentEditMgr])scheduleData[currentEditMgr]={};
-    // Clear old slots for this manager
-    Object.keys(scheduleData[currentEditMgr]).forEach(function(k){delete scheduleData[currentEditMgr][k];});
-    // Set new slots
+    // Update local scheduleData immediately (optimistic)
+    if(!scheduleData[managerToSubmit])scheduleData[managerToSubmit]={};
+    Object.keys(scheduleData[managerToSubmit]).forEach(function(k){delete scheduleData[managerToSubmit][k];});
     Object.entries(selectedSlots).forEach(function(entry){
       var ds=entry[0],hrs=entry[1];
-      scheduleData[currentEditMgr][ds]={};
-      Object.keys(hrs).forEach(function(h){scheduleData[currentEditMgr][ds][parseInt(h)]=true;});
+      scheduleData[managerToSubmit][ds]={};
+      Object.keys(hrs).forEach(function(h){scheduleData[managerToSubmit][ds][parseInt(h)]=true;});
     });
 
+    // Show "проверяем..." state
     resultEl.style.display='block';
-    resultEl.innerHTML='<div style="background:var(--g-bg);border:1px solid var(--g-bd);border-radius:10px;padding:12px 16px;font-size:12px;color:var(--g);margin-top:10px">✅ Готово! Отправлено <strong>'+slots_arr.length+' слотов</strong> для '+currentEditMgr+'. Расписание обновлено.</div>';
+    resultEl.innerHTML='<div style="background:var(--y-bg);border:1px solid var(--y-bd);border-radius:10px;padding:12px 16px;font-size:12px;color:var(--y);margin-top:10px">⏳ Отправлено '+sentCount+' слотов. Проверяю в Google Таблице…</div>';
     renderSchedule();
+    // Scroll status into view so user sees the verification
+    if(resultEl.scrollIntoView) resultEl.scrollIntoView({behavior:'smooth',block:'center'});
+
+    // VERIFY: re-fetch schedule sheet and check the slots actually landed.
+    // Apps Script takes a few seconds to commit; wait a bit before checking.
+    await new Promise(function(r){setTimeout(r,3500);});
+    var verifyOk=await verifyScheduleSubmit(managerToSubmit, slots_arr);
+
+    if(verifyOk){
+      resultEl.innerHTML='<div style="background:var(--g-bg);border:1px solid var(--g-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--g);margin-top:10px;font-weight:600">✅ Готово! Сохранено <strong>'+sentCount+' слотов</strong> в Google Таблице. Расписание обновлено.</div>';
+      // Clear backup since save succeeded
+      try{localStorage.removeItem('eks-slots-backup-'+managerToSubmit);}catch(e){}
+    } else {
+      resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--r);margin-top:10px;line-height:1.5"><div style="font-weight:700;margin-bottom:4px">⚠ Не удалось подтвердить сохранение</div>Слоты отправлены, но в Google Таблице их пока нет. Возможные причины:<ul style="margin:6px 0 0 18px;padding:0;font-size:12px"><li>Apps Script отвалился или превысил квоту</li><li>Сеть подвела (проверь wi-fi/моб. интернет)</li><li>Сервер ещё пишет — попробуй обновить страницу через 30 сек</li></ul><div style="margin-top:8px;font-size:12px;color:var(--sub)">Твоё расписание сохранено локально в браузере на всякий случай.</div></div>';
+    }
 
   }catch(e){
     resultEl.style.display='block';
-    resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:12px 16px;font-size:12px;color:var(--r);margin-top:10px">❌ Ошибка: '+e.message+'</div>';
+    resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--r);margin-top:10px">❌ Сетевая ошибка: '+e.message+'<br><span style="font-size:11px;color:var(--sub)">Расписание сохранено локально, попробуй ещё раз.</span></div>';
   }
 
   if(btn){btn.textContent='Отправить расписание →';btn.disabled=false;}
   if(btnM){btnM.textContent='Отправить →';btnM.disabled=false;}
+}
+
+// Re-fetch the Расписание sheet and verify expected slots are present.
+async function verifyScheduleSubmit(mgrName, expectedSlots){
+  try{
+    var rows=await fetchCSV('schedule');
+    if(!rows||rows.length<2) return false;
+    // Build set of "mgr|date|hour" actually present in sheet
+    var actual=new Set();
+    for(var i=1;i<rows.length;i++){
+      var r=rows[i]; if(!r||r.length<3)continue;
+      var nm=(r[0]||'').toString().trim();
+      var ds=normDate((r[1]||'').toString().trim());
+      var tm=(r[2]||'').toString().trim();
+      var hr=parseInt(tm.split(':')[0]);
+      if(nm&&ds&&!isNaN(hr)) actual.add(nm+'|'+ds+'|'+hr);
+    }
+    // Re-parse scheduleData while we have fresh data
+    scheduleData={};
+    for(var i=1;i<rows.length;i++){
+      var r=rows[i]; if(!r||r.length<3)continue;
+      var nm=(r[0]||'').toString().trim(), ds=normDate((r[1]||'').toString().trim());
+      var hr=parseInt((r[2]||'').toString().trim().split(':')[0]);
+      if(!nm||!ds||isNaN(hr))continue;
+      if(!scheduleData[nm])scheduleData[nm]={};
+      if(!scheduleData[nm][ds])scheduleData[nm][ds]={};
+      scheduleData[nm][ds][hr]=true;
+    }
+    renderSchedule();
+    // If we submitted at least one slot, check at least 80% landed
+    if(expectedSlots.length===0){
+      // Empty submission: verify the manager has NO rows now
+      var anyForMgr=false;
+      actual.forEach(function(k){if(k.indexOf(mgrName+'|')===0)anyForMgr=true;});
+      return !anyForMgr;
+    }
+    var hit=0;
+    for(var j=0;j<expectedSlots.length;j++){
+      var s=expectedSlots[j];
+      var hr=parseInt(s.time.split(':')[0]);
+      if(actual.has(mgrName+'|'+s.date+'|'+hr)) hit++;
+    }
+    return hit>=Math.ceil(expectedSlots.length*0.8);
+  }catch(e){
+    console.warn('verifyScheduleSubmit failed:',e);
+    return false;
+  }
 }
 
 // ═══════════════════════════════════════
