@@ -267,6 +267,12 @@ body{
 /* ── DATE FILTER ── */
 .dfilter{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .dfilter label{font-size:11px;color:var(--muted)}
+.rtgl-wrap{display:flex;align-items:center;gap:7px;margin-left:auto}
+.rtgl-wrap label{font-size:11px;color:var(--muted);font-weight:600;cursor:pointer}
+.rtgl{position:relative;width:36px;height:20px;border-radius:20px;border:1px solid var(--border-s);background:var(--bg3);cursor:pointer;padding:0;flex-shrink:0;transition:background .2s,border-color .2s}
+.rtgl-knob{position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .2s,background .2s}
+.rtgl.on{background:var(--g-bg);border-color:var(--g-bd)}
+.rtgl.on .rtgl-knob{transform:translateX(16px);background:var(--g)}
 .dfinput{background:var(--bg3);border:1px solid var(--border-s);color:var(--text);font-size:11px;padding:5px 10px;border-radius:var(--r6);font-family:var(--mono);outline:none;cursor:pointer}
 .dfinput:focus{border-color:var(--y)}
 .dfbtn{font-size:11px;font-weight:600;padding:5px 14px;border-radius:var(--r6);border:1px solid var(--border-s);background:var(--bg3);color:var(--muted);cursor:pointer;font-family:var(--sans);transition:all var(--dur) var(--ease)}
@@ -983,6 +989,10 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSidebar
       <label>по</label><input type="date" class="dfinput" id="main-df-to">
       <button class="dfbtn active" onclick="applyMainCustom()">Применить</button>
     </div>
+    <div class="rtgl-wrap" title="Учитывать продления в выручке (KPI + рейтинг команды)">
+      <label for="renewToggle">Продления</label>
+      <button class="rtgl" id="renewToggle" role="switch" aria-checked="true" onclick="toggleRenewals()"><span class="rtgl-knob"></span></button>
+    </div>
   </div>
 
   <div class="kpis stagger">
@@ -1458,6 +1468,7 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 let lessons=[], renewals=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
 let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
+let COUNT_RENEWALS=(function(){try{return localStorage.getItem('eks-cr')!=='0';}catch(e){return true;}})();
 let analyticsMgr='', hotMgr='';
 
 // ═══════════════════════════════════════
@@ -1631,7 +1642,8 @@ async function loadAll() {
       ts:cc(r[0]),manager:cc(r[1]),crm:crmUrl,crmId:crmId,
       paydate:cc(r[3]),practice:cc(r[4]),pack:cc(r[5]),paytype:cc(r[6]),rev:rev
     };
-    if(cc(r[6]).toLowerCase()==='продление'){renewalsList.push(pay);continue;}
+    var ptL=cc(r[6]).toLowerCase();
+    if(ptL.indexOf('продлен')>=0||ptL.indexOf('повторн')>=0){renewalsList.push(pay);continue;}
     if(crmId) payMap[crmId] = pay;
     // Сценарий 2: оплата есть, МК отчёта нет → оплата на занятии
     if(crmId && !mkMap[crmId]){
@@ -1911,6 +1923,22 @@ function calcTotals(data) {
   return{mk,paid,rev,conv:mk?Math.round(paid/mk*1000)/10:0,avg:paid?Math.round(rev/paid):0,rpm:mk?Math.round(rev/mk):0};
 }
 
+// Сумма выручки продлений по менеджеру (ключ — первое слово имени)
+function renRevByMgr(rows){var m={};rows.forEach(function(r){if(r.manager){var k=r.manager.split(' ')[0];m[k]=(m[k]||0)+r.rev;}});return m;}
+
+function syncRenewalToggle(){
+  var b=document.getElementById('renewToggle');
+  if(b){b.classList.toggle('on',COUNT_RENEWALS);b.setAttribute('aria-checked',COUNT_RENEWALS?'true':'false');}
+}
+function toggleRenewals(){
+  COUNT_RENEWALS=!COUNT_RENEWALS;
+  try{localStorage.setItem('eks-cr',COUNT_RENEWALS?'1':'0');}catch(e){}
+  syncRenewalToggle();
+  renderMain();
+  var s=document.getElementById('search');
+  renderTeamTable(visibleMain(),s?s.value:'');
+}
+
 // ═══════════════════════════════════════
 // ─── Sparkline helpers ───
 function sparkPath(data,w,h){
@@ -1941,9 +1969,10 @@ function renderKpiSparks(data){
 // MAIN PAGE
 // ═══════════════════════════════════════
 function renderMain() {
+  syncRenewalToggle();
   var data=visibleMain(),t=calcTotals(data);
   var renRev=visibleRenewalsMain().reduce((s,r)=>s+r.rev,0);
-  t.rev+=renRev;
+  if(COUNT_RENEWALS) t.rev+=renRev;
   if(t.paid) t.avg=Math.round(t.rev/t.paid);
   if(t.mk) t.rpm=Math.round(t.rev/t.mk);
   var now=new Date();
@@ -2004,9 +2033,16 @@ function renderMain() {
 function renderTeamTable(data,filter) {
   var mgrs={};
   data.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
-  var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t};}).sort((a,b)=>b.rev-a.rev);
-  if(filter)sorted=sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase()));
+  var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t};});
   var t=calcTotals(data);
+  if(COUNT_RENEWALS){
+    var rmap=renRevByMgr(visibleRenewalsMain()),totRen=0;
+    sorted.forEach(r=>{var add=rmap[r.name.split(' ')[0]]||0;if(add){r.rev+=add;r.rpm=r.mk?Math.round(r.rev/r.mk):r.rpm;r.avg=r.paid?Math.round(r.rev/r.paid):r.avg;}});
+    for(var k in rmap)totRen+=rmap[k];
+    if(totRen){t.rev+=totRen;t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;}
+  }
+  sorted.sort((a,b)=>b.rev-a.rev);
+  if(filter)sorted=sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase()));
   var tbody=document.getElementById('tbody');
   var avCls=['c1','c2','c3','c4','c5','c6'];
   tbody.innerHTML='';
