@@ -3070,12 +3070,35 @@ async function submitSchedule(){
     }
   }
 
+  // 🛡 Full-sheet backup: snapshot ALL managers' schedules in case Apps Script
+  // wipes more than it should. Has happened before — losing this protects others.
+  try{
+    var fullBackup={ts:new Date().toISOString(),data:{}};
+    Object.keys(scheduleData).forEach(function(m){
+      fullBackup.data[m]={};
+      Object.keys(scheduleData[m]).forEach(function(ds){
+        fullBackup.data[m][ds]=Object.keys(scheduleData[m][ds]).map(function(h){return parseInt(h);});
+      });
+    });
+    localStorage.setItem('eks-sched-full-backup', JSON.stringify(fullBackup));
+  }catch(e){}
+
   // Backup to localStorage so the user doesn't lose work if submit fails
   try{
     localStorage.setItem('eks-slots-backup-'+currentEditMgr, JSON.stringify({
       ts:new Date().toISOString(), manager:currentEditMgr, slots:slots_arr
     }));
   }catch(e){}
+
+  // Snapshot row count BEFORE submit so we can detect mass-wipe
+  var rowsBefore=0;
+  Object.keys(scheduleData).forEach(function(m){
+    Object.keys(scheduleData[m]||{}).forEach(function(ds){
+      rowsBefore+=Object.keys(scheduleData[m][ds]||{}).length;
+    });
+  });
+  window.__schedRowsBefore=rowsBefore;
+  window.__schedMgrsBefore=Object.keys(scheduleData).filter(function(m){return Object.keys(scheduleData[m]||{}).length;}).length;
 
   var btn=document.getElementById('submit-btn');
   var btnM=document.getElementById('submit-btn-mobile');
@@ -3143,29 +3166,63 @@ async function verifyScheduleSubmit(mgrName, expectedSlots){
     if(!rows||rows.length<2) return false;
     // Build set of "mgr|date|hour" actually present in sheet
     var actual=new Set();
+    var newScheduleData={};
     for(var i=1;i<rows.length;i++){
       var r=rows[i]; if(!r||r.length<3)continue;
       var nm=(r[0]||'').toString().trim();
       var ds=normDate((r[1]||'').toString().trim());
       var tm=(r[2]||'').toString().trim();
       var hr=parseInt(tm.split(':')[0]);
-      if(nm&&ds&&!isNaN(hr)) actual.add(nm+'|'+ds+'|'+hr);
-    }
-    // Re-parse scheduleData while we have fresh data
-    scheduleData={};
-    for(var i=1;i<rows.length;i++){
-      var r=rows[i]; if(!r||r.length<3)continue;
-      var nm=(r[0]||'').toString().trim(), ds=normDate((r[1]||'').toString().trim());
-      var hr=parseInt((r[2]||'').toString().trim().split(':')[0]);
       if(!nm||!ds||isNaN(hr))continue;
-      if(!scheduleData[nm])scheduleData[nm]={};
-      if(!scheduleData[nm][ds])scheduleData[nm][ds]={};
-      scheduleData[nm][ds][hr]=true;
+      actual.add(nm+'|'+ds+'|'+hr);
+      if(!newScheduleData[nm])newScheduleData[nm]={};
+      if(!newScheduleData[nm][ds])newScheduleData[nm][ds]={};
+      newScheduleData[nm][ds][hr]=true;
     }
+
+    // 🛡 Detect mass-wipe: if Apps Script ate other managers' data
+    var rowsAfter=actual.size;
+    var rowsBefore=window.__schedRowsBefore||0;
+    var mgrsAfter=Object.keys(newScheduleData).filter(function(m){return Object.keys(newScheduleData[m]||{}).length;}).length;
+    var mgrsBefore=window.__schedMgrsBefore||0;
+    var lostMgrs=[];
+    Object.keys(scheduleData).forEach(function(m){
+      if(m===mgrName) return; // submitter's data legitimately replaced
+      var hadRows=Object.keys(scheduleData[m]||{}).length>0;
+      var hasRows=Object.keys(newScheduleData[m]||{}).length>0;
+      if(hadRows && !hasRows) lostMgrs.push(m);
+    });
+
+    if(lostMgrs.length>0){
+      // ⚠ MASS WIPE detected — show prominent warning, DO NOT overwrite local state
+      console.error('[SCHED MASS WIPE]', {rowsBefore,rowsAfter,mgrsBefore,mgrsAfter,lostMgrs});
+      var resultEl=document.getElementById('submit-result');
+      if(resultEl){
+        resultEl.style.display='block';
+        resultEl.innerHTML='<div style="background:var(--r-bg);border:2px solid var(--r);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--r);margin-top:10px;line-height:1.5">'
+          +'<div style="font-weight:700;font-size:14px;margin-bottom:6px">🚨 КРИТИЧЕСКАЯ ОШИБКА APPS SCRIPT</div>'
+          +'Apps Script стёр расписание других менеджеров: <b>'+lostMgrs.join(', ')+'</b>. '
+          +'Твои слоты сохранились, но чужие пропали.'
+          +'<div style="margin:10px 0 6px;font-weight:600;color:var(--text)">Что делать СРОЧНО:</div>'
+          +'<ol style="margin:0 0 0 18px;padding:0;font-size:12px;color:var(--text)">'
+          +'<li>Открой Google Таблицу → <b>Файл → История версий → Просмотреть историю версий</b></li>'
+          +'<li>Выбери последнюю версию ПЕРЕД сегодняшним сабмитом</li>'
+          +'<li>Нажми «Восстановить эту версию»</li>'
+          +'<li>Потом перевыставь свои слоты заново</li>'
+          +'</ol>'
+          +'<div style="margin-top:10px;font-size:11px;color:var(--sub)">Локальный бэкап на '+rowsBefore+' слотов сохранён в браузере (eks-sched-full-backup).</div>'
+          +'</div>';
+        if(resultEl.scrollIntoView)resultEl.scrollIntoView({behavior:'smooth',block:'center'});
+      }
+      // Keep the old scheduleData so ROP can still see who had what before
+      return false;
+    }
+
+    // Normal case: commit new state
+    scheduleData=newScheduleData;
     renderSchedule();
     // If we submitted at least one slot, check at least 80% landed
     if(expectedSlots.length===0){
-      // Empty submission: verify the manager has NO rows now
       var anyForMgr=false;
       actual.forEach(function(k){if(k.indexOf(mgrName+'|')===0)anyForMgr=true;});
       return !anyForMgr;
