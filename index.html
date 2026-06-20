@@ -1470,11 +1470,35 @@ let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null,
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
 let COUNT_RENEWALS=(function(){try{return localStorage.getItem('eks-cr')!=='0';}catch(e){return true;}})();
 let analyticsMgr='', hotMgr='';
+// Personal view: when set to a manager name, all "team" views filter to just them.
+// Persisted in localStorage; chosen via picker in topbar.
+let personalMgr=(function(){try{return localStorage.getItem('eks-me')||'';}catch(e){return '';}})();
 
 // ═══════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════
 const fmt = n => Math.round(n).toLocaleString('ru');
+
+// XSS-safe escape for user-provided text inserted into innerHTML template strings.
+// Use for: agreement, objection, notes, reason, comment, contact, manager name when
+// it's a free-text field rather than from our trusted managers list.
+function esc(s){
+  if(s==null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+// URL whitelist — only http(s) URLs are safe in href. Blocks javascript:, data:, etc.
+function safeUrl(u){
+  if(!u) return '';
+  var s=String(u).trim();
+  if(!/^https?:\/\//i.test(s)) return '';
+  return esc(s);
+}
 function fmtDate(d){
   var dd=String(d.getDate()).padStart(2,'0');
   var mo=String(d.getMonth()+1).padStart(2,'0');
@@ -1608,6 +1632,36 @@ async function loadAll() {
     fetchCSV('form'),fetchCSV('payments'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule'),fetchCSV('cancels')
   ]);
 
+  // Build canonical-manager list early so we can normalize free-text manager fields
+  // from forms (where managers sometimes type "Перебейносов А" / "Перебейносов А.").
+  var canonList=[];
+  for(var __i=1;__i<rawMgrs.length;__i++){
+    var __r=rawMgrs[__i];
+    var __nm=cc((__r||[])[0]);
+    var __act=(cc((__r||[])[1])||'').toLowerCase();
+    if(__nm&&(__act==='да'||__act==='yes'||__act==='1')) canonList.push(__nm);
+  }
+  if(!canonList.length) canonList=FALLBACK_MGRS.slice();
+  // For matching: lowercase first word of canonical name → canonical
+  var canonByFirst={};
+  canonList.forEach(function(m){
+    var f=m.toLowerCase().split(' ')[0];
+    if(!canonByFirst[f]) canonByFirst[f]=m;
+  });
+  window.__canonicalMgr = function(raw){
+    if(!raw) return raw;
+    var s=String(raw).trim().replace(/\s+/g,' ');
+    // 1) exact match (trimmed)
+    for(var i=0;i<canonList.length;i++) if(canonList[i]===s) return canonList[i];
+    // 2) case-insensitive exact match
+    for(var i=0;i<canonList.length;i++) if(canonList[i].toLowerCase()===s.toLowerCase()) return canonList[i];
+    // 3) first-word match (handles "Перебейносов А" → "Перебейносов А.")
+    var f=s.toLowerCase().split(' ')[0];
+    if(canonByFirst[f]) return canonByFirst[f];
+    // 4) no match — return as-is, will be filtered out by `visible*()` exact check
+    return s;
+  };
+
   // Parse lessons (Форма 1 — без оплаты)
   // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=notes,10=agreement,11=objection
   var mkMap = {}; // crmId → lesson object
@@ -1618,7 +1672,7 @@ async function loadAll() {
     var crmUrl=cc(r[4]);
     var crmId=extractCrmId(crmUrl);
     var lesson = {
-      ts:cc(r[0]),manager:cc(r[1]),date:cc(r[2]),time:cc(r[3]),
+      ts:cc(r[0]),manager:window.__canonicalMgr(cc(r[1])),date:cc(r[2]),time:cc(r[3]),
       crm:crmUrl,crmId:crmId,rec:cc(r[5]),practice:cc(r[6]),age:cc(r[7]),
       pack:cc(r[8]),notes:cc(r[9]),agreement:cc(r[10]),objection:cc(r[11]),
       rev:0,paid:false,paytype:'',scenario:'no_pay'
@@ -1639,7 +1693,7 @@ async function loadAll() {
     var crmId=extractCrmId(crmUrl);
     var rev=parseFloat(cc(r[7]).replace(/[^0-9.]/g,''))||0;
     var pay = {
-      ts:cc(r[0]),manager:cc(r[1]),crm:crmUrl,crmId:crmId,
+      ts:cc(r[0]),manager:window.__canonicalMgr(cc(r[1])),crm:crmUrl,crmId:crmId,
       paydate:cc(r[3]),practice:cc(r[4]),pack:cc(r[5]),paytype:cc(r[6]),rev:rev
     };
     var ptL=cc(r[6]).toLowerCase();
@@ -1826,7 +1880,7 @@ async function loadAll() {
     cancelsList.push({
       ts:cc(r[0]), crm:cc(r[1]), reason:cc(r[2]),
       is_first:cc(r[3]), contact:cc(r[4]), age:cc(r[5]),
-      comment:cc(r[6]), manager:cc(r[7])
+      comment:cc(r[6]), manager:window.__canonicalMgr(cc(r[7]))
     });
   }
 
@@ -1865,7 +1919,8 @@ function curMonthBounds() {
 }
 
 function visible() {
-  var data=lessons.filter(r=>managers.some(m=>r.manager&&r.manager.includes(m.split(' ')[0])));
+  var mgrSet=new Set(managers);
+  var data=lessons.filter(r=>r.manager && mgrSet.has(r.manager) && (!personalMgr || r.manager===personalMgr));
   if(dfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
     var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
@@ -1880,7 +1935,8 @@ function visible() {
 }
 
 function visibleMain() {
-  var data=lessons.filter(r=>managers.some(m=>r.manager&&r.manager.includes(m.split(' ')[0])));
+  var mgrSet=new Set(managers);
+  var data=lessons.filter(r=>r.manager && mgrSet.has(r.manager) && (!personalMgr || r.manager===personalMgr));
   var from,to;
   if(mainDfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
@@ -1904,7 +1960,8 @@ function visibleMain() {
 }
 
 function visibleRenewalsMain() {
-  var data=renewals.filter(r=>managers.some(m=>r.manager&&r.manager.includes(m.split(' ')[0])));
+  var mgrSet=new Set(managers);
+  var data=renewals.filter(r=>r.manager && mgrSet.has(r.manager) && (!personalMgr || r.manager===personalMgr));
   if(mainDfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
     var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
@@ -2382,7 +2439,7 @@ function renderCancels() {
   // Таблица
   var sorted=[...data].sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,100);
   document.getElementById('cancels-table').innerHTML=sorted.length
-    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>МиМК</th><th>Причина</th><th>Первичная?</th><th>Возраст</th><th>Связь</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${r.manager||'—'}</td><td style="font-size:11px">${r.reason||'—'}</td><td style="color:${r.is_first==='Нет'?'var(--r)':'var(--muted)'}">${r.is_first||'—'}</td><td style="font-family:var(--mono)">${r.age||'—'}</td><td style="font-size:11px">${r.contact||'—'}</td><td>${r.comment?agrBtn(r.comment):'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
+    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>МиМК</th><th>Причина</th><th>Первичная?</th><th>Возраст</th><th>Связь</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${esc(r.manager||'—')}</td><td style="font-size:11px">${esc(r.reason||'—')}</td><td style="color:${r.is_first==='Нет'?'var(--r)':'var(--muted)'}">${esc(r.is_first||'—')}</td><td style="font-family:var(--mono)">${esc(r.age||'—')}</td><td style="font-size:11px">${esc(r.contact||'—')}</td><td>${r.comment?agrBtn(r.comment):'—'}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
     :'<div class="empty"><div class="empty-ic">✅</div><div>Отмен нет</div></div>';
 }
 
@@ -2509,7 +2566,7 @@ function renderAnalytics() {
 
   // All lessons table
   var recent=[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,100);
-  document.getElementById('all-table').innerHTML=recent.length?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Дата</th><th>Менеджер</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>${recent.map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${r.date}</td><td class="tn">${r.manager}</td><td>${r.practice}</td><td>${r.pack}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${r.objection||'—'}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty"><div class="empty-ic">📊</div><div>Нет данных</div></div>';
+  document.getElementById('all-table').innerHTML=recent.length?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Дата</th><th>Менеджер</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>${recent.map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${esc(r.date)}</td><td class="tn">${esc(r.manager)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty"><div class="empty-ic">📊</div><div>Нет данных</div></div>';
 }
 
 // ═══════════════════════════════════════
@@ -2584,7 +2641,7 @@ function openMgr(name) {
 
   document.getElementById('mlessons').innerHTML=[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).length?
     `<div style="overflow-x:auto"><table class="tt" style="min-width:560px"><thead><tr><th>Дата</th><th>Время</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>Договорённости</th><th>CRM</th></tr></thead><tbody>
-    ${[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${r.date}</td><td style="font-family:var(--mono);font-size:10px">${r.time}</td><td>${r.practice}</td><td>${r.pack}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${r.objection||'—'}</td><td style="text-align:center">${agrBtn(r.agreement)}</td><td>${r.crm?`<a href="${r.crm}" target="_blank" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}
+    ${[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${esc(r.date)}</td><td style="font-family:var(--mono);font-size:10px">${esc(r.time)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td style="text-align:center">${agrBtn(r.agreement)}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}
     </tbody></table></div>`:'<div class="empty"><div class="empty-ic">📋</div><div>Нет уроков</div></div>';
 
   document.getElementById('mgr-list').style.display='none';
@@ -2814,6 +2871,8 @@ function schedTab(tab,btn){
   document.getElementById('week-switcher').style.display=tab==='view'?'flex':'none';
   document.querySelectorAll('#page-schedule .nav-tabs .tab').forEach(b=>b.classList.remove('active'));
   btn.classList.add('active');
+  // Pause auto-refresh while editing — prevents loadAll wiping in-progress selections.
+  window.__editingSchedule = (tab==='edit');
   if(tab==='edit'){renderMgrPicker();renderMgrPickerMobile();}
 }
 
@@ -3110,6 +3169,18 @@ async function submitSchedule(){
 
   var managerToSubmit=currentEditMgr;
   var sentCount=slots_arr.length;
+  window.__submittingSchedule=true;
+
+  // Snapshot scheduleData[manager] BEFORE submit so verify-fail can rollback.
+  var preSubmitMgrSnapshot={};
+  if(scheduleData[managerToSubmit]){
+    Object.keys(scheduleData[managerToSubmit]).forEach(function(ds){
+      preSubmitMgrSnapshot[ds]={};
+      Object.keys(scheduleData[managerToSubmit][ds]).forEach(function(h){
+        preSubmitMgrSnapshot[ds][parseInt(h)]=true;
+      });
+    });
+  }
 
   try{
     // Apps Script requires no-cors — we can't read response, but data arrives.
@@ -3143,16 +3214,36 @@ async function submitSchedule(){
     var verifyOk=await verifyScheduleSubmit(managerToSubmit, slots_arr);
 
     if(verifyOk){
-      resultEl.innerHTML='<div style="background:var(--g-bg);border:1px solid var(--g-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--g);margin-top:10px;font-weight:600">✅ Готово! Сохранено <strong>'+sentCount+' слотов</strong> в Google Таблице. Расписание обновлено.</div>';
+      // Log to audit + show undo toast
+      auditLogPush({type:'schedule_submit',manager:managerToSubmit,slotCount:sentCount,prev:preSubmitMgrSnapshot});
+      showUndoToast(managerToSubmit, preSubmitMgrSnapshot, sentCount);
+      resultEl.innerHTML='<div style="background:var(--g-bg);border:1px solid var(--g-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--g);margin-top:10px;font-weight:600">✅ Готово! Сохранено <strong>'+sentCount+' слотов</strong> в Google Таблице.</div>';
       // Clear backup since save succeeded
       try{localStorage.removeItem('eks-slots-backup-'+managerToSubmit);}catch(e){}
     } else {
-      resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--r);margin-top:10px;line-height:1.5"><div style="font-weight:700;margin-bottom:4px">⚠ Не удалось подтвердить сохранение</div>Слоты отправлены, но в Google Таблице их пока нет. Возможные причины:<ul style="margin:6px 0 0 18px;padding:0;font-size:12px"><li>Apps Script отвалился или превысил квоту</li><li>Сеть подвела (проверь wi-fi/моб. интернет)</li><li>Сервер ещё пишет — попробуй обновить страницу через 30 сек</li></ul><div style="margin-top:8px;font-size:12px;color:var(--sub)">Твоё расписание сохранено локально в браузере на всякий случай.</div></div>';
+      // ROLLBACK: verify failed (and it wasn't a mass-wipe — that branch handles its own UI).
+      // Restore the pre-submit snapshot so optimistic UI doesn't lie about saved state.
+      if(scheduleData[managerToSubmit]){
+        scheduleData[managerToSubmit]={};
+        Object.keys(preSubmitMgrSnapshot).forEach(function(ds){
+          scheduleData[managerToSubmit][ds]={};
+          Object.keys(preSubmitMgrSnapshot[ds]).forEach(function(h){
+            scheduleData[managerToSubmit][ds][parseInt(h)]=true;
+          });
+        });
+        renderSchedule();
+      }
+      // Don't overwrite mass-wipe banner if it already populated resultEl
+      if(resultEl.innerHTML.indexOf('КРИТИЧЕСКАЯ')===-1){
+        resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--r);margin-top:10px;line-height:1.5"><div style="font-weight:700;margin-bottom:4px">⚠ Не удалось подтвердить сохранение</div>Слоты отправлены, но в Google Таблице их пока нет. Возможные причины:<ul style="margin:6px 0 0 18px;padding:0;font-size:12px"><li>Apps Script отвалился или превысил квоту</li><li>Сеть подвела (проверь wi-fi/моб. интернет)</li><li>Сервер ещё пишет — попробуй обновить страницу через 30 сек</li></ul><div style="margin-top:8px;font-size:12px;color:var(--sub)">Твоё расписание сохранено локально в браузере на всякий случай.</div></div>';
+      }
     }
 
   }catch(e){
     resultEl.style.display='block';
-    resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--r);margin-top:10px">❌ Сетевая ошибка: '+e.message+'<br><span style="font-size:11px;color:var(--sub)">Расписание сохранено локально, попробуй ещё раз.</span></div>';
+    resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--r);margin-top:10px">❌ Сетевая ошибка: '+esc(e.message)+'<br><span style="font-size:11px;color:var(--sub)">Расписание сохранено локально, попробуй ещё раз.</span></div>';
+  } finally {
+    window.__submittingSchedule=false;
   }
 
   if(btn){btn.textContent='Отправить расписание →';btn.disabled=false;}
@@ -3469,7 +3560,7 @@ function nextQuote() {
 }
 
 // Auto-rotate every 30 seconds
-setInterval(function() { nextQuote(); }, 30000);
+setInterval(function() { if(!document.hidden) nextQuote(); }, 30000);
 
 // ═══════════════════════════════════════
 // THEME
@@ -3629,7 +3720,29 @@ setTimeout(function(){
   }
 }, 8000);
 loadAll();
-setInterval(loadAll, 30 * 60 * 1000); // 30 минут
+
+// Safe auto-refresh: skip if (1) user is editing schedule, (2) AI chat is open,
+// (3) submitSchedule is in flight, (4) page is hidden (saves quota + cache).
+// On page becoming visible after a long absence, trigger immediate refresh.
+var __lastLoadAt=Date.now();
+function safeReload(reason){
+  if(window.__editingSchedule){console.info('[autorefresh] skipped — editing schedule');return;}
+  if(window.__submittingSchedule){console.info('[autorefresh] skipped — submit in flight');return;}
+  if(document.hidden){console.info('[autorefresh] skipped — page hidden');return;}
+  console.info('[autorefresh]', reason||'tick');
+  __lastLoadAt=Date.now();
+  loadAll();
+}
+setInterval(function(){safeReload('30min');}, 30 * 60 * 1000);
+
+// Pause the quote rotator and re-trigger loadAll when the user comes back
+// after being away (laptop closed, tab backgrounded for >15min).
+document.addEventListener('visibilitychange', function(){
+  if(!document.hidden){
+    var awayMs=Date.now()-__lastLoadAt;
+    if(awayMs>15*60*1000) safeReload('visible-after-'+Math.round(awayMs/60000)+'min');
+  }
+});
 
 // ─── Copy slots helper ───
 function copyManagerSlots(name) {
