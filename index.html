@@ -112,7 +112,6 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
   .sidebar .sb-logo-text,
   .sidebar .sb-item .badge,
   .sidebar .sb-item .pdot,
-  .sidebar .sb-progress > div:last-child,
   .sidebar .sb-foot-info,
   .sidebar #sb-persona-name,
   .sidebar .sb-foot .sb-foot-info{
@@ -121,14 +120,12 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
   .sidebar:hover .sb-logo-text,
   .sidebar:hover .sb-item .badge,
   .sidebar:hover .sb-item .pdot,
-  .sidebar:hover .sb-progress > div:last-child,
   .sidebar:hover .sb-foot-info,
   .sidebar:hover #sb-persona-name,
   .sidebar:hover .sb-foot .sb-foot-info,
   .sidebar.expanded .sb-logo-text,
   .sidebar.expanded .sb-item .badge,
   .sidebar.expanded .sb-item .pdot,
-  .sidebar.expanded .sb-progress > div:last-child,
   .sidebar.expanded .sb-foot-info,
   .sidebar.expanded #sb-persona-name,
   .sidebar.expanded .sb-foot .sb-foot-info{
@@ -151,9 +148,6 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
   .sidebar:not(:hover):not(.expanded) .sb-section{
     height:1px;padding:0;margin:10px 14px;background:var(--border);
     overflow:hidden;
-  }
-  .sidebar:not(:hover):not(.expanded) .sb-progress{
-    justify-content:center;padding:8px 0;gap:0;
   }
   .sidebar:not(:hover):not(.expanded) .sb-foot{
     justify-content:center;padding:10px 0;gap:0;
@@ -875,14 +869,6 @@ body::before{
 .pdot.warn{background:var(--o);box-shadow:0 0 0 2px rgba(245,158,60,0.2)}
 .pdot.info{background:var(--b);box-shadow:0 0 0 2px rgba(96,165,250,0.2)}
 
-/* ── SIDEBAR PROGRESS RING ── */
-.sb-progress{margin:6px 8px 4px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r10);display:flex;align-items:center;gap:10px}
-.sb-prog-ring{position:relative;width:36px;height:36px;flex-shrink:0}
-.sb-prog-ring svg{transform:rotate(-90deg)}
-.sb-prog-v{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 10px/1 var(--mono);color:var(--text)}
-.sb-progress .lbl{font:500 9.5px/1 var(--mono);letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
-.sb-progress .v2{font:700 12px/1.2 var(--sans);color:var(--text);margin-top:2px}
-
 /* ── PAGE TRANSITION ── */
 @keyframes page-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 .page.active{animation:page-in .22s var(--ease) both}
@@ -994,7 +980,6 @@ html[data-season="season"] .season-strip{display:flex}
   .sidebar .sb-item > span:not(.sb-ico),
   .sidebar .sb-item .badge,
   .sidebar .sb-item .pdot,
-  .sidebar .sb-progress > div:last-child,
   .sidebar .sb-foot-info,
   .sidebar #sb-persona-name,
   .sidebar .sb-foot > span:last-child{opacity:1;pointer-events:auto}
@@ -1002,7 +987,6 @@ html[data-season="season"] .season-strip{display:flex}
   .sidebar .sb-logo{justify-content:flex-start;padding:16px 16px 14px}
   .sidebar .sb-section{height:auto;padding:14px 16px 4px;margin:0}
   .sidebar .sb-section::before{display:none}
-  .sidebar .sb-progress{justify-content:flex-start;padding:10px 12px;margin:6px 8px 4px}
   .sidebar .sb-foot{justify-content:flex-start;padding:10px 12px;gap:9px}
   .sidebar .sb-foot-btn{padding:10px 12px}
   .sidebar:hover{box-shadow:8px 0 32px rgba(0,0,0,.35)}
@@ -1106,22 +1090,6 @@ html[data-season="season"] .season-strip{display:flex}
   <button class="sb-item" onclick="showPage('guide')" data-page="guide" title="Справка">
     <span class="sb-ico">📖</span><span class="sb-label">Справка</span>
   </button>
-
-  <!-- Plan progress ring -->
-  <div class="sb-progress" id="sb-plan-ring">
-    <div class="sb-prog-ring">
-      <svg width="36" height="36" viewBox="0 0 36 36">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="var(--border-s)" stroke-width="3.5"/>
-        <circle cx="18" cy="18" r="15" fill="none" stroke="var(--y)" stroke-width="3.5" stroke-linecap="round"
-          stroke-dasharray="94.25" stroke-dashoffset="94.25" id="sb-ring-arc" style="transition:stroke-dashoffset .8s cubic-bezier(.22,1,.36,1)"/>
-      </svg>
-      <div class="sb-prog-v" id="sb-ring-pct">—</div>
-    </div>
-    <div>
-      <div class="lbl">План месяца</div>
-      <div class="v2" id="sb-ring-label">— МК</div>
-    </div>
-  </div>
 
   <button class="sb-foot sb-foot-btn" onclick="openPersonaPicker()" id="sb-persona" aria-label="Сменить роль">
     <div class="sb-av" id="sb-persona-av" style="font-size:17px">👑</div>
@@ -2422,12 +2390,6 @@ function renderMain() {
   renderInsights(data,t);
   renderKpiSparks(data);
 
-  // Update sidebar plan ring
-  var mkPct=Math.min(100,Math.round(t.mk/effMk*100));
-  var C=2*Math.PI*15,arc=document.getElementById('sb-ring-arc');
-  if(arc){arc.style.strokeDashoffset=C*(1-mkPct/100);}
-  var rpct=document.getElementById('sb-ring-pct');if(rpct)rpct.textContent=mkPct+'%';
-  var rlbl=document.getElementById('sb-ring-label');if(rlbl)rlbl.textContent=t.mk+' / '+effMk+' МК';
 }
 
 function renderTeamTable(data,filter) {
