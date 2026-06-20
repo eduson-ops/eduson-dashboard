@@ -721,6 +721,8 @@ body::before{
 .av-chip.c4{background:linear-gradient(135deg,#ff8b8b,#c0392b);color:#fff}
 .av-chip.c5{background:linear-gradient(135deg,#c4a8ff,#7950d4);color:#fff}
 .av-chip.c6{background:linear-gradient(135deg,#ffac6f,#c47a16);color:#1a1a17}
+.av-chip.emoji{font-size:14px;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--sans);font-weight:400}
+.mgr-card-avatar.emoji{font-size:22px;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--sans);font-weight:400}
 
 /* ── FUNNEL (redesigned) ── */
 .funnel-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -2281,10 +2283,9 @@ function renderTeamTable(data,filter) {
     if(i===0&&r.mk>0) badgeHtml='<span class="mgr-badge top" style="font-size:9px">👑 Топ</span>';
     else if(cn>=50) badgeHtml='<span class="mgr-badge up" style="font-size:9px">↑ Сильный</span>';
     else if(r.mk===0) badgeHtml='<span class="mgr-badge risk" style="font-size:9px">⚠ 0 МК</span>';
-    var ini=r.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     var ac=avCls[i%avCls.length];
     tbody.innerHTML+=`<tr onclick="openMgr('${r.name}')">
-      <td class="tn"><div class="av-chip ${ac}">${ini}</div>${r.name}${badgeHtml?'&nbsp;'+badgeHtml:''}</td>
+      <td class="tn"><div class="av-chip emoji ${ac}">${mgrEmoji(r.name)}</div>${esc(r.name)}${badgeHtml?'&nbsp;'+badgeHtml:''}</td>
       <td>${r.mk}</td><td>${r.paid}</td>
       <td>${convPill}</td>
       <td style="color:${r.rev>100000?'var(--g)':'var(--sub)'}">${fmt(r.rev)}</td>
@@ -2332,10 +2333,10 @@ function renderSlots() {
     if(s.status==='done')cardCls+=' slot-done';
 
     html+=`<div class="${cardCls}">
-      <span class="slot-time-big">${s.time||'—'}</span>
-      <span class="slot-avatar ${mgr.cls}">${mgr.ini}</span>
+      <span class="slot-time-big">${esc(s.time||'—')}</span>
+      <span class="slot-avatar ${mgr.cls}" style="font-size:15px;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--display)">${mgrEmoji(mgr.name)}</span>
       <div class="slot-info">
-        <div class="slot-name">${mgr.name}</div>
+        <div class="slot-name">${esc(mgr.name)}</div>
       </div>
       <span class="slot-status ${statusCls}">${statusLbl}</span>
     </div>`;
@@ -2776,7 +2777,6 @@ function renderManagers() {
   document.getElementById('mgr-cards').innerHTML=sorted.map((m,i)=>{
     var conv=m.mk?(m.paid/m.mk*100).toFixed(1):'0';
     var cn=parseFloat(conv);
-    var ini=m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     var ac=avCls[i%avCls.length];
     var thisW=weekConv(m.name,0),lastW=weekConv(m.name,1);
     var badge='';
@@ -2788,7 +2788,7 @@ function renderManagers() {
     if(thisW!==null&&lastW!==null){var d=thisW-lastW;trendTxt=`<span style="color:${d>0?'var(--g)':d<0?'var(--r)':'var(--muted)'}">${d>0?'↑':'↓'}${Math.abs(d)}%</span> нед`;}
     return`<div class="mgr-card" onclick="openMgr('${m.name}')">
       <div class="mgr-card-head">
-        <div class="mgr-card-avatar ${ac}">${ini}</div>
+        <div class="mgr-card-avatar emoji ${ac}">${mgrEmoji(m.name)}</div>
         <div style="flex:1;min-width:0">
           <div class="mgr-card-name">${m.name}</div>
           <div class="mgr-card-sub">${m.mk} МК · ${conv}% конв. ${trendTxt}</div>
@@ -2804,8 +2804,10 @@ function renderManagers() {
 
 function openMgr(name) {
   var data=visible().filter(r=>r.manager===name),t=calcTotals(data);
-  var ini=name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
-  document.getElementById('mav').textContent=ini;
+  var mav=document.getElementById('mav');
+  mav.textContent=mgrEmoji(name);
+  mav.style.fontSize='28px';
+  mav.style.fontFamily="'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--display)";
   document.getElementById('mname').textContent=name;
   document.getElementById('msub').textContent=t.mk+' МК · '+t.conv+'% конв. · '+fmt(t.rev)+' ₽';
   document.getElementById('mstats').innerHTML=[
@@ -3070,11 +3072,10 @@ function renderMgrPickerMobile(){
   var el=document.getElementById('mgr-picker-mobile');
   if(!el)return;
   el.innerHTML=managers.map(function(m){
-    var ini=m.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
     var active=currentEditMgr===m;
-    return '<div class="slot-mgr-chip'+(active?' active':'')+'" onclick="selectEditMgr(\''+m+'\')">'
-      +'<div class="mc-av">'+ini+'</div>'
-      +'<span>'+m+'</span></div>';
+    return '<div class="slot-mgr-chip'+(active?' active':'')+'" onclick="selectEditMgr(\''+esc(m)+'\')">'
+      +'<div class="mc-av" style="font-size:15px">'+mgrEmoji(m)+'</div>'
+      +'<span>'+esc(m)+'</span></div>';
   }).join('');
 }
 
@@ -3163,11 +3164,10 @@ function quickSlot(kind){
 function renderMgrPicker(){
   var el=document.getElementById('mgr-picker');
   el.innerHTML=managers.map(m=>{
-    var ini=m.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
     var active=currentEditMgr===m;
-    return`<div onclick="selectEditMgr('${m}')" style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;border:2px solid ${active?'var(--y)':'var(--border-s)'};background:${active?'var(--y-bg)':'var(--bg3)'};cursor:pointer;transition:all .15s">
-      <div style="width:30px;height:30px;border-radius:6px;background:var(--y-bg);border:1.5px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:var(--y);font-family:var(--display)">${ini}</div>
-      <span style="font-size:12px;font-weight:${active?'700':'500'};color:${active?'var(--y)':'var(--text)'}">${m}</span>
+    return`<div onclick="selectEditMgr('${esc(m)}')" style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;border:2px solid ${active?'var(--y)':'var(--border-s)'};background:${active?'var(--y-bg)':'var(--bg3)'};cursor:pointer;transition:all .15s">
+      <div style="width:30px;height:30px;border-radius:6px;background:var(--y-bg);border:1.5px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-size:16px">${mgrEmoji(m)}</div>
+      <span style="font-size:12px;font-weight:${active?'700':'500'};color:${active?'var(--y)':'var(--text)'}">${esc(m)}</span>
     </div>`;
   }).join('');
 }
@@ -4042,7 +4042,6 @@ function renderHot() {
         var obj = l.objection || '';
         var mgrFull = l.manager || '';
         var mgrShort = mgrFull.split(' ').slice(0,2).join(' ');
-        var ini = mgrFull.split(' ').map(function(w){return w[0]||'';}).slice(0,2).join('');
         var ac = avClsMap[l.manager] || 'c1';
         var course = [l.practice, l.age].filter(Boolean).join(' · ');
         var daysBadge = h.priority > 0
@@ -4052,8 +4051,8 @@ function renderHot() {
         return '<tr>'
           + '<td style="padding:9px 6px;vertical-align:middle">'
           +   '<div style="display:flex;align-items:center;gap:8px">'
-          +     '<div class="av-chip ' + ac + '" style="width:28px;height:28px;border-radius:7px;font-size:9px">' + ini + '</div>'
-          +     '<div><div style="font-weight:600;font-size:12.5px;color:var(--text)">' + mgrShort + '</div>'
+          +     '<div class="av-chip emoji ' + ac + '" style="width:28px;height:28px;border-radius:7px">' + mgrEmoji(mgrFull) + '</div>'
+          +     '<div><div style="font-weight:600;font-size:12.5px;color:var(--text)">' + esc(mgrShort) + '</div>'
           +     (course ? '<div style="font-size:10px;color:var(--muted);margin-top:1px">' + course + '</div>' : '')
           +     '</div>'
           +   '</div>'
