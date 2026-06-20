@@ -108,7 +108,9 @@ body{
   position:relative;box-shadow:0 2px 8px var(--y-glow);
 }
 .sb-mark::after{content:'';position:absolute;inset:6px;background:var(--bg2);border-radius:3px;}
-.sb-mark::before{content:'';position:absolute;left:8px;top:8px;width:12px;height:12px;background:var(--y);border-radius:2px;z-index:1;}
+.sb-mark::before{content:'E';position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
+  font:800 13px/1 var(--display);color:var(--text);text-align:center;z-index:1;
+  letter-spacing:-.02em}
 .sb-logo-text b{display:block;font-family:var(--display);font-size:10px;font-weight:700;color:var(--y);letter-spacing:.06em}
 .sb-logo-text small{display:block;font-size:9px;font-weight:500;color:var(--muted);letter-spacing:.14em;text-transform:uppercase;font-family:var(--mono)}
 .sb-section{font-size:9.5px;font-weight:600;color:var(--dim);letter-spacing:.14em;text-transform:uppercase;font-family:var(--mono);padding:14px 16px 4px;flex-shrink:0}
@@ -186,7 +188,7 @@ body{
 @keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
 /* ── ALERT ── */
-.alert{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:var(--r10);background:var(--y-bg);border:1px solid var(--y-bd);margin-bottom:14px;font-size:13px;color:var(--text);line-height:1.4}
+.alert{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:var(--r10);background:var(--bg2);border:1px solid var(--y-bd);border-left:3px solid var(--y);margin-bottom:14px;font-size:13px;color:var(--text);line-height:1.4;box-shadow:var(--shadow-md)}
 .alert strong{font-weight:700;color:var(--y)}
 
 /* ── COUNTDOWN ── */
@@ -853,10 +855,15 @@ body::before{
    Off by default. Cycles: off → tone → season → fest → off. */
 #season-canvas{
   position:fixed;inset:0;width:100vw;height:100vh;
-  pointer-events:none;z-index:1;opacity:0;
+  pointer-events:none;z-index:0;opacity:0;
   transition:opacity .8s ease;
 }
-html[data-season]:not([data-season=""]) #season-canvas{opacity:.9}
+/* Particles sit BEHIND content. .main-col gets a stacking context so KPIs
+   and text never overlay petals. .sidebar keeps its existing position:fixed
+   and z-index:200, which already puts it above the canvas. */
+.main-col{position:relative;z-index:2}
+html[data-season]:not([data-season=""]) #season-canvas{opacity:.55}
+html[data-season="fest"] #season-canvas{opacity:.7}
 html[data-season="tone"] #season-canvas{opacity:0}  /* tone = no particles */
 .season-btn{
   background:var(--bg3);border:1px solid var(--border-s);color:var(--sub);
