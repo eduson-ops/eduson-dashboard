@@ -1128,8 +1128,7 @@ window.updatePersonaFooter=updatePersonaFooter;
   <div class="tb-right">
     <div class="live-b"><div class="ldot"></div>LIVE</div>
     <div class="upd" id="upd">—</div>
-    <button class="skin-btn" id="theme-btn" onclick="cycleSkin()" title="Сменить оформление"><span id="skin-ico">🌙</span> <span id="skin-lbl">Тёмная</span></button>
-    <button class="skin-btn season-btn" id="season-btn" onclick="cycleSeason()" title="Сезонная тема — Тон / Сезон / Праздник / Выкл"><span id="season-ico">🍃</span> <span id="season-lbl">Сезон</span></button>
+    <button class="skin-btn season-btn" id="season-btn" onclick="cycleSeason()" title="Глубина сезона: Тон → Сезон → Праздник → Выкл"><span id="season-ico">🌸</span> <span id="season-lbl">Сезон</span></button>
     <button class="nbtn" onclick="loadAll()">↻</button>
   </div>
 </div>
@@ -4172,43 +4171,70 @@ function toggleTheme(){cycleSkin();}
 // SEASONAL THEMING — layer over base skin. Tone / Season / Fest / off.
 // Spec: Eduson Seasonal Dashboard.dc.html
 // ═══════════════════════════════════════════════════════════════════════
+// Each month has both an accent palette (--y family) AND a full surface palette
+// (bg/bg2/bg3/text/sub/...) so the whole canvas shifts with the season —
+// matching the Eduson Seasonal Dashboard.dc.html spec.
 var SEASON_MONTHS = {
-  jan:{m:0,label:'Январь',emoji:'❄️',phenom:'Снежинки',particle:'snow',
+  jan:{m:0,label:'Январь',emoji:'❄️',phenom:'Морозный воздух',particle:'snow',
        title:'Зима ставит\nрекорды',tag:'Холодный старт года — но воронка горячая.',
-       accent:'#5fa8f0',accent2:'#9cc8f5',accent3:'#e8f1fa'},
+       accent:'#5fa8f0',accent2:'#9cc8f5',accent3:'#e8f1fa',
+       surf:{bg:'#0a1018',bg2:'#101824',bg3:'#172234',bg4:'#1f2c42',bg5:'#293a55',
+             text:'#e6efff',sub:'#90a6c5',muted:'#5e7396',border:'rgba(180,210,255,.07)',borderS:'rgba(180,210,255,.14)'}},
   feb:{m:1,label:'Февраль',emoji:'❄️',phenom:'Метель',particle:'snow',
        title:'Февральский\nнатиск',tag:'Метель за окном — а у нас тёплая отчётность.',
-       accent:'#5fa8f0',accent2:'#9cc8f5',accent3:'#e8f1fa'},
+       accent:'#5fa8f0',accent2:'#9cc8f5',accent3:'#e8f1fa',
+       surf:{bg:'#0a1018',bg2:'#101824',bg3:'#172234',bg4:'#1f2c42',bg5:'#293a55',
+             text:'#e6efff',sub:'#90a6c5',muted:'#5e7396',border:'rgba(180,210,255,.07)',borderS:'rgba(180,210,255,.14)'}},
   mar:{m:2,label:'Март',emoji:'🌱',phenom:'Первые ростки',particle:'petal',
        title:'Весна продаёт\nновое',tag:'Первая трава, первые сделки — снимаем урожай рано.',
-       accent:'#3ecf8e',accent2:'#7be0a8',accent3:'#c8f0d6'},
+       accent:'#3ecf8e',accent2:'#7be0a8',accent3:'#c8f0d6',
+       surf:{bg:'#f0f6ee',bg2:'#ffffff',bg3:'#e6efe1',bg4:'#d6e6cd',bg5:'#bdd2b0',
+             text:'#162a18',sub:'#496149',muted:'#83a085',border:'rgba(20,60,30,.09)',borderS:'rgba(20,60,30,.17)'}},
   apr:{m:3,label:'Апрель',emoji:'🌷',phenom:'Цветение',particle:'petal',
        title:'Апрель — месяц\nраспускания воронки',tag:'Всё расцветает: лиды, оплаты, сделки.',
-       accent:'#3ecf8e',accent2:'#ff8fa3',accent3:'#ffd479'},
+       accent:'#3ecf8e',accent2:'#ff8fa3',accent3:'#ffd479',
+       surf:{bg:'#f3f8f0',bg2:'#ffffff',bg3:'#eaf2e4',bg4:'#dceacf',bg5:'#c1d6b2',
+             text:'#15291b',sub:'#48604f',muted:'#84a08c',border:'rgba(20,60,30,.08)',borderS:'rgba(20,60,30,.16)'}},
   may:{m:4,label:'Май',emoji:'🌸',phenom:'Сакура',particle:'petal',
        title:'Май открывает\nсезон продаж',tag:'Всё цветёт — пусть и воронка распускается так же щедро.',
-       accent:'#1f9d57',accent2:'#e85d8a',accent3:'#f0a92b'},
+       accent:'#1f9d57',accent2:'#e85d8a',accent3:'#f0a92b',
+       surf:{bg:'#eef6ea',bg2:'#ffffff',bg3:'#e4efdd',bg4:'#d6e7cd',bg5:'#bcd9b0',
+             text:'#15291b',sub:'#48604f',muted:'#84a08c',border:'rgba(20,60,30,.09)',borderS:'rgba(20,60,30,.17)'}},
   jun:{m:5,label:'Июнь',emoji:'🌸',phenom:'Лепестки в воздухе',particle:'petal',
        title:'Лето открывает\nсезон продаж',tag:'Всё цветёт — пусть и воронка распускается так же щедро.',
-       accent:'#1f9d57',accent2:'#e85d8a',accent3:'#f0a92b'},
+       accent:'#1f9d57',accent2:'#e85d8a',accent3:'#f0a92b',
+       surf:{bg:'#eef6ea',bg2:'#ffffff',bg3:'#e4efdd',bg4:'#d6e7cd',bg5:'#bcd9b0',
+             text:'#15291b',sub:'#48604f',muted:'#84a08c',border:'rgba(20,60,30,.09)',borderS:'rgba(20,60,30,.17)'}},
   jul:{m:6,label:'Июль',emoji:'☀️',phenom:'Пыльца и пух',particle:'seed',
        title:'Пик лета —\nпик выручки',tag:'Жара продаж в самом разгаре — ловим каждый тёплый лид.',
-       accent:'#e8930e',accent2:'#ef5d3c',accent3:'#2f9bd6'},
+       accent:'#e8930e',accent2:'#ef5d3c',accent3:'#2f9bd6',
+       surf:{bg:'#fff5e2',bg2:'#fffdf8',bg3:'#ffe9c6',bg4:'#ffdca6',bg5:'#f0c982',
+             text:'#3a2710',sub:'#6e5630',muted:'#b89a68',border:'rgba(150,90,10,.10)',borderS:'rgba(150,90,10,.19)'}},
   aug:{m:7,label:'Август',emoji:'🌻',phenom:'Светлячки на закате',particle:'firefly',
        title:'Золотой финал\nсезона',tag:'Золотой финал лета — собираем урожай месяца до последнего дня.',
-       accent:'#f4a72a',accent2:'#ff8a4c',accent3:'#ffd479'},
+       accent:'#f4a72a',accent2:'#ff8a4c',accent3:'#ffd479',
+       surf:{bg:'#191109',bg2:'#241810',bg3:'#312012',bg4:'#3d2916',bg5:'#4e351c',
+             text:'#f7ead6',sub:'#cbb18a',muted:'#8f7350',border:'rgba(255,190,110,.10)',borderS:'rgba(255,190,110,.17)'}},
   sep:{m:8,label:'Сентябрь',emoji:'🍂',phenom:'Листопад',particle:'leaf',
        title:'Осень начинает\nсбор урожая',tag:'Школа стартовала — ловим горячий школьный спрос.',
-       accent:'#e8930e',accent2:'#c47a16',accent3:'#f4a72a'},
+       accent:'#e8930e',accent2:'#c47a16',accent3:'#f4a72a',
+       surf:{bg:'#fdf2e0',bg2:'#fffcf6',bg3:'#fbe6c5',bg4:'#f6d59f',bg5:'#e8b970',
+             text:'#3a2310',sub:'#6e4d28',muted:'#b08960',border:'rgba(150,80,10,.10)',borderS:'rgba(150,80,10,.18)'}},
   oct:{m:9,label:'Октябрь',emoji:'🍁',phenom:'Кленовый ветер',particle:'leaf',
        title:'Октябрьская\nволна',tag:'Багряные листья и багряные KPI — оба в пике.',
-       accent:'#c0392b',accent2:'#e85d8a',accent3:'#f0a92b'},
+       accent:'#c0392b',accent2:'#e85d8a',accent3:'#f0a92b',
+       surf:{bg:'#fbece6',bg2:'#fffaf6',bg3:'#f7d8ce',bg4:'#f0bba8',bg5:'#e09a85',
+             text:'#3a1410',sub:'#702e26',muted:'#b06560',border:'rgba(150,40,30,.10)',borderS:'rgba(150,40,30,.18)'}},
   nov:{m:10,label:'Ноябрь',emoji:'🌧️',phenom:'Дождь',particle:'rain',
        title:'Серый ноябрь,\nяркие цифры',tag:'За окном слякоть — у нас тёплый прайм-тайм.',
-       accent:'#60a5fa',accent2:'#9cc8f5',accent3:'#a78bfa'},
+       accent:'#60a5fa',accent2:'#9cc8f5',accent3:'#a78bfa',
+       surf:{bg:'#101418',bg2:'#181d23',bg3:'#22282f',bg4:'#2c333c',bg5:'#3a4250',
+             text:'#dde4ec',sub:'#8895a6',muted:'#5d6878',border:'rgba(200,210,230,.07)',borderS:'rgba(200,210,230,.13)'}},
   dec:{m:11,label:'Декабрь',emoji:'🎄',phenom:'Снег и огни',particle:'snow',
        title:'Декабрь закрывает\nгод',tag:'Финальный спринт — каждая оплата ценнее, чем в любом другом месяце.',
-       accent:'#3ecf8e',accent2:'#f0596a',accent3:'#f5c842'},
+       accent:'#3ecf8e',accent2:'#f0596a',accent3:'#f5c842',
+       surf:{bg:'#0a1015',bg2:'#101820',bg3:'#16222e',bg4:'#1d2c3c',bg5:'#283c50',
+             text:'#e6f5ec',sub:'#8aaaaa',muted:'#5a7878',border:'rgba(160,255,200,.07)',borderS:'rgba(160,255,200,.14)'}},
 };
 var SEASON_MODES=['','tone','season','fest']; // off → tone → season → fest → off
 var SEASON_MODE_LABELS={'':'Без сезона',tone:'Тон',season:'Сезон',fest:'Праздник'};
@@ -4227,17 +4253,18 @@ function applySeason(){
   var s=window.__season;
   var cfg=SEASON_MONTHS[s.key]||SEASON_MONTHS.jun;
   var root=document.documentElement;
+  var surfaceProps=['--bg','--bg2','--bg3','--bg4','--bg5','--text','--sub','--muted','--border','--border-s'];
+  var accentProps=['--y','--y-2','--y-3','--y-bg','--y-bd','--y-glow'];
   if(!s.mode){
     root.removeAttribute('data-season');
     root.removeAttribute('data-season-month');
-    // Restore brand yellow from base skin (clear inline overrides)
-    ['--y','--y-2','--y-3','--y-bg','--y-bd','--y-glow'].forEach(function(v){root.style.removeProperty(v);});
+    accentProps.concat(surfaceProps).forEach(function(v){root.style.removeProperty(v);});
     stopSeasonParticles();
     return;
   }
   root.setAttribute('data-season', s.mode);
   root.setAttribute('data-season-month', s.key);
-  // Override brand accent variables to the seasonal palette
+  // Always override accent — seasonal palette overrides brand yellow
   var accent=cfg.accent, accent2=cfg.accent2;
   root.style.setProperty('--y', accent);
   root.style.setProperty('--y-2', accent2);
@@ -4245,7 +4272,25 @@ function applySeason(){
   root.style.setProperty('--y-bg', hexToRgba(accent,0.12));
   root.style.setProperty('--y-bd', hexToRgba(accent,0.30));
   root.style.setProperty('--y-glow', hexToRgba(accent,0.18));
-  // Update hero/strip text
+  // In 'season' and 'fest' modes — apply the full surface palette too,
+  // so backgrounds, text, borders all shift with the month.
+  // 'tone' = only accent change (surfaces stay on base skin).
+  if(s.mode==='season' || s.mode==='fest'){
+    var sf=cfg.surf||{};
+    if(sf.bg) root.style.setProperty('--bg', sf.bg);
+    if(sf.bg2) root.style.setProperty('--bg2', sf.bg2);
+    if(sf.bg3) root.style.setProperty('--bg3', sf.bg3);
+    if(sf.bg4) root.style.setProperty('--bg4', sf.bg4);
+    if(sf.bg5) root.style.setProperty('--bg5', sf.bg5);
+    if(sf.text) root.style.setProperty('--text', sf.text);
+    if(sf.sub) root.style.setProperty('--sub', sf.sub);
+    if(sf.muted) root.style.setProperty('--muted', sf.muted);
+    if(sf.border) root.style.setProperty('--border', sf.border);
+    if(sf.borderS) root.style.setProperty('--border-s', sf.borderS);
+  } else {
+    surfaceProps.forEach(function(v){root.style.removeProperty(v);});
+  }
+  // Update hero/strip text + topbar emoji
   setText('sh-eye-label', 'Сезон · '+cfg.label);
   setText('sh-title', cfg.title);
   setText('sh-tag', cfg.tag);
@@ -4253,9 +4298,17 @@ function applySeason(){
   setText('ss-emoji', cfg.emoji);
   setText('ss-title', cfg.label+' · '+cfg.phenom);
   setText('ss-sub', cfg.tag);
+  var sIco=document.getElementById('season-ico');
+  if(sIco) sIco.textContent = cfg.emoji;
   // Particles only in season/fest, not in tone
   if(s.mode==='tone'){ stopSeasonParticles(); }
   else { startSeasonParticles(cfg); }
+  // Re-draw Chart.js so tick/grid colors pick up new palette
+  if(window.charts){
+    if(typeof renderRevChart==='function' && (charts.rev||charts.team)){
+      try{ renderRevChart(visible()); renderTeamChart(visible()); }catch(e){}
+    }
+  }
 }
 
 function setText(id, txt){var el=document.getElementById(id); if(el) el.textContent=txt;}
@@ -4417,16 +4470,28 @@ document.addEventListener('visibilitychange', function(){
   else if(!s.raf) { var cfg=SEASON_MONTHS[s.key]||SEASON_MONTHS.jun; startSeasonParticles(cfg); }
 });
 
-// Restore from localStorage on boot
+// Restore from localStorage on boot — DEFAULT is 'fest' for first-time visitors.
+// The seasonal palette auto-shifts with the current month (window.__season.key
+// is set from new Date() in the IIFE that created __season).
 (function(){
+  var s=window.__season;
+  var cfg=SEASON_MONTHS[s.key]||SEASON_MONTHS.jun;
   try{
-    var saved=localStorage.getItem('eks-season')||'';
-    if(SEASON_MODES.indexOf(saved)>=0) window.__season.mode=saved;
-  }catch(e){}
-  var ico=document.getElementById('season-ico'); var lbl=document.getElementById('season-lbl');
-  if(ico) ico.textContent = SEASON_MODE_ICOS[window.__season.mode];
-  if(lbl) lbl.textContent = window.__season.mode ? SEASON_MODE_LABELS[window.__season.mode] : 'Сезон';
-  if(window.__season.mode) applySeason();
+    var saved=localStorage.getItem('eks-season');
+    if(saved===null) s.mode='fest';              // first visit → festive
+    else if(SEASON_MODES.indexOf(saved)>=0) s.mode=saved;
+  }catch(e){ s.mode='fest'; }
+  var lbl=document.getElementById('season-lbl');
+  if(lbl) lbl.textContent = s.mode ? SEASON_MODE_LABELS[s.mode] : 'Сезон';
+  applySeason();
+
+  // Auto-rotate season config when the local clock crosses midnight into a new month.
+  // Re-check every 30 minutes (cheap, idempotent).
+  setInterval(function(){
+    var keys=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    var nowKey=keys[(new Date()).getMonth()];
+    if(nowKey!==s.key){ s.key=nowKey; if(s.mode) applySeason(); }
+  }, 30*60*1000);
 })();
 // set initial skin label
 document.addEventListener('DOMContentLoaded',function(){
