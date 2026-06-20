@@ -970,7 +970,7 @@ body::before{
   </div>
 
   <button class="sb-foot sb-foot-btn" onclick="openPersonaPicker()" id="sb-persona" aria-label="Сменить роль">
-    <div class="sb-av" id="sb-persona-av">РОП</div>
+    <div class="sb-av" id="sb-persona-av" style="font-size:17px">👑</div>
     <div class="sb-foot-info">
       <b id="sb-persona-name">Режим РОПа</b>
       <small id="sb-persona-sub">вся команда · нажми чтобы сменить</small>
@@ -1021,14 +1021,13 @@ function renderPersonaList(){
   var rows=[];
   // Row 0: ROP
   rows.push('<div class="persona-row rop'+(personalMgr?'':' active')+'" onclick="setPersona(\'\')">'
-    +'<div class="pav">РОП</div>'
+    +'<div class="pav" style="font-size:18px">👑</div>'
     +'<div class="pinfo"><div class="pname">РОП — вся команда</div><div class="psub">КПИ, рейтинг, расписание всех менеджеров</div></div>'
     +'</div>');
   (managers||[]).forEach(function(m){
-    var ini=m.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
     var sel=personalMgr===m;
     rows.push('<div class="persona-row'+(sel?' active':'')+'" onclick="setPersona(\''+esc(m)+'\')">'
-      +'<div class="pav">'+esc(ini)+'</div>'
+      +'<div class="pav" style="font-size:18px">'+mgrEmoji(m)+'</div>'
       +'<div class="pinfo"><div class="pname">'+esc(m)+'</div><div class="psub">мои МК, моя выручка, моя конверсия</div></div>'
       +'</div>');
   });
@@ -1055,11 +1054,13 @@ function updatePersonaFooter(){
   var sb=document.getElementById('sb-persona-sub');
   if(!av||!nm||!sb) return;
   if(personalMgr){
-    av.textContent=personalMgr.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+    av.textContent=mgrEmoji(personalMgr);
+    av.style.fontSize='17px';
     nm.textContent=personalMgr;
     sb.textContent='личный режим · нажми чтобы сменить';
   } else {
-    av.textContent='РОП';
+    av.textContent='👑';
+    av.style.fontSize='17px';
     nm.textContent='Режим РОПа';
     sb.textContent='вся команда · нажми чтобы сменить';
   }
@@ -1617,6 +1618,18 @@ let personalMgr=(function(){try{return localStorage.getItem('eks-me')||'';}catch
 // HELPERS
 // ═══════════════════════════════════════
 const fmt = n => Math.round(n).toLocaleString('ru');
+
+// Deterministic per-manager emoji avatar — same name always returns the same emoji.
+// Used in persona picker, sidebar footer, manager chips. Curated set of vibrant,
+// work-friendly emojis that read as a "personality glyph", not as decoration.
+var MGR_EMOJIS = ['🎯','⚡','🔥','💎','🌟','🏆','🚀','✨','🦊','🦅','🐯','🦁','🐉','⭐','🍀','🌈','🌺','🎨'];
+function mgrEmoji(name){
+  if(!name) return '👤';
+  var h=0;
+  for(var i=0;i<name.length;i++) h=((h<<5)-h+name.charCodeAt(i))>>>0;
+  return MGR_EMOJIS[h % MGR_EMOJIS.length];
+}
+window.mgrEmoji=mgrEmoji;
 
 // XSS-safe escape for user-provided text inserted into innerHTML template strings.
 // Use for: agreement, objection, notes, reason, comment, contact, manager name when
