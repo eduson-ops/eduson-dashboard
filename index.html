@@ -101,59 +101,56 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
   box-shadow:8px 0 28px rgba(20,20,15,.10);
 }
 /* DESKTOP-ONLY rail collapse — on mobile (<861px) the sidebar is a full-width
-   drawer and these rules MUST NOT apply, otherwise items get clipped to 48px. */
+   drawer and these rules MUST NOT apply.
+   .sb-label is the *only* selector that hides text — use display:none so the
+   label takes ZERO space (no ghost-text being clipped). Other indicators
+   (badge, pdot, foot-info) are hidden via opacity for fade-in animation. */
 @media(min-width:861px){
-  /* Hide labels in collapsed rail */
+  /* Hard-hide labels in collapsed rail — no space taken at all */
+  .sidebar:not(:hover):not(.expanded) .sb-label{display:none}
+  /* Soft-hide adjacent indicators (fade them in on hover) */
   .sidebar .sb-logo-text,
-  .sidebar .sb-section,
-  .sidebar .sb-item > span:not(.sb-ico),
   .sidebar .sb-item .badge,
   .sidebar .sb-item .pdot,
   .sidebar .sb-progress > div:last-child,
   .sidebar .sb-foot-info,
   .sidebar #sb-persona-name,
-  .sidebar .sb-foot .sb-foot-info,
-  .sidebar .sb-foot > span:last-child{
+  .sidebar .sb-foot .sb-foot-info{
     opacity:0;transition:opacity .12s;white-space:nowrap;pointer-events:none;
   }
   .sidebar:hover .sb-logo-text,
-  .sidebar:hover .sb-section,
-  .sidebar:hover .sb-item > span:not(.sb-ico),
   .sidebar:hover .sb-item .badge,
   .sidebar:hover .sb-item .pdot,
   .sidebar:hover .sb-progress > div:last-child,
   .sidebar:hover .sb-foot-info,
   .sidebar:hover #sb-persona-name,
   .sidebar:hover .sb-foot .sb-foot-info,
-  .sidebar:hover .sb-foot > span:last-child,
   .sidebar.expanded .sb-logo-text,
-  .sidebar.expanded .sb-section,
-  .sidebar.expanded .sb-item > span:not(.sb-ico),
   .sidebar.expanded .sb-item .badge,
   .sidebar.expanded .sb-item .pdot,
   .sidebar.expanded .sb-progress > div:last-child,
   .sidebar.expanded .sb-foot-info,
   .sidebar.expanded #sb-persona-name,
-  .sidebar.expanded .sb-foot .sb-foot-info,
-  .sidebar.expanded .sb-foot > span:last-child{
+  .sidebar.expanded .sb-foot .sb-foot-info{
     opacity:1;transition:opacity .18s .08s;pointer-events:auto;
   }
   /* In rail mode items keep their default width:calc(100% - 16px) so they
      scale automatically with the sidebar — no jump during transition.
-     Only the label visibility and icon centering change. */
+     Big contextual emoji icons take center stage when label is hidden. */
   .sidebar:not(:hover):not(.expanded) .sb-item{
-    justify-content:center;padding:8px 0;gap:0;
+    justify-content:center;padding:10px 0;gap:0;
   }
   .sidebar:not(:hover):not(.expanded) .sb-item .sb-ico{
-    margin:0 auto;font-size:14px;opacity:.85;
+    margin:0 auto;font-size:20px;opacity:1;width:auto;
+    font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--sans);
   }
   .sidebar:not(:hover):not(.expanded) .sb-logo{
     justify-content:center;padding:14px 0;gap:0;
   }
+  /* Section heading becomes invisible 1px divider in rail */
   .sidebar:not(:hover):not(.expanded) .sb-section{
-    height:1px;padding:0;margin:8px 14px;background:var(--border);
-    /* Hide the text content — height is the only visual */
-    color:transparent;letter-spacing:0;line-height:1;
+    height:1px;padding:0;margin:10px 14px;background:var(--border);
+    overflow:hidden;
   }
   .sidebar:not(:hover):not(.expanded) .sb-progress{
     justify-content:center;padding:8px 0;gap:0;
@@ -163,6 +160,11 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
   }
   .sidebar:not(:hover):not(.expanded) .sb-foot-btn{padding:10px 0}
   .sidebar:not(:hover):not(.expanded) .sb-close{display:none}
+  /* Slightly larger emoji icons in expanded state too — they read better */
+  .sidebar:hover .sb-ico,.sidebar.expanded .sb-ico{
+    font-size:16px;line-height:1;
+    font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--sans);
+  }
 }
 .sb-backdrop{
   display:none;position:fixed;inset:0;z-index:150;
@@ -1081,28 +1083,28 @@ html[data-season="season"] .season-strip{display:flex}
     <button class="sb-close" onclick="closeSidebar()" aria-label="Закрыть меню">✕</button>
   </div>
 
-  <div class="sb-section">Операционка</div>
-  <button class="sb-item active" onclick="showPage('main')" data-page="main">
-    <span class="sb-ico">⌂</span> Сегодня <span class="pdot warn"></span>
+  <div class="sb-section"><span class="sb-label">Операционка</span></div>
+  <button class="sb-item active" onclick="showPage('main')" data-page="main" title="Сегодня">
+    <span class="sb-ico">🏠</span><span class="sb-label">Сегодня</span><span class="pdot warn"></span>
   </button>
-  <button class="sb-item" onclick="showPage('schedule')" data-page="schedule">
-    <span class="sb-ico">◻</span> Расписание <span class="pdot info"></span>
-  </button>
-
-  <div class="sb-section">Аналитика</div>
-  <button class="sb-item" onclick="showPage('analytics')" data-page="analytics">
-    <span class="sb-ico">◈</span> Аналитика
-  </button>
-  <button class="sb-item" onclick="showPage('managers')" data-page="managers">
-    <span class="sb-ico">◉</span> Менеджеры
-  </button>
-  <button class="sb-item" onclick="showPage('retention')" data-page="retention">
-    <span class="sb-ico">↗</span> Ретеншн
+  <button class="sb-item" onclick="showPage('schedule')" data-page="schedule" title="Расписание">
+    <span class="sb-ico">🗓️</span><span class="sb-label">Расписание</span><span class="pdot info"></span>
   </button>
 
-  <div class="sb-section">База</div>
-  <button class="sb-item" onclick="showPage('guide')" data-page="guide">
-    <span class="sb-ico">☷</span> Справка
+  <div class="sb-section"><span class="sb-label">Аналитика</span></div>
+  <button class="sb-item" onclick="showPage('analytics')" data-page="analytics" title="Аналитика">
+    <span class="sb-ico">📊</span><span class="sb-label">Аналитика</span>
+  </button>
+  <button class="sb-item" onclick="showPage('managers')" data-page="managers" title="Менеджеры">
+    <span class="sb-ico">👥</span><span class="sb-label">Менеджеры</span>
+  </button>
+  <button class="sb-item" onclick="showPage('retention')" data-page="retention" title="Ретеншн">
+    <span class="sb-ico">💎</span><span class="sb-label">Ретеншн</span>
+  </button>
+
+  <div class="sb-section"><span class="sb-label">База</span></div>
+  <button class="sb-item" onclick="showPage('guide')" data-page="guide" title="Справка">
+    <span class="sb-ico">📖</span><span class="sb-label">Справка</span>
   </button>
 
   <!-- Plan progress ring -->
