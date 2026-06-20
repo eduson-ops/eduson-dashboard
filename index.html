@@ -74,7 +74,8 @@ body{
 
 /* ── APP LAYOUT ── */
 .app-layout{display:flex;min-height:100vh}
-.main-col{flex:1;margin-left:60px;min-width:0;display:flex;flex-direction:column;transition:margin-left .25s cubic-bezier(.22,1,.36,1)}
+.main-col{flex:1;margin-left:240px;min-width:0;display:flex;flex-direction:column;transition:margin-left .25s cubic-bezier(.22,1,.36,1)}
+@media(min-width:861px){.main-col{margin-left:60px}}
 .content{flex:1;padding:20px 24px 80px}
 
 /* ── SIDEBAR (icon rail on desktop) ──
@@ -82,66 +83,74 @@ body{
    Hover (or .expanded class): slides out to 240px overlay with labels.
    Pattern: Linear / Notion / VS Code. Mobile keeps the drawer behaviour. */
 .sidebar{
-  width:60px;position:fixed;left:0;top:0;bottom:0;
+  width:240px;position:fixed;left:0;top:0;bottom:0;
   background:var(--bg2);border-right:1px solid var(--border);
-  display:flex;flex-direction:column;z-index:200;overflow:hidden;
+  display:flex;flex-direction:column;z-index:200;overflow-y:auto;
   transition:width .25s cubic-bezier(.22,1,.36,1),box-shadow .2s,transform .26s cubic-bezier(.22,1,.36,1);
 }
-.sidebar:hover,.sidebar.expanded{
-  width:240px;overflow-y:auto;
-  box-shadow:8px 0 32px rgba(0,0,0,.22);
+@media(min-width:861px){
+  /* Desktop: collapse to rail by default, expand on hover */
+  .sidebar{width:60px;overflow:hidden}
+  .sidebar:hover,.sidebar.expanded{
+    width:240px;overflow-y:auto;
+    box-shadow:8px 0 32px rgba(0,0,0,.22);
+  }
 }
 [data-theme="light"] .sidebar:hover,[data-theme="light"] .sidebar.expanded,
 html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hover{
   box-shadow:8px 0 28px rgba(20,20,15,.10);
 }
-/* Hide all text/labels in collapsed state, fade them in when expanded */
-.sidebar .sb-logo-text,
-.sidebar .sb-section,
-.sidebar .sb-item > span:not(.sb-ico),
-.sidebar .sb-item .badge,
-.sidebar .sb-item .pdot,
-.sidebar .sb-progress > div:last-child,
-.sidebar .sb-foot-info,
-.sidebar #sb-persona-name,
-.sidebar .sb-foot .sb-foot-info,
-.sidebar .sb-foot > span:last-child{
-  opacity:0;transition:opacity .12s;white-space:nowrap;pointer-events:none;
-}
-.sidebar:hover .sb-logo-text,
-.sidebar:hover .sb-section,
-.sidebar:hover .sb-item > span:not(.sb-ico),
-.sidebar:hover .sb-item .badge,
-.sidebar:hover .sb-item .pdot,
-.sidebar:hover .sb-progress > div:last-child,
-.sidebar:hover .sb-foot-info,
-.sidebar:hover #sb-persona-name,
-.sidebar:hover .sb-foot .sb-foot-info,
-.sidebar:hover .sb-foot > span:last-child,
-.sidebar.expanded .sb-logo-text,
-.sidebar.expanded .sb-section,
-.sidebar.expanded .sb-item > span:not(.sb-ico),
-.sidebar.expanded .sb-item .badge,
-.sidebar.expanded .sb-item .pdot,
-.sidebar.expanded .sb-progress > div:last-child,
-.sidebar.expanded .sb-foot-info,
-.sidebar.expanded #sb-persona-name,
-.sidebar.expanded .sb-foot .sb-foot-info,
-.sidebar.expanded .sb-foot > span:last-child{
-  opacity:1;transition:opacity .18s .08s;pointer-events:auto;
-}
-/* Center items when collapsed */
-.sidebar:not(:hover):not(.expanded) .sb-item{justify-content:center;padding:10px 0;margin:1px 6px;width:48px}
-.sidebar:not(:hover):not(.expanded) .sb-logo{justify-content:center;padding:14px 0}
-.sidebar:not(:hover):not(.expanded) .sb-section{height:8px;padding:0;margin:8px 0}
-.sidebar:not(:hover):not(.expanded) .sb-progress{justify-content:center;padding:10px 0;margin:6px 6px 4px}
-.sidebar:not(:hover):not(.expanded) .sb-foot{justify-content:center;padding:10px 0;gap:0}
-.sidebar:not(:hover):not(.expanded) .sb-foot-btn{padding:10px 0}
-.sidebar:not(:hover):not(.expanded) .sb-close{display:none}
-.sidebar:not(:hover):not(.expanded) .sb-ico{opacity:.85;font-size:14px}
-/* Section heading thin divider in rail mode */
-.sidebar:not(:hover):not(.expanded) .sb-section::before{
-  content:'';display:block;width:18px;height:1px;background:var(--border-s);margin:0 auto;
+/* DESKTOP-ONLY rail collapse — on mobile (<861px) the sidebar is a full-width
+   drawer and these rules MUST NOT apply, otherwise items get clipped to 48px. */
+@media(min-width:861px){
+  /* Hide labels in collapsed rail */
+  .sidebar .sb-logo-text,
+  .sidebar .sb-section,
+  .sidebar .sb-item > span:not(.sb-ico),
+  .sidebar .sb-item .badge,
+  .sidebar .sb-item .pdot,
+  .sidebar .sb-progress > div:last-child,
+  .sidebar .sb-foot-info,
+  .sidebar #sb-persona-name,
+  .sidebar .sb-foot .sb-foot-info,
+  .sidebar .sb-foot > span:last-child{
+    opacity:0;transition:opacity .12s;white-space:nowrap;pointer-events:none;
+  }
+  .sidebar:hover .sb-logo-text,
+  .sidebar:hover .sb-section,
+  .sidebar:hover .sb-item > span:not(.sb-ico),
+  .sidebar:hover .sb-item .badge,
+  .sidebar:hover .sb-item .pdot,
+  .sidebar:hover .sb-progress > div:last-child,
+  .sidebar:hover .sb-foot-info,
+  .sidebar:hover #sb-persona-name,
+  .sidebar:hover .sb-foot .sb-foot-info,
+  .sidebar:hover .sb-foot > span:last-child,
+  .sidebar.expanded .sb-logo-text,
+  .sidebar.expanded .sb-section,
+  .sidebar.expanded .sb-item > span:not(.sb-ico),
+  .sidebar.expanded .sb-item .badge,
+  .sidebar.expanded .sb-item .pdot,
+  .sidebar.expanded .sb-progress > div:last-child,
+  .sidebar.expanded .sb-foot-info,
+  .sidebar.expanded #sb-persona-name,
+  .sidebar.expanded .sb-foot .sb-foot-info,
+  .sidebar.expanded .sb-foot > span:last-child{
+    opacity:1;transition:opacity .18s .08s;pointer-events:auto;
+  }
+  /* Center items when collapsed */
+  .sidebar:not(:hover):not(.expanded) .sb-item{justify-content:center;padding:10px 0;margin:1px 6px;width:48px}
+  .sidebar:not(:hover):not(.expanded) .sb-logo{justify-content:center;padding:14px 0}
+  .sidebar:not(:hover):not(.expanded) .sb-section{height:8px;padding:0;margin:8px 0}
+  .sidebar:not(:hover):not(.expanded) .sb-progress{justify-content:center;padding:10px 0;margin:6px 6px 4px}
+  .sidebar:not(:hover):not(.expanded) .sb-foot{justify-content:center;padding:10px 0;gap:0}
+  .sidebar:not(:hover):not(.expanded) .sb-foot-btn{padding:10px 0}
+  .sidebar:not(:hover):not(.expanded) .sb-close{display:none}
+  .sidebar:not(:hover):not(.expanded) .sb-ico{opacity:.85;font-size:14px}
+  /* Section heading thin divider in rail mode */
+  .sidebar:not(:hover):not(.expanded) .sb-section::before{
+    content:'';display:block;width:18px;height:1px;background:var(--border-s);margin:0 auto;
+  }
 }
 .sb-backdrop{
   display:none;position:fixed;inset:0;z-index:150;
