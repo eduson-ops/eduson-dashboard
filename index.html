@@ -132,15 +132,13 @@ body{
 .persona-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:1.5px solid var(--border-s);background:var(--bg3);cursor:pointer;transition:all .12s var(--ease)}
 .persona-row:hover{border-color:var(--y-bd);background:var(--y-bg)}
 .persona-row.active{border-color:var(--y);background:var(--y-bg)}
-.persona-row .pav{width:32px;height:32px;border-radius:8px;flex-shrink:0;background:var(--y-bg);border:1.5px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:11px;color:var(--y)}
-.persona-row.rop .pav{background:var(--bg5);color:var(--sub);border-color:var(--border-s)}
-.persona-row.active .pav{background:var(--y);color:#000;border-color:var(--y)}
+.persona-row .pav{width:32px;height:32px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:22px;line-height:1}
 .persona-row .pinfo{flex:1;min-width:0}
 .persona-row .pname{font-size:13px;font-weight:600;color:var(--text)}
 .persona-row .psub{font-size:10.5px;color:var(--muted)}
 .persona-row.active .pname{color:var(--y)}
-.sb-av{width:28px;height:28px;border-radius:7px;flex-shrink:0;background:var(--y-bg);border:1.5px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:9px;font-weight:700;color:var(--y);position:relative}
-.sb-av::after{content:'';position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:var(--g);border:2px solid var(--bg2);box-shadow:0 0 0 1px var(--g-bd)}
+.sb-av{width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;position:relative}
+.sb-av::after{content:'';position:absolute;right:0;bottom:0;width:8px;height:8px;border-radius:50%;background:var(--g);border:2px solid var(--bg2);box-shadow:0 0 0 1px var(--g-bd)}
 .sb-foot-info{min-width:0;flex:1;line-height:1.2}
 .sb-foot-info b{font-size:11.5px;font-weight:600;color:var(--text);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sb-foot-info small{font-size:9.5px;color:var(--muted);display:block;white-space:nowrap}
@@ -305,7 +303,7 @@ body{
 .mback{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:14px;width:fit-content}
 .mback:hover{color:var(--y)}
 .mhdr{display:flex;align-items:center;gap:14px;margin-bottom:16px}
-.mav{width:50px;height:50px;border-radius:12px;background:var(--y-bg);border:2px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:16px;color:var(--y)}
+.mav{width:50px;height:50px;display:flex;align-items:center;justify-content:center;font-size:36px;line-height:1}
 .ms4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
 .crml{font-size:10px;color:var(--b);text-decoration:none}.crml:hover{text-decoration:underline}
 
@@ -503,14 +501,12 @@ body{
 }
 .slot-mgr-chip:active{transform:scale(.97)}
 .slot-mgr-chip .mc-av{
-  width:26px;height:26px;border-radius:50%;
-  background:var(--y-bg);border:1.5px solid var(--y-bd);
+  width:26px;height:26px;
   display:flex;align-items:center;justify-content:center;
-  font-family:var(--display);font-size:10px;font-weight:700;color:var(--y);
+  font-size:18px;line-height:1;
   flex-shrink:0;
 }
 .slot-mgr-chip.active{border-color:var(--y);background:var(--y-bg);color:var(--y)}
-.slot-mgr-chip.active .mc-av{background:var(--y);color:#000;border-color:var(--y)}
 
 /* Show mobile editor only on small screens */
 @media(max-width:860px){
@@ -646,7 +642,7 @@ body{
 .slot-card.slot-live{background:color-mix(in oklab,var(--r) 10%,var(--bg3));border-color:color-mix(in oklab,var(--r) 25%,transparent)}
 .slot-card.slot-done{opacity:.55}
 .slot-time-big{font:700 14px/1 var(--mono);color:var(--text);min-width:44px}
-.slot-avatar{width:28px;height:28px;border-radius:7px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:9px;font-weight:800}
+.slot-avatar{width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}
 .slot-info{flex:1;min-width:0}
 .slot-name{font:600 12.5px/1.2 var(--sans);color:var(--text)}
 .slot-pkg{font:500 10.5px/1 var(--mono);color:var(--muted);margin-top:2px}
@@ -721,8 +717,14 @@ body::before{
 .av-chip.c4{background:linear-gradient(135deg,#ff8b8b,#c0392b);color:#fff}
 .av-chip.c5{background:linear-gradient(135deg,#c4a8ff,#7950d4);color:#fff}
 .av-chip.c6{background:linear-gradient(135deg,#ffac6f,#c47a16);color:#1a1a17}
-.av-chip.emoji{font-size:14px;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--sans);font-weight:400}
-.mgr-card-avatar.emoji{font-size:22px;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--sans);font-weight:400}
+/* Emoji avatars: drop background/border so the glyph's own color reads cleanly */
+.av-chip.emoji,.mgr-card-avatar.emoji{
+  background:none !important;border:none !important;color:inherit !important;
+  box-shadow:none !important;
+  font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--sans);font-weight:400;
+}
+.av-chip.emoji{font-size:18px}
+.mgr-card-avatar.emoji{font-size:30px}
 
 /* ── FUNNEL (redesigned) ── */
 .funnel-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -2806,7 +2808,6 @@ function openMgr(name) {
   var data=visible().filter(r=>r.manager===name),t=calcTotals(data);
   var mav=document.getElementById('mav');
   mav.textContent=mgrEmoji(name);
-  mav.style.fontSize='28px';
   mav.style.fontFamily="'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--display)";
   document.getElementById('mname').textContent=name;
   document.getElementById('msub').textContent=t.mk+' МК · '+t.conv+'% конв. · '+fmt(t.rev)+' ₽';
@@ -3166,7 +3167,7 @@ function renderMgrPicker(){
   el.innerHTML=managers.map(m=>{
     var active=currentEditMgr===m;
     return`<div onclick="selectEditMgr('${esc(m)}')" style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;border:2px solid ${active?'var(--y)':'var(--border-s)'};background:${active?'var(--y-bg)':'var(--bg3)'};cursor:pointer;transition:all .15s">
-      <div style="width:30px;height:30px;border-radius:6px;background:var(--y-bg);border:1.5px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-size:16px">${mgrEmoji(m)}</div>
+      <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1">${mgrEmoji(m)}</div>
       <span style="font-size:12px;font-weight:${active?'700':'500'};color:${active?'var(--y)':'var(--text)'}">${esc(m)}</span>
     </div>`;
   }).join('');
