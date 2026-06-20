@@ -2514,14 +2514,29 @@ function buildAnalyticsMgrFilter() {
 function visibleCancels() {
   var data=cancelsList;
   if(analyticsMgr) data=data.filter(r=>r.manager===analyticsMgr);
+  if(personalMgr) data=data.filter(r=>r.manager===personalMgr);
+  // Safe date extraction from timestamp ("dd.MM.yyyy HH:mm:ss")
+  function tsDate(r){
+    var s=(r.ts||'').toString();
+    if(!s) return null;
+    return parseDate(s.split(' ')[0] || s.split('T')[0]);
+  }
+  var from,to;
   if(dfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
     var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-    data=data.filter(r=>{var d=parseDate(r.ts.split(' ')[0]||r.ts.split('T')[0]);return d&&d>=mon&&d<=sun;});
+    from=mon;to=sun;
   } else if(dfMode==='custom'&&dfFrom&&dfTo){
-    data=data.filter(r=>{var d=parseDate(r.ts.split(' ')[0]||r.ts.split('T')[0]);return d&&d>=dfFrom&&d<=dfTo;});
+    from=dfFrom;to=dfTo;
+  } else {
+    // DEFAULT: current month — matches what visible()/visibleMain() do.
+    // Without this, dfMode='all' returned ALL history (245+ records).
+    var b=curMonthBounds();from=b.from;to=b.to;
   }
-  return data;
+  return data.filter(function(r){
+    var d=tsDate(r);
+    return d && d>=from && d<=to;
+  });
 }
 
 function renderCancels() {
