@@ -126,6 +126,19 @@ body{
 [data-theme="light"] .sb-item.active{background:rgba(196,144,0,0.09)}
 .sb-ico{font-size:13px;width:17px;text-align:center;flex-shrink:0;opacity:.65}
 .sb-foot{margin-top:auto;padding:10px 12px;border-top:1px solid var(--border);display:flex;align-items:center;gap:9px;flex-shrink:0;background:var(--bg2)}
+.sb-foot-btn{width:100%;border:none;cursor:pointer;text-align:left;font-family:var(--sans);color:inherit;transition:background var(--dur) var(--ease)}
+.sb-foot-btn:hover{background:var(--bg3)}
+.sb-foot-btn:active{background:var(--bg4)}
+.persona-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;border:1.5px solid var(--border-s);background:var(--bg3);cursor:pointer;transition:all .12s var(--ease)}
+.persona-row:hover{border-color:var(--y-bd);background:var(--y-bg)}
+.persona-row.active{border-color:var(--y);background:var(--y-bg)}
+.persona-row .pav{width:32px;height:32px;border-radius:8px;flex-shrink:0;background:var(--y-bg);border:1.5px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:11px;color:var(--y)}
+.persona-row.rop .pav{background:var(--bg5);color:var(--sub);border-color:var(--border-s)}
+.persona-row.active .pav{background:var(--y);color:#000;border-color:var(--y)}
+.persona-row .pinfo{flex:1;min-width:0}
+.persona-row .pname{font-size:13px;font-weight:600;color:var(--text)}
+.persona-row .psub{font-size:10.5px;color:var(--muted)}
+.persona-row.active .pname{color:var(--y)}
 .sb-av{width:28px;height:28px;border-radius:7px;flex-shrink:0;background:var(--y-bg);border:1.5px solid var(--y-bd);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:9px;font-weight:700;color:var(--y);position:relative}
 .sb-av::after{content:'';position:absolute;right:-2px;bottom:-2px;width:9px;height:9px;border-radius:50%;background:var(--g);border:2px solid var(--bg2);box-shadow:0 0 0 1px var(--g-bd)}
 .sb-foot-info{min-width:0;flex:1;line-height:1.2}
@@ -504,6 +517,39 @@ body{
   .slot-editor-mobile{display:block}
   .slot-editor-desktop{display:none}
 }
+
+/* ── ONBOARDING ── */
+.onb-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:1100;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
+[data-theme="light"] .onb-overlay,[data-theme="paper"] .onb-overlay{background:rgba(20,20,15,0.5)}
+.onb-overlay.visible{display:flex;animation:onbFade .25s var(--ease)}
+@keyframes onbFade{from{opacity:0}to{opacity:1}}
+.onb-card{background:var(--bg2);border:1px solid var(--border-s);border-radius:16px;padding:26px 28px;max-width:480px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,0.4);position:relative;animation:onbPop .35s var(--ease)}
+@keyframes onbPop{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+.onb-emoji{font-size:42px;line-height:1;margin-bottom:10px}
+.onb-step{font:600 10px/1 var(--mono);color:var(--muted);letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px}
+.onb-title{font:800 22px/1.15 var(--display);color:var(--text);margin-bottom:8px;letter-spacing:-.02em}
+.onb-body{font-size:13.5px;line-height:1.55;color:var(--sub);margin-bottom:18px}
+.onb-body b{color:var(--text)}
+.onb-actions{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.onb-dots{display:flex;gap:5px}
+.onb-dot{width:6px;height:6px;border-radius:50%;background:var(--bg5);transition:background .2s}
+.onb-dot.active{background:var(--y);width:18px;border-radius:3px}
+.onb-btns{display:flex;gap:8px;align-items:center}
+.onb-skip{background:none;border:none;font-size:12px;color:var(--muted);cursor:pointer;font-family:var(--sans);padding:8px 4px}
+.onb-skip:hover{color:var(--text)}
+.onb-next{background:var(--y);color:#000;border:none;font-family:var(--sans);font-size:13px;font-weight:700;padding:9px 18px;border-radius:9px;cursor:pointer;box-shadow:0 4px 14px var(--y-glow);transition:transform .12s}
+.onb-next:active{transform:scale(.97)}
+
+/* ── UNDO TOAST ── */
+#undo-toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg2);border:1.5px solid var(--y-bd);border-radius:12px;padding:12px 16px 12px 16px;display:none;align-items:center;gap:14px;z-index:1200;box-shadow:0 12px 36px rgba(0,0,0,0.35);min-width:300px;opacity:0;transition:opacity .25s,transform .25s}
+#undo-toast.visible{display:flex;opacity:1;transform:translateX(-50%) translateY(0)}
+#undo-toast .ut-text{flex:1;font-size:13px;color:var(--text)}
+#undo-toast .ut-text b{color:var(--y);font-family:var(--mono)}
+#undo-toast .ut-bar{height:3px;background:var(--y);border-radius:2px;animation:undoCount 10s linear forwards}
+@keyframes undoCount{from{width:100%}to{width:0%}}
+#undo-toast .ut-bar-wrap{position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:0 0 12px 12px;overflow:hidden;background:var(--bg4)}
+#undo-toast button{background:transparent;border:1.5px solid var(--y-bd);color:var(--y);border-radius:8px;padding:6px 14px;font-size:12px;font-weight:700;font-family:var(--sans);cursor:pointer}
+#undo-toast button:hover{background:var(--y-bg)}
 
 /* ── COPY TOAST ── */
 .copy-slots-btn{margin-left:6px;background:none;border:none;cursor:pointer;font-size:13px;opacity:0;transition:opacity .15s;padding:0 2px;line-height:1;vertical-align:middle}
@@ -911,14 +957,25 @@ body::before{
     </div>
   </div>
 
-  <div class="sb-foot">
-    <div class="sb-av">КЦ</div>
+  <button class="sb-foot sb-foot-btn" onclick="openPersonaPicker()" id="sb-persona" aria-label="Сменить роль">
+    <div class="sb-av" id="sb-persona-av">РОП</div>
     <div class="sb-foot-info">
-      <b>Кирилл Цуканов</b>
-      <small>РОП · в сети</small>
+      <b id="sb-persona-name">Режим РОПа</b>
+      <small id="sb-persona-sub">вся команда · нажми чтобы сменить</small>
     </div>
-  </div>
+    <span style="font-size:13px;color:var(--muted);margin-left:6px">⇅</span>
+  </button>
 </aside>
+
+<!-- ═════ Persona picker modal ═════ -->
+<div id="persona-overlay" class="agr-overlay" style="display:none" onclick="if(event.target===this)closePersonaPicker()">
+  <div class="agr-modal" style="max-width:420px;padding:20px 22px">
+    <button class="agr-modal-close" onclick="closePersonaPicker()" aria-label="Закрыть">✕</button>
+    <div class="agr-modal-title" style="font-size:14px;margin-bottom:4px">👤 Я — это…</div>
+    <div style="font-size:11.5px;color:var(--muted);line-height:1.5;margin-bottom:14px">Выбери себя, чтобы дашборд показывал только твои данные. РОП видит всю команду.</div>
+    <div id="persona-list" style="display:flex;flex-direction:column;gap:6px"></div>
+  </div>
+</div>
 
 <script>
 function openSidebar(){
@@ -937,7 +994,68 @@ document.addEventListener('click',function(e){
   if(btn && window.innerWidth<=860) closeSidebar();
 });
 // Close on Esc
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSidebar();});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeSidebar();closePersonaPicker();}});
+
+// ─── Persona picker (ROP / personal mode) ───
+function openPersonaPicker(){
+  renderPersonaList();
+  document.getElementById('persona-overlay').style.display='flex';
+}
+function closePersonaPicker(){
+  var el=document.getElementById('persona-overlay');if(el)el.style.display='none';
+}
+function renderPersonaList(){
+  var el=document.getElementById('persona-list');if(!el)return;
+  var rows=[];
+  // Row 0: ROP
+  rows.push('<div class="persona-row rop'+(personalMgr?'':' active')+'" onclick="setPersona(\'\')">'
+    +'<div class="pav">РОП</div>'
+    +'<div class="pinfo"><div class="pname">РОП — вся команда</div><div class="psub">КПИ, рейтинг, расписание всех менеджеров</div></div>'
+    +'</div>');
+  (managers||[]).forEach(function(m){
+    var ini=m.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+    var sel=personalMgr===m;
+    rows.push('<div class="persona-row'+(sel?' active':'')+'" onclick="setPersona(\''+esc(m)+'\')">'
+      +'<div class="pav">'+esc(ini)+'</div>'
+      +'<div class="pinfo"><div class="pname">'+esc(m)+'</div><div class="psub">мои МК, моя выручка, моя конверсия</div></div>'
+      +'</div>');
+  });
+  el.innerHTML=rows.join('');
+}
+function setPersona(name){
+  personalMgr=name||'';
+  try{localStorage.setItem('eks-me', personalMgr);}catch(e){}
+  updatePersonaFooter();
+  // Re-render everything that depends on filter
+  try{
+    if(typeof renderMain==='function')renderMain();
+    if(typeof renderHot==='function')renderHot();
+    if(typeof renderAnalytics==='function')renderAnalytics();
+    if(typeof renderManagers==='function')renderManagers();
+    if(typeof renderRetention==='function')renderRetention();
+    if(typeof renderSchedule==='function')renderSchedule();
+  }catch(e){console.warn('setPersona render error',e);}
+  closePersonaPicker();
+}
+function updatePersonaFooter(){
+  var av=document.getElementById('sb-persona-av');
+  var nm=document.getElementById('sb-persona-name');
+  var sb=document.getElementById('sb-persona-sub');
+  if(!av||!nm||!sb) return;
+  if(personalMgr){
+    av.textContent=personalMgr.split(' ').map(function(w){return w[0];}).join('').slice(0,2).toUpperCase();
+    nm.textContent=personalMgr;
+    sb.textContent='личный режим · нажми чтобы сменить';
+  } else {
+    av.textContent='РОП';
+    nm.textContent='Режим РОПа';
+    sb.textContent='вся команда · нажми чтобы сменить';
+  }
+}
+window.openPersonaPicker=openPersonaPicker;
+window.closePersonaPicker=closePersonaPicker;
+window.setPersona=setPersona;
+window.updatePersonaFooter=updatePersonaFooter;
 </script>
 
 <div class="main-col">
@@ -960,9 +1078,9 @@ document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSidebar
 <!-- ══ ГЛАВНАЯ ══ -->
 <div class="page active" id="page-main">
   <div class="page-hdr">
-    <div class="page-eyebrow">Операционка · Май 2026</div>
-    <div class="page-title">Сегодня</div>
-    <div class="page-sub">Выручка, конверсия, команда и прогресс плана</div>
+    <div class="page-eyebrow" id="main-eyebrow">Операционка · Май 2026</div>
+    <div class="page-title" id="main-title">Сегодня</div>
+    <div class="page-sub" id="main-sub">Выручка, конверсия, команда и прогресс плана</div>
   </div>
   <div class="alert"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px"><path d="M8 1.5L14.5 13.5H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".75" fill="currentColor"/></svg><span id="alert-text">Загрузка...</span></div>
   <div class="cdown">
@@ -1892,6 +2010,8 @@ async function loadAll() {
   renderManagers();
   renderSchedule();
   renderRetention();
+  if(typeof updatePersonaFooter==='function') updatePersonaFooter();
+  if(typeof maybeShowOnboarding==='function') maybeShowOnboarding();
 
   var n=new Date();
   document.getElementById('upd').textContent=
@@ -2027,6 +2147,17 @@ function renderKpiSparks(data){
 // ═══════════════════════════════════════
 function renderMain() {
   syncRenewalToggle();
+  // Update page header for personal/team mode
+  var mEy=document.getElementById('main-eyebrow'),mTi=document.getElementById('main-title'),mSb=document.getElementById('main-sub');
+  if(personalMgr){
+    if(mEy) mEy.textContent='Личный режим · '+personalMgr;
+    if(mTi) mTi.textContent='Мой день';
+    if(mSb) mSb.textContent='Только мои МК, оплаты и слоты. Чтобы вернуться к команде — смени роль в сайдбаре.';
+  } else {
+    if(mEy) mEy.textContent='Операционка · Команда';
+    if(mTi) mTi.textContent='Сегодня';
+    if(mSb) mSb.textContent='Выручка, конверсия, команда и прогресс плана';
+  }
   var data=visibleMain(),t=calcTotals(data);
   var renRev=visibleRenewalsMain().reduce((s,r)=>s+r.rev,0);
   if(COUNT_RENEWALS) t.rev+=renRev;
@@ -2037,25 +2168,30 @@ function renderMain() {
   // Countdown — calendar days
   var calLeft=calDaysLeft(),calTotal=calDaysTotal();
   var wdLeft=workDaysLeft();
-  var revLeft=Math.max(0,targets.rev-t.rev);
+  // Personal mode: scale plan proportionally to share-per-manager so the
+  // КПИ-карточки и countdown показывают реалистичную долю плана для одного
+  // человека, а не «командный» план, который менеджер физически не закроет.
+  var personalScale=(personalMgr && managers.length>1) ? (1/managers.length) : 1;
+  var effRev=targets.rev*personalScale, effMk=Math.max(1,Math.round(targets.mk*personalScale));
+  var revLeft=Math.max(0,effRev-t.rev);
   var dailyNeed=wdLeft>0?Math.round(revLeft/wdLeft):0;
 
   document.getElementById('rdays').textContent=calLeft;
   var circ=2*Math.PI*30;
   document.getElementById('rfg').style.strokeDashoffset=circ*(1-(calTotal-calLeft)/calTotal);
   document.getElementById('cc-rev').textContent=fmt(revLeft)+' ₽';
-  document.getElementById('cc-rev2').textContent='план '+fmt(targets.rev)+' ₽';
+  document.getElementById('cc-rev2').textContent=(personalMgr?'моя доля':'план')+' '+fmt(effRev)+' ₽';
   document.getElementById('cc-day').textContent=fmt(dailyNeed)+' ₽';
-  document.getElementById('cc-mk').textContent=Math.max(0,targets.mk-t.mk)+' МК';
+  document.getElementById('cc-mk').textContent=Math.max(0,effMk-t.mk)+' МК';
 
   // KPIs
-  var rp=pct(t.rev,targets.rev),mp=pct(t.mk,targets.mk);
+  var rp=pct(t.rev,effRev),mp=pct(t.mk,effMk);
   document.getElementById('kv-rev').textContent=fmt(t.rev)+' ₽';
-  document.getElementById('ks-rev').textContent=rp+'% от плана';
+  document.getElementById('ks-rev').textContent=rp+'% '+(personalMgr?'от моей доли':'от плана');
   document.getElementById('kt-rev').textContent=rp+'%';
-  document.getElementById('kv-mk').textContent=t.mk+' / '+targets.mk;
-  document.getElementById('ks-mk').textContent=mp+'% от плана';
-  document.getElementById('kt-mk').textContent=(t.mk-targets.mk)+' МК';
+  document.getElementById('kv-mk').textContent=t.mk+' / '+effMk;
+  document.getElementById('ks-mk').textContent=mp+'% '+(personalMgr?'от моей доли':'от плана');
+  document.getElementById('kt-mk').textContent=(t.mk-effMk)+' МК';
   document.getElementById('kv-conv').textContent=t.conv+'%';
   document.getElementById('ks-conv').textContent='план '+targets.conv+'% · +'+(t.conv-targets.conv).toFixed(1)+'%';
   document.getElementById('kt-conv').textContent='↑'+pct(t.conv,targets.conv)+'%';
@@ -2067,7 +2203,7 @@ function renderMain() {
   document.getElementById('kt-rpm').textContent='↑ растём';
 
   document.getElementById('alert-text').innerHTML=
-    '<strong>Узкое место:</strong> нужно ещё <strong>+'+Math.max(0,targets.mk-t.mk)+' МК</strong>. '+
+    '<strong>'+(personalMgr?'Твой фокус':'Узкое место')+':</strong> нужно ещё <strong>+'+Math.max(0,effMk-t.mk)+' МК</strong>. '+
     'Конверсия '+t.conv+'% '+(t.conv>=targets.conv?'✓ выше':'↓ ниже')+' плана · '+
     'Осталось: <strong>'+fmt(revLeft)+' ₽</strong> · '+calLeft+' кал. дней';
 
@@ -2080,11 +2216,11 @@ function renderMain() {
   renderKpiSparks(data);
 
   // Update sidebar plan ring
-  var mkPct=Math.min(100,Math.round(t.mk/targets.mk*100));
+  var mkPct=Math.min(100,Math.round(t.mk/effMk*100));
   var C=2*Math.PI*15,arc=document.getElementById('sb-ring-arc');
   if(arc){arc.style.strokeDashoffset=C*(1-mkPct/100);}
   var rpct=document.getElementById('sb-ring-pct');if(rpct)rpct.textContent=mkPct+'%';
-  var rlbl=document.getElementById('sb-ring-label');if(rlbl)rlbl.textContent=t.mk+' / '+targets.mk+' МК';
+  var rlbl=document.getElementById('sb-ring-label');if(rlbl)rlbl.textContent=t.mk+' / '+effMk+' МК';
 }
 
 function renderTeamTable(data,filter) {
@@ -3567,6 +3703,158 @@ setInterval(function() { if(!document.hidden) nextQuote(); }, 30000);
 // ═══════════════════════════════════════
 var savedTheme=localStorage.getItem('eks-theme')||'dark';
 document.documentElement.setAttribute('data-theme',savedTheme);
+
+// ═══════════════════════════════════════
+// ONBOARDING (shows once, dismissable, never auto-reopens)
+// ═══════════════════════════════════════
+var ONB_STEPS = [
+  {emoji:'👋', title:'Добро пожаловать в Sales OS',
+    body:'Это твой ежедневный пульс отдела продаж: <b>МК, оплаты, расписание</b> — всё в одном месте. Обновляется автоматически из Google Таблицы каждые 30 минут.'},
+  {emoji:'👤', title:'Сначала выбери, кто ты',
+    body:'В <b>левом нижнем углу</b> сайдбара — кнопка с твоей ролью. Менеджеры выбирают своё имя — и видят только <b>свой день, свои МК, свою выручку</b>. РОП видит всю команду.'},
+  {emoji:'📅', title:'Расписание выставляешь сам',
+    body:'Вкладка <b>«Расписание» → «Заполнить слоты»</b>. Выбери день, тапни часы (зелёные = прайм), нажми <b>«Отправить →»</b>. Слоты появятся в общем хитмапе для РОПа.'},
+  {emoji:'🚀', title:'Готово — ты в курсе всего',
+    body:'Если что-то непонятно — нажми «👤» снизу слева, чтобы выйти из режима. Это окно <b>больше не появится</b>. Удачных продаж!'},
+];
+var onbIdx=0;
+function maybeShowOnboarding(){
+  // Show only if (1) never dismissed before, (2) we have managers loaded
+  if(!managers||!managers.length) return;
+  try{ if(localStorage.getItem('eks-onb-done')==='1') return; }catch(e){}
+  // Defer a tick so the dashboard renders first behind the modal
+  setTimeout(function(){ onbStart(); }, 600);
+}
+function onbStart(){
+  onbIdx=0;
+  document.getElementById('onb-overlay').classList.add('visible');
+  document.body.style.overflow='hidden';
+  renderOnbStep();
+}
+function renderOnbStep(){
+  var s=ONB_STEPS[onbIdx]; if(!s) return onbFinish();
+  document.getElementById('onb-emoji').textContent=s.emoji;
+  document.getElementById('onb-title').textContent=s.title;
+  document.getElementById('onb-body').innerHTML=s.body; // trusted static content
+  document.getElementById('onb-step').textContent='Шаг '+(onbIdx+1)+' из '+ONB_STEPS.length;
+  // Dots
+  var dots='';
+  for(var i=0;i<ONB_STEPS.length;i++) dots+='<div class="onb-dot'+(i===onbIdx?' active':'')+'"></div>';
+  document.getElementById('onb-dots').innerHTML=dots;
+  document.getElementById('onb-next-btn').textContent = (onbIdx===ONB_STEPS.length-1)?'Поехали 🚀':'Дальше →';
+}
+function onbNext(){
+  onbIdx++;
+  if(onbIdx>=ONB_STEPS.length) return onbFinish();
+  renderOnbStep();
+}
+function onbSkip(){ onbFinish(); }
+function onbFinish(){
+  document.getElementById('onb-overlay').classList.remove('visible');
+  document.body.style.overflow='';
+  try{ localStorage.setItem('eks-onb-done','1'); }catch(e){}
+}
+// Allow re-opening from devtools / a future "?" button
+window.openOnboarding=function(){
+  try{ localStorage.removeItem('eks-onb-done'); }catch(e){}
+  onbStart();
+};
+window.maybeShowOnboarding=maybeShowOnboarding;
+window.onbNext=onbNext;
+window.onbSkip=onbSkip;
+
+// ═══════════════════════════════════════
+// AUDIT LOG (localStorage ring buffer of last 50 events)
+// ═══════════════════════════════════════
+function auditLogPush(entry){
+  try{
+    var raw=localStorage.getItem('eks-audit')||'[]';
+    var log=JSON.parse(raw);
+    log.push(Object.assign({ts:new Date().toISOString(), persona:personalMgr||'РОП'}, entry));
+    if(log.length>50) log=log.slice(-50);
+    localStorage.setItem('eks-audit', JSON.stringify(log));
+  }catch(e){console.warn('auditLogPush failed',e);}
+}
+function auditLogGet(){
+  try{ return JSON.parse(localStorage.getItem('eks-audit')||'[]'); }catch(e){return [];}
+}
+window.auditLogPush=auditLogPush;
+window.auditLogGet=auditLogGet;
+
+// ═══════════════════════════════════════
+// UNDO TOAST (10s window to roll back the last schedule submit)
+// ═══════════════════════════════════════
+var __pendingUndo=null;  // {manager, prevSnapshot, timer}
+function showUndoToast(manager, prevSnapshot, newCount){
+  var prevCount=0;
+  Object.keys(prevSnapshot||{}).forEach(function(ds){
+    prevCount+=Object.keys(prevSnapshot[ds]||{}).length;
+  });
+  var toast=document.getElementById('undo-toast');
+  var txt=document.getElementById('undo-toast-text');
+  if(!toast||!txt) return;
+  txt.innerHTML='✓ <b>'+esc(manager)+'</b> — '+newCount+' слотов сохранено. Было: '+prevCount+'.';
+  // Reset the progress bar animation
+  var bar=toast.querySelector('.ut-bar');
+  if(bar){ bar.style.animation='none'; void bar.offsetWidth; bar.style.animation='undoCount 10s linear forwards'; }
+  toast.classList.add('visible');
+  // Clear any prior pending undo
+  if(__pendingUndo && __pendingUndo.timer){ clearTimeout(__pendingUndo.timer); }
+  __pendingUndo={ manager:manager, prev:prevSnapshot, timer:null };
+  __pendingUndo.timer=setTimeout(function(){
+    hideUndoToast();
+    __pendingUndo=null;
+  }, 10000);
+}
+function hideUndoToast(){
+  var toast=document.getElementById('undo-toast');
+  if(toast) toast.classList.remove('visible');
+}
+async function performUndo(){
+  if(!__pendingUndo) return hideUndoToast();
+  var u=__pendingUndo; __pendingUndo=null; clearTimeout(u.timer);
+  hideUndoToast();
+  // Convert the snapshot back to a slots_arr and re-submit
+  var slots_arr=[];
+  Object.keys(u.prev||{}).forEach(function(ds){
+    Object.keys(u.prev[ds]||{}).forEach(function(h){
+      var hr=parseInt(h);
+      slots_arr.push({date:ds, time:(hr<10?'0':'')+hr+':00'});
+    });
+  });
+  try{
+    await fetch(WEB_APP_URL,{
+      method:'POST', mode:'no-cors',
+      headers:{'Content-Type':'text/plain'},
+      body:JSON.stringify({manager:u.manager, slots:slots_arr})
+    });
+    auditLogPush({type:'schedule_undo', manager:u.manager, restoredCount:slots_arr.length});
+    // Local rollback
+    if(scheduleData){
+      scheduleData[u.manager]={};
+      Object.keys(u.prev||{}).forEach(function(ds){
+        scheduleData[u.manager][ds]={};
+        Object.keys(u.prev[ds]||{}).forEach(function(h){
+          scheduleData[u.manager][ds][parseInt(h)]=true;
+        });
+      });
+      if(typeof renderSchedule==='function') renderSchedule();
+    }
+    // Brief confirmation
+    var toast=document.getElementById('undo-toast');
+    var txt=document.getElementById('undo-toast-text');
+    if(toast&&txt){
+      txt.innerHTML='↺ Откатил расписание <b>'+esc(u.manager)+'</b>';
+      toast.classList.add('visible');
+      setTimeout(hideUndoToast, 2500);
+    }
+  }catch(e){
+    alert('Не удалось откатить: '+e.message);
+  }
+}
+window.showUndoToast=showUndoToast;
+window.performUndo=performUndo;
+window.hideUndoToast=hideUndoToast;
 // ═══════════════════════════════════════
 // ГОРЯЩИЕ СЕГОДНЯ
 // ═══════════════════════════════════════
@@ -3786,6 +4074,30 @@ function showCopyToast(name, empty) {
 }
 </script>
 <div id="copy-toast"></div>
+
+<!-- ═══ ONBOARDING ═══ -->
+<div class="onb-overlay" id="onb-overlay">
+  <div class="onb-card">
+    <div class="onb-step" id="onb-step">Шаг 1 из 4</div>
+    <div class="onb-emoji" id="onb-emoji">👋</div>
+    <div class="onb-title" id="onb-title"></div>
+    <div class="onb-body" id="onb-body"></div>
+    <div class="onb-actions">
+      <div class="onb-dots" id="onb-dots"></div>
+      <div class="onb-btns">
+        <button class="onb-skip" onclick="onbSkip()">пропустить</button>
+        <button class="onb-next" onclick="onbNext()" id="onb-next-btn">Дальше →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ UNDO TOAST ═══ -->
+<div id="undo-toast" role="status" aria-live="polite">
+  <div class="ut-text" id="undo-toast-text"></div>
+  <button onclick="performUndo()">Отменить</button>
+  <div class="ut-bar-wrap"><div class="ut-bar"></div></div>
+</div>
 
 <!-- ═══ AI CHAT WIDGET ═══ -->
 <style>
