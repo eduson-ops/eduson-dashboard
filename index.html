@@ -848,6 +848,47 @@ body::before{
 .bar-fill.g{background:linear-gradient(90deg,#1f8a5a,var(--g))}
 .bar-fill.r{background:linear-gradient(90deg,#8a2020,var(--r))}
 
+/* ══ SEASONAL THEMING ══
+   Layer over data-theme — activates when data-season is set on <html>.
+   Off by default. Cycles: off → tone → season → fest → off. */
+#season-canvas{
+  position:fixed;inset:0;width:100vw;height:100vh;
+  pointer-events:none;z-index:1;opacity:0;
+  transition:opacity .8s ease;
+}
+html[data-season]:not([data-season=""]) #season-canvas{opacity:.9}
+html[data-season="tone"] #season-canvas{opacity:0}  /* tone = no particles */
+.season-btn{
+  background:var(--bg3);border:1px solid var(--border-s);color:var(--sub);
+  font-size:11px;font-weight:500;padding:5px 11px;border-radius:var(--r6);
+  cursor:pointer;font-family:var(--sans);transition:all var(--dur) var(--ease);
+  display:inline-flex;align-items:center;gap:4px;
+}
+.season-btn:hover{color:var(--text);border-color:var(--y)}
+html[data-season]:not([data-season=""]) .season-btn{
+  background:var(--y-bg);border-color:var(--y-bd);color:var(--y);
+}
+/* Festive hero strip — shown only on data-season-month + data-season=fest */
+.season-hero{display:none;margin:0 0 14px;padding:22px 24px;border-radius:14px;
+  border:1px solid var(--y-bd);background:var(--bg2);position:relative;overflow:hidden}
+.season-hero::before{content:'';position:absolute;inset:0;
+  background:radial-gradient(120% 140% at 88% -20%,var(--y-bg),transparent 60%)}
+.season-hero > *{position:relative}
+.season-hero .sh-row{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.season-hero .sh-eye{font:600 10px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--y);margin-bottom:8px}
+.season-hero .sh-title{font:800 clamp(24px,3.6vw,40px)/.98 var(--display);color:var(--text);letter-spacing:-.01em;white-space:pre-line}
+.season-hero .sh-tag{font:500 13px/1.5 var(--sans);color:var(--sub);margin-top:8px;max-width:480px}
+.season-hero .sh-emoji{font-size:clamp(48px,6.5vw,72px);filter:drop-shadow(0 6px 18px rgba(0,0,0,.25))}
+html[data-season="fest"] .season-hero{display:block}
+/* Seasonal strip — shown only on data-season=season */
+.season-strip{display:none;align-items:center;gap:12px;margin:0 0 14px;padding:10px 14px;
+  border-radius:12px;border:1px solid var(--y-bd);
+  background:linear-gradient(100deg,var(--y-bg),transparent)}
+.season-strip .ss-emoji{font-size:20px}
+.season-strip .ss-title{font:700 13px/1.2 var(--display);color:var(--text)}
+.season-strip .ss-sub{font:500 11.5px/1.4 var(--sans);color:var(--sub);margin-top:1px}
+html[data-season="season"] .season-strip{display:flex}
+
 /* ── RESPONSIVE ── */
 @media(max-width:1024px){.sidebar{width:210px}.main-col{margin-left:210px}}
 @media(max-width:860px){
@@ -900,6 +941,7 @@ body::before{
 </style>
 </head>
 <body>
+<canvas id="season-canvas" aria-hidden="true"></canvas>
 <script>
 (function(){
   var KEY = 'eduson_auth';
@@ -1087,6 +1129,7 @@ window.updatePersonaFooter=updatePersonaFooter;
     <div class="live-b"><div class="ldot"></div>LIVE</div>
     <div class="upd" id="upd">—</div>
     <button class="skin-btn" id="theme-btn" onclick="cycleSkin()" title="Сменить оформление"><span id="skin-ico">🌙</span> <span id="skin-lbl">Тёмная</span></button>
+    <button class="skin-btn season-btn" id="season-btn" onclick="cycleSeason()" title="Сезонная тема — Тон / Сезон / Праздник / Выкл"><span id="season-ico">🍃</span> <span id="season-lbl">Сезон</span></button>
     <button class="nbtn" onclick="loadAll()">↻</button>
   </div>
 </div>
@@ -1098,6 +1141,25 @@ window.updatePersonaFooter=updatePersonaFooter;
     <div class="page-eyebrow" id="main-eyebrow">Операционка · Май 2026</div>
     <div class="page-title" id="main-title">Сегодня</div>
     <div class="page-sub" id="main-sub">Выручка, конверсия, команда и прогресс плана</div>
+  </div>
+
+  <!-- Seasonal accents — hidden unless data-season=season|fest -->
+  <div class="season-hero" id="season-hero">
+    <div class="sh-row">
+      <div>
+        <div class="sh-eye"><span id="sh-eye-label">Сезон · Июнь</span></div>
+        <div class="sh-title" id="sh-title">Лето открывает\nсезон продаж</div>
+        <div class="sh-tag" id="sh-tag">Всё цветёт — пусть и воронка распускается так же щедро.</div>
+      </div>
+      <div class="sh-emoji" id="sh-emoji">🌸</div>
+    </div>
+  </div>
+  <div class="season-strip" id="season-strip">
+    <div class="ss-emoji" id="ss-emoji">🌸</div>
+    <div>
+      <div class="ss-title" id="ss-title">Июнь · Лепестки в воздухе</div>
+      <div class="ss-sub" id="ss-sub">Всё цветёт — пусть и воронка распускается так же щедро.</div>
+    </div>
   </div>
   <div class="alert"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px"><path d="M8 1.5L14.5 13.5H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".75" fill="currentColor"/></svg><span id="alert-text">Загрузка...</span></div>
   <div class="cdown">
@@ -4101,8 +4163,271 @@ function cycleSkin(){
   var ico=document.getElementById('skin-ico');var lbl=document.getElementById('skin-lbl');
   if(ico)ico.textContent=SKIN_ICOS[t];if(lbl)lbl.textContent=SKIN_LABELS[t];
   if(charts.rev||charts.team){renderRevChart(visible());renderTeamChart(visible());}
+  // Re-apply seasonal palette on top of new base skin
+  if(window.__season&&window.__season.mode) applySeason();
 }
 function toggleTheme(){cycleSkin();}
+
+// ═══════════════════════════════════════════════════════════════════════
+// SEASONAL THEMING — layer over base skin. Tone / Season / Fest / off.
+// Spec: Eduson Seasonal Dashboard.dc.html
+// ═══════════════════════════════════════════════════════════════════════
+var SEASON_MONTHS = {
+  jan:{m:0,label:'Январь',emoji:'❄️',phenom:'Снежинки',particle:'snow',
+       title:'Зима ставит\nрекорды',tag:'Холодный старт года — но воронка горячая.',
+       accent:'#5fa8f0',accent2:'#9cc8f5',accent3:'#e8f1fa'},
+  feb:{m:1,label:'Февраль',emoji:'❄️',phenom:'Метель',particle:'snow',
+       title:'Февральский\nнатиск',tag:'Метель за окном — а у нас тёплая отчётность.',
+       accent:'#5fa8f0',accent2:'#9cc8f5',accent3:'#e8f1fa'},
+  mar:{m:2,label:'Март',emoji:'🌱',phenom:'Первые ростки',particle:'petal',
+       title:'Весна продаёт\nновое',tag:'Первая трава, первые сделки — снимаем урожай рано.',
+       accent:'#3ecf8e',accent2:'#7be0a8',accent3:'#c8f0d6'},
+  apr:{m:3,label:'Апрель',emoji:'🌷',phenom:'Цветение',particle:'petal',
+       title:'Апрель — месяц\nраспускания воронки',tag:'Всё расцветает: лиды, оплаты, сделки.',
+       accent:'#3ecf8e',accent2:'#ff8fa3',accent3:'#ffd479'},
+  may:{m:4,label:'Май',emoji:'🌸',phenom:'Сакура',particle:'petal',
+       title:'Май открывает\nсезон продаж',tag:'Всё цветёт — пусть и воронка распускается так же щедро.',
+       accent:'#1f9d57',accent2:'#e85d8a',accent3:'#f0a92b'},
+  jun:{m:5,label:'Июнь',emoji:'🌸',phenom:'Лепестки в воздухе',particle:'petal',
+       title:'Лето открывает\nсезон продаж',tag:'Всё цветёт — пусть и воронка распускается так же щедро.',
+       accent:'#1f9d57',accent2:'#e85d8a',accent3:'#f0a92b'},
+  jul:{m:6,label:'Июль',emoji:'☀️',phenom:'Пыльца и пух',particle:'seed',
+       title:'Пик лета —\nпик выручки',tag:'Жара продаж в самом разгаре — ловим каждый тёплый лид.',
+       accent:'#e8930e',accent2:'#ef5d3c',accent3:'#2f9bd6'},
+  aug:{m:7,label:'Август',emoji:'🌻',phenom:'Светлячки на закате',particle:'firefly',
+       title:'Золотой финал\nсезона',tag:'Золотой финал лета — собираем урожай месяца до последнего дня.',
+       accent:'#f4a72a',accent2:'#ff8a4c',accent3:'#ffd479'},
+  sep:{m:8,label:'Сентябрь',emoji:'🍂',phenom:'Листопад',particle:'leaf',
+       title:'Осень начинает\nсбор урожая',tag:'Школа стартовала — ловим горячий школьный спрос.',
+       accent:'#e8930e',accent2:'#c47a16',accent3:'#f4a72a'},
+  oct:{m:9,label:'Октябрь',emoji:'🍁',phenom:'Кленовый ветер',particle:'leaf',
+       title:'Октябрьская\nволна',tag:'Багряные листья и багряные KPI — оба в пике.',
+       accent:'#c0392b',accent2:'#e85d8a',accent3:'#f0a92b'},
+  nov:{m:10,label:'Ноябрь',emoji:'🌧️',phenom:'Дождь',particle:'rain',
+       title:'Серый ноябрь,\nяркие цифры',tag:'За окном слякоть — у нас тёплый прайм-тайм.',
+       accent:'#60a5fa',accent2:'#9cc8f5',accent3:'#a78bfa'},
+  dec:{m:11,label:'Декабрь',emoji:'🎄',phenom:'Снег и огни',particle:'snow',
+       title:'Декабрь закрывает\nгод',tag:'Финальный спринт — каждая оплата ценнее, чем в любом другом месяце.',
+       accent:'#3ecf8e',accent2:'#f0596a',accent3:'#f5c842'},
+};
+var SEASON_MODES=['','tone','season','fest']; // off → tone → season → fest → off
+var SEASON_MODE_LABELS={'':'Без сезона',tone:'Тон',season:'Сезон',fest:'Праздник'};
+var SEASON_MODE_ICOS={'':'⚪',tone:'🍃',season:'🌸',fest:'🎉'};
+
+window.__season = (function(){
+  // Map current month to config key
+  function currentKey(){
+    var keys=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+    return keys[(new Date()).getMonth()];
+  }
+  return {mode:'', key:currentKey(), parts:[], raf:0, onResize:null};
+})();
+
+function applySeason(){
+  var s=window.__season;
+  var cfg=SEASON_MONTHS[s.key]||SEASON_MONTHS.jun;
+  var root=document.documentElement;
+  if(!s.mode){
+    root.removeAttribute('data-season');
+    root.removeAttribute('data-season-month');
+    // Restore brand yellow from base skin (clear inline overrides)
+    ['--y','--y-2','--y-3','--y-bg','--y-bd','--y-glow'].forEach(function(v){root.style.removeProperty(v);});
+    stopSeasonParticles();
+    return;
+  }
+  root.setAttribute('data-season', s.mode);
+  root.setAttribute('data-season-month', s.key);
+  // Override brand accent variables to the seasonal palette
+  var accent=cfg.accent, accent2=cfg.accent2;
+  root.style.setProperty('--y', accent);
+  root.style.setProperty('--y-2', accent2);
+  root.style.setProperty('--y-3', shadeColor(accent,-18));
+  root.style.setProperty('--y-bg', hexToRgba(accent,0.12));
+  root.style.setProperty('--y-bd', hexToRgba(accent,0.30));
+  root.style.setProperty('--y-glow', hexToRgba(accent,0.18));
+  // Update hero/strip text
+  setText('sh-eye-label', 'Сезон · '+cfg.label);
+  setText('sh-title', cfg.title);
+  setText('sh-tag', cfg.tag);
+  setText('sh-emoji', cfg.emoji);
+  setText('ss-emoji', cfg.emoji);
+  setText('ss-title', cfg.label+' · '+cfg.phenom);
+  setText('ss-sub', cfg.tag);
+  // Particles only in season/fest, not in tone
+  if(s.mode==='tone'){ stopSeasonParticles(); }
+  else { startSeasonParticles(cfg); }
+}
+
+function setText(id, txt){var el=document.getElementById(id); if(el) el.textContent=txt;}
+function hexToRgba(hex, a){
+  hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(function(c){return c+c;}).join('');
+  var r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+  return 'rgba('+r+','+g+','+b+','+a+')';
+}
+function shadeColor(hex, percent){
+  hex=hex.replace('#',''); if(hex.length===3) hex=hex.split('').map(function(c){return c+c;}).join('');
+  var r=parseInt(hex.slice(0,2),16), g=parseInt(hex.slice(2,4),16), b=parseInt(hex.slice(4,6),16);
+  var t=percent<0?0:255, p=Math.abs(percent)/100;
+  r=Math.round((t-r)*p+r); g=Math.round((t-g)*p+g); b=Math.round((t-b)*p+b);
+  return '#'+[r,g,b].map(function(x){return x.toString(16).padStart(2,'0');}).join('');
+}
+
+function cycleSeason(){
+  var s=window.__season;
+  var idx=SEASON_MODES.indexOf(s.mode||'');
+  s.mode=SEASON_MODES[(idx+1)%SEASON_MODES.length];
+  try{localStorage.setItem('eks-season', s.mode);}catch(e){}
+  var ico=document.getElementById('season-ico'); var lbl=document.getElementById('season-lbl');
+  if(ico) ico.textContent = SEASON_MODE_ICOS[s.mode];
+  if(lbl) lbl.textContent = s.mode ? SEASON_MODE_LABELS[s.mode] : 'Сезон';
+  applySeason();
+}
+
+// ─── Particle engine ───
+function stopSeasonParticles(){
+  var s=window.__season;
+  if(s.raf) cancelAnimationFrame(s.raf);
+  s.raf=0;
+  if(s.onResize) window.removeEventListener('resize', s.onResize);
+  s.onResize=null;
+  var cv=document.getElementById('season-canvas');
+  if(cv){var ctx=cv.getContext('2d'); if(ctx) ctx.clearRect(0,0,cv.width,cv.height);}
+}
+
+function startSeasonParticles(cfg){
+  var cv=document.getElementById('season-canvas');
+  if(!cv) return;
+  // Don't start over an existing loop
+  stopSeasonParticles();
+  // Respect reduced-motion preference
+  if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  var s=window.__season;
+  var ctx=cv.getContext('2d');
+  function resize(){
+    var dpr=Math.min(window.devicePixelRatio||1, 2);
+    cv.width = window.innerWidth*dpr;
+    cv.height = window.innerHeight*dpr;
+    cv.style.width = window.innerWidth+'px';
+    cv.style.height = window.innerHeight+'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  resize();
+  s.onResize=function(){resize(); seed();};
+  window.addEventListener('resize', s.onResize);
+
+  var ptype=cfg.particle;
+  var density = s.mode==='fest' ? 1.7 : 1.0;
+  var pcol = {a:cfg.accent, a2:cfg.accent2, a3:cfg.accent3};
+
+  function mk(w,h,spread){
+    var y = spread ? Math.random()*h : (ptype==='seed' ? h+10 : -10);
+    var p = {x:Math.random()*w, y:y};
+    if(ptype==='petal'){
+      p.size=5+Math.random()*7; p.vy=.5+Math.random()*.9; p.vx=-.4+Math.random()*.8;
+      p.rot=Math.random()*6.28; p.vr=-.03+Math.random()*.06; p.sway=Math.random()*6.28;
+      var pal=['#ffb3cd','#ffffff','#ffd6e4',pcol.a2];
+      p.col=pal[Math.floor(Math.random()*pal.length)]; p.a=.55+Math.random()*.35;
+    } else if(ptype==='seed'){
+      p.size=2.5+Math.random()*2.5; p.vy=-(.35+Math.random()*.6); p.vx=-.5+Math.random()*1;
+      p.sway=Math.random()*6.28; p.gold=Math.random()<.35;
+      p.col=p.gold?pcol.a:'#fffefb'; p.a=.5+Math.random()*.4;
+    } else if(ptype==='leaf'){
+      p.size=6+Math.random()*8; p.vy=.4+Math.random()*.8; p.vx=-.5+Math.random()*1;
+      p.rot=Math.random()*6.28; p.vr=-.04+Math.random()*.08; p.sway=Math.random()*6.28;
+      var leafPal=['#e8930e','#c0392b','#f4a72a','#ff8a4c',pcol.a2];
+      p.col=leafPal[Math.floor(Math.random()*leafPal.length)]; p.a=.6+Math.random()*.3;
+    } else if(ptype==='snow'){
+      p.size=1.5+Math.random()*2.5; p.vy=.4+Math.random()*.8; p.vx=-.3+Math.random()*.6;
+      p.sway=Math.random()*6.28; p.col='#ffffff'; p.a=.55+Math.random()*.4;
+    } else if(ptype==='rain'){
+      p.size=.7+Math.random()*.8; p.vy=4+Math.random()*4; p.vx=-1+Math.random()*.5;
+      p.len=8+Math.random()*8; p.col=pcol.a3||'#9cc8f5'; p.a=.35+Math.random()*.3;
+    } else { // firefly
+      p.size=1.6+Math.random()*2.4; p.vy=-.18+Math.random()*.36; p.vx=-.3+Math.random()*.6;
+      p.col=Math.random()<.5?pcol.a:pcol.a3;
+      p.ph=Math.random()*6.28; p.ps=.015+Math.random()*.03; p.a=.3+Math.random()*.5;
+    }
+    return p;
+  }
+  function seed(){
+    var w=window.innerWidth, h=window.innerHeight;
+    var n=Math.round((ptype==='firefly'?34:ptype==='rain'?80:46)*density);
+    s.parts=[]; for(var i=0;i<n;i++) s.parts.push(mk(w,h,true));
+  }
+  seed();
+
+  function loop(){
+    var w=window.innerWidth, h=window.innerHeight;
+    ctx.clearRect(0,0,w,h);
+    var parts=s.parts||[];
+    for(var i=0;i<parts.length;i++){
+      var p=parts[i];
+      if(ptype==='petal'||ptype==='leaf'){
+        p.sway+=.02; p.x+=p.vx+Math.sin(p.sway)*.5; p.y+=p.vy; p.rot+=p.vr;
+        ctx.save(); ctx.globalAlpha=p.a; ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.fillStyle=p.col; ctx.beginPath();
+        ctx.ellipse(0,0,p.size,p.size*.55,0,0,6.2832); ctx.fill(); ctx.restore();
+        if(p.y>h+12){ Object.assign(p, mk(w,h,false)); }
+      } else if(ptype==='seed'){
+        p.sway+=.03; p.x+=p.vx+Math.sin(p.sway)*.7; p.y+=p.vy;
+        ctx.save(); ctx.globalAlpha=p.a; ctx.translate(p.x,p.y);
+        ctx.fillStyle=p.col; ctx.beginPath(); ctx.arc(0,0,p.size*.5,0,6.2832); ctx.fill();
+        if(!p.gold){
+          ctx.strokeStyle=p.col; ctx.lineWidth=.5; ctx.globalAlpha=p.a*.6;
+          for(var k=0;k<6;k++){var an=k*1.047+p.sway*.2;
+            ctx.beginPath(); ctx.moveTo(0,0);
+            ctx.lineTo(Math.cos(an)*p.size*2.4, Math.sin(an)*p.size*2.4); ctx.stroke();}
+        }
+        ctx.restore();
+        if(p.y<-14){ Object.assign(p, mk(w,h,false)); }
+      } else if(ptype==='snow'){
+        p.sway+=.02; p.x+=p.vx+Math.sin(p.sway)*.4; p.y+=p.vy;
+        ctx.save(); ctx.globalAlpha=p.a; ctx.fillStyle=p.col;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,6.2832); ctx.fill(); ctx.restore();
+        if(p.y>h+12){ Object.assign(p, mk(w,h,false)); }
+      } else if(ptype==='rain'){
+        p.x+=p.vx; p.y+=p.vy;
+        ctx.save(); ctx.globalAlpha=p.a; ctx.strokeStyle=p.col; ctx.lineWidth=p.size;
+        ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(p.x-p.vx*2, p.y-p.len); ctx.stroke();
+        ctx.restore();
+        if(p.y>h+12){ Object.assign(p, mk(w,h,false)); }
+      } else { // firefly
+        p.ph+=p.ps; p.x+=p.vx; p.y+=p.vy;
+        var fl=.35+(Math.sin(p.ph)*.5+.5)*.65;
+        var g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.size*4);
+        g.addColorStop(0, p.col); g.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.save(); ctx.globalAlpha=p.a*fl; ctx.fillStyle=g;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.size*4,0,6.2832); ctx.fill();
+        ctx.globalAlpha=p.a*fl; ctx.fillStyle=p.col;
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.size*.7,0,6.2832); ctx.fill(); ctx.restore();
+        if(p.x<-12||p.x>w+12||p.y<-12||p.y>h+12){p.x=Math.random()*w; p.y=Math.random()*h;}
+      }
+    }
+    if(!document.hidden) s.raf=requestAnimationFrame(loop);
+    else s.raf=0;
+  }
+  loop();
+}
+
+// Pause/resume particles on tab visibility
+document.addEventListener('visibilitychange', function(){
+  var s=window.__season;
+  if(!s.mode||s.mode==='tone') return;
+  if(document.hidden){ if(s.raf) cancelAnimationFrame(s.raf); s.raf=0; }
+  else if(!s.raf) { var cfg=SEASON_MONTHS[s.key]||SEASON_MONTHS.jun; startSeasonParticles(cfg); }
+});
+
+// Restore from localStorage on boot
+(function(){
+  try{
+    var saved=localStorage.getItem('eks-season')||'';
+    if(SEASON_MODES.indexOf(saved)>=0) window.__season.mode=saved;
+  }catch(e){}
+  var ico=document.getElementById('season-ico'); var lbl=document.getElementById('season-lbl');
+  if(ico) ico.textContent = SEASON_MODE_ICOS[window.__season.mode];
+  if(lbl) lbl.textContent = window.__season.mode ? SEASON_MODE_LABELS[window.__season.mode] : 'Сезон';
+  if(window.__season.mode) applySeason();
+})();
 // set initial skin label
 document.addEventListener('DOMContentLoaded',function(){
   var t=savedTheme||'dark';
