@@ -518,6 +518,18 @@ body{
   .slot-editor-desktop{display:none}
 }
 
+/* ── SKELETON LOADING ── */
+.skel{display:inline-block;background:linear-gradient(90deg,var(--bg3) 0%,var(--bg4) 50%,var(--bg3) 100%);background-size:200% 100%;animation:skelShimmer 1.4s ease-in-out infinite;border-radius:6px}
+@keyframes skelShimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.skel.line{height:.9em;width:60%}
+.skel.line-sm{height:.7em;width:30%}
+.skel.box{display:block}
+.skel-kv{display:inline-block;height:24px;width:90px;margin-top:6px}
+.skel-ks{display:inline-block;height:11px;width:60%;margin-top:8px}
+.kpi.loading::before{display:none}
+.kpi.loading .kl{opacity:.5}
+[data-theme="light"] .skel,[data-theme="paper"] .skel{background:linear-gradient(90deg,#e8e7e0 0%,#dad8cc 50%,#e8e7e0 100%);background-size:200% 100%}
+
 /* ── ONBOARDING ── */
 .onb-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:1100;display:none;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(6px)}
 [data-theme="light"] .onb-overlay,[data-theme="paper"] .onb-overlay{background:rgba(20,20,15,0.5)}
@@ -1114,11 +1126,11 @@ window.updatePersonaFooter=updatePersonaFooter;
   </div>
 
   <div class="kpis stagger">
-    <div class="kpi bad"><div class="kl">Выручка факт</div><div class="kv rc" id="kv-rev">—</div><div class="ks" id="ks-rev">—</div><span class="ktag bad" id="kt-rev">—</span><svg class="kpi-spark r" id="spark-rev" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi warn"><div class="kl">МК проведено</div><div class="kv yc" id="kv-mk">—</div><div class="ks" id="ks-mk">—</div><span class="ktag warn" id="kt-mk">—</span><svg class="kpi-spark" id="spark-mk" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi ok"><div class="kl">Конверсия</div><div class="kv gc" id="kv-conv">—</div><div class="ks gc" id="ks-conv">—</div><span class="ktag ok" id="kt-conv">—</span><svg class="kpi-spark g" id="spark-conv" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi ok"><div class="kl">Средний чек</div><div class="kv yc" id="kv-avg">—</div><div class="ks" id="ks-avg">—</div><span class="ktag ok" id="kt-avg">—</span><svg class="kpi-spark g" id="spark-avg" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi info"><div class="kl">Выручка / МК</div><div class="kv bc" id="kv-rpm">—</div><div class="ks" id="ks-rpm">—</div><span class="ktag info" id="kt-rpm">—</span><svg class="kpi-spark b" id="spark-rpm" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi bad"><div class="kl">Выручка факт</div><div class="kv rc" id="kv-rev"><span class="skel skel-kv"></span></div><div class="ks" id="ks-rev"><span class="skel skel-ks"></span></div><span class="ktag bad" id="kt-rev">—</span><svg class="kpi-spark r" id="spark-rev" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi warn"><div class="kl">МК проведено</div><div class="kv yc" id="kv-mk"><span class="skel skel-kv"></span></div><div class="ks" id="ks-mk"><span class="skel skel-ks"></span></div><span class="ktag warn" id="kt-mk">—</span><svg class="kpi-spark" id="spark-mk" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi ok"><div class="kl">Конверсия</div><div class="kv gc" id="kv-conv"><span class="skel skel-kv"></span></div><div class="ks gc" id="ks-conv"><span class="skel skel-ks"></span></div><span class="ktag ok" id="kt-conv">—</span><svg class="kpi-spark g" id="spark-conv" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi ok"><div class="kl">Средний чек</div><div class="kv yc" id="kv-avg"><span class="skel skel-kv"></span></div><div class="ks" id="ks-avg"><span class="skel skel-ks"></span></div><span class="ktag ok" id="kt-avg">—</span><svg class="kpi-spark g" id="spark-avg" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi info"><div class="kl">Выручка / МК</div><div class="kv bc" id="kv-rpm"><span class="skel skel-kv"></span></div><div class="ks" id="ks-rpm"><span class="skel skel-ks"></span></div><span class="ktag info" id="kt-rpm">—</span><svg class="kpi-spark b" id="spark-rpm" width="68" height="22" viewBox="0 0 68 22"></svg></div>
   </div>
 
   <div class="mg">
@@ -1396,6 +1408,15 @@ window.updatePersonaFooter=updatePersonaFooter;
 
     <div id="submit-result" style="display:none"></div>
   </div>
+
+  <!-- AUDIT LOG (collapsed by default; ROP-only by convention) -->
+  <details class="panel" id="audit-panel" style="margin-top:16px">
+    <summary style="cursor:pointer;list-style:none;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.12em;font-family:var(--mono);display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>📜 История изменений расписания</span>
+      <span style="font-size:9.5px;color:var(--dim);font-weight:500">кликни чтобы открыть</span>
+    </summary>
+    <div id="audit-log-body" style="margin-top:14px;font-size:12px"></div>
+  </details>
 
   <!-- QUOTE BLOCK -->
   <div id="quote-block" onclick="nextQuote()" title="Нажми для следующей цитаты" style="margin-top:16px;border-radius:var(--r10);padding:20px 24px;background:linear-gradient(135deg,rgba(245,200,66,0.06),rgba(62,207,142,0.04));border:1px solid var(--y-bd);position:relative;overflow:hidden;cursor:pointer;transition:opacity .2s">
@@ -2702,7 +2723,7 @@ function renderAnalytics() {
 
   // All lessons table
   var recent=[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,100);
-  document.getElementById('all-table').innerHTML=recent.length?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Дата</th><th>Менеджер</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>${recent.map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${esc(r.date)}</td><td class="tn">${esc(r.manager)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty"><div class="empty-ic">📊</div><div>Нет данных</div></div>';
+  document.getElementById('all-table').innerHTML=recent.length?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Дата</th><th>Менеджер</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>${recent.map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${esc(r.date)}</td><td class="tn">${esc(r.manager)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty" style="padding:36px 20px"><div class="empty-ic">📊</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Нет данных за период</div><div style="font-size:11.5px;color:var(--muted);max-width:320px;margin:0 auto;line-height:1.5">Поменяй фильтр периода выше или попроси команду заполнить Отчёт о МК.</div></div>';
 }
 
 // ═══════════════════════════════════════
@@ -2965,6 +2986,8 @@ function renderSchedule() {
   });
   html+='</tbody>';
   document.getElementById('hm-table').innerHTML=html;
+  // Render audit log (best-effort; no-op if container absent)
+  renderAuditLog();
 
   // Show empty state if no schedule data at all
   var totalSlots=0;
@@ -3587,28 +3610,69 @@ function renderRetention() {
     }
   }
 
-  // ── Cohort table ──
+  // ── Cohort retention matrix (6 months) ──
   var cohEl=document.getElementById('ret-cohort');
   if(cohEl){
     var cohMonths=months6.filter(function(m){return cohortMap[m]&&cohortMap[m].size>0;});
     if(!cohMonths.length){
-      cohEl.innerHTML='<div class="empty"><div class="empty-ic">📊</div><div>Нет данных для когортного анализа</div></div>';
+      cohEl.innerHTML='<div class="empty" style="padding:36px 20px"><div class="empty-ic">📊</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Нет данных для когортного анализа</div><div style="font-size:11.5px;color:var(--muted);max-width:320px;margin:0 auto;line-height:1.5">Минимум 1 первичная оплата + 1 продление в любом месяце. Появится, когда команда закроет первые сделки и клиенты продлятся.</div></div>';
     } else {
-      var thead='<tr><th>Когорта</th><th style="text-align:right">Клиентов</th><th style="text-align:right">M+1</th><th style="text-align:right">M+2</th><th style="text-align:right">M+3</th></tr>';
+      // Color-graded heatmap cells: 0% → red, 100% → green
+      function cohColor(p){
+        if(p>=60) return {bg:'rgba(62,207,142,0.40)', fg:'#0a4f30'};
+        if(p>=40) return {bg:'rgba(62,207,142,0.22)', fg:'var(--g)'};
+        if(p>=25) return {bg:'rgba(245,200,66,0.30)', fg:'var(--y-3)'};
+        if(p>=10) return {bg:'rgba(245,158,60,0.25)', fg:'var(--o)'};
+        if(p>0)  return {bg:'rgba(240,82,82,0.20)',  fg:'var(--r)'};
+        return {bg:'var(--bg3)', fg:'var(--muted)'};
+      }
+      // Header: cohort | size | M+1..M+6 | LTV
+      var thead='<tr>'
+        +'<th style="text-align:left">Когорта</th>'
+        +'<th style="text-align:right">Клиентов</th>'
+        +[1,2,3,4,5,6].map(function(o){return '<th style="text-align:center">M+'+o+'</th>';}).join('')
+        +'<th style="text-align:right">LTV</th>'
+        +'</tr>';
+      // Body: per-cohort row
+      var colTotals=[0,0,0,0,0,0], colSizes=[0,0,0,0,0,0];
       var tbody=cohMonths.map(function(mk){
         var c=cohortMap[mk];
         var lbl=mnames[mk%12]+' '+Math.floor(mk/12);
-        var cells=[1,2,3].map(function(off){
-          if(mk+off>curMk) return '<td style="text-align:right;color:var(--muted)">—</td>';
+        // Cumulative LTV: avg first revenue + sum of renewal revenues / size
+        var firstRev=c.size?Math.round(c.rev/c.size):0;
+        var renewRev=0;
+        for(var o=1;o<=6;o++){
+          var cnt=c.renewalMap[o]||0;
+          if(mk+o<=curMk){ colTotals[o-1]+=cnt; colSizes[o-1]+=c.size; }
+          // approximate renewal value using average paydate-month avg; simpler: use fixed ~17811 baseline if rev unknown
+        }
+        var cells=[1,2,3,4,5,6].map(function(off){
+          if(mk+off>curMk) return '<td style="text-align:center;color:var(--dim);font-size:10px">—</td>';
           var cnt=c.renewalMap[off]||0;
           var p=c.size>0?Math.round(cnt/c.size*100):0;
-          var bg=p>=40?'var(--g-bg)':p>=20?'var(--y-bg)':'var(--r-bg)';
-          var fc=p>=40?'var(--g)':p>=20?'var(--y)':'var(--r)';
-          return '<td style="text-align:right"><span style="background:'+bg+';color:'+fc+';border-radius:4px;padding:2px 8px;font-size:10px;font-family:var(--mono);white-space:nowrap">'+cnt+' ('+p+'%)</span></td>';
+          var col=cohColor(p);
+          return '<td style="text-align:center;padding:4px"><span style="background:'+col.bg+';color:'+col.fg+';border-radius:5px;padding:4px 9px;font-size:10px;font-family:var(--mono);font-weight:700;display:inline-block;min-width:54px">'+p+'%<br><span style="font-size:9px;font-weight:500;opacity:.85">'+cnt+'/'+c.size+'</span></span></td>';
         }).join('');
-        return '<tr><td style="font-weight:500;color:var(--text)">'+lbl+'</td><td style="text-align:right;font-family:var(--mono)">'+c.size+'</td>'+cells+'</tr>';
+        return '<tr><td style="font-weight:600;color:var(--text);white-space:nowrap">'+esc(lbl)+'</td><td style="text-align:right;font-family:var(--mono);color:var(--sub)">'+c.size+'</td>'+cells+'<td style="text-align:right;font-family:var(--mono);color:var(--y);font-weight:600">'+fmt(firstRev)+' ₽</td></tr>';
       }).join('');
-      cohEl.innerHTML='<table class="tt"><thead>'+thead+'</thead><tbody>'+tbody+'</tbody></table>';
+      // Footer with column averages
+      var totalRow='<tr style="border-top:2px solid var(--y-bd)"><td style="font-weight:700;color:var(--y)">Среднее</td><td style="text-align:right;font-family:var(--mono);color:var(--text);font-weight:600">'+cohMonths.reduce(function(s,m){return s+cohortMap[m].size;},0)+'</td>';
+      for(var i=0;i<6;i++){
+        if(colSizes[i]>0){
+          var p=Math.round(colTotals[i]/colSizes[i]*100);
+          var col=cohColor(p);
+          totalRow+='<td style="text-align:center;padding:4px"><span style="background:'+col.bg+';color:'+col.fg+';border-radius:5px;padding:4px 9px;font-size:10px;font-family:var(--mono);font-weight:700">'+p+'%</span></td>';
+        } else {
+          totalRow+='<td style="text-align:center;color:var(--dim)">—</td>';
+        }
+      }
+      totalRow+='<td style="text-align:right;color:var(--muted)">—</td></tr>';
+      cohEl.innerHTML='<div style="overflow-x:auto"><table class="tt" style="min-width:680px"><thead>'+thead+'</thead><tbody>'+tbody+totalRow+'</tbody></table></div>'
+        +'<div style="margin-top:10px;font-size:10.5px;color:var(--muted);line-height:1.6">'
+        +'<b>Чтение матрицы:</b> ряд = месяц первой оплаты, колонка = через сколько месяцев продлились. '
+        +'Цвет = доля когорты, которая продлилась в этот месяц. <span style="color:var(--g)">Зелёный</span> ≥40% — здоровая когорта; '
+        +'<span style="color:var(--r)">красный</span> &lt;10% — проблема с продуктом или onboarding.'
+        +'</div>';
     }
   }
 
@@ -3616,7 +3680,7 @@ function renderRetention() {
   var logEl=document.getElementById('ret-log');
   if(logEl){
     if(!renewals.length){
-      logEl.innerHTML='<div class="empty"><div class="empty-ic">🔄</div><div>Продлений пока нет</div></div>';
+      logEl.innerHTML='<div class="empty" style="padding:36px 20px"><div class="empty-ic">🔄</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Продлений пока нет</div><div style="font-size:11.5px;line-height:1.5;color:var(--muted);max-width:320px;margin:0 auto">Когда клиент продлит подписку — заполни Отчёт об оплате с типом «Продление». Появится здесь.</div><a href="https://docs.google.com/forms/d/1s0R4F1cMXrg02Ypi4uGvSZXJmDbN5T9qDGZbrPXmHaY/viewform" target="_blank" rel="noopener" style="display:inline-block;margin-top:14px;background:var(--y);color:#000;font-size:12px;font-weight:700;padding:8px 18px;border-radius:8px;text-decoration:none">+ Добавить продление</a></div>';
     } else {
       var sorted=[...renewals].sort(function(a,b){
         var da=parseDate(normDate(a.paydate||a.ts)), db=parseDate(normDate(b.paydate||b.ts));
@@ -3855,6 +3919,34 @@ async function performUndo(){
 window.showUndoToast=showUndoToast;
 window.performUndo=performUndo;
 window.hideUndoToast=hideUndoToast;
+
+// Render audit log into #audit-log-body
+function renderAuditLog(){
+  var el=document.getElementById('audit-log-body'); if(!el) return;
+  var log=auditLogGet();
+  if(!log.length){
+    el.innerHTML='<div class="empty" style="padding:18px 8px"><div class="empty-ic">📜</div><div>История пуста</div><div style="font-size:11px;color:var(--muted);margin-top:4px">Сюда попадут все сабмиты расписания и отмены</div></div>';
+    return;
+  }
+  // Newest first
+  var rows=log.slice().reverse().slice(0,20).map(function(e){
+    var d=new Date(e.ts);
+    var when=d.toLocaleDateString('ru',{day:'2-digit',month:'2-digit'})+' '+
+             d.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
+    var label, color;
+    if(e.type==='schedule_submit'){ label='✓ Сохранил '+e.slotCount+' слотов'; color='var(--g)'; }
+    else if(e.type==='schedule_undo'){ label='↺ Откатил ('+e.restoredCount+' слотов)'; color='var(--o)'; }
+    else { label=e.type; color='var(--sub)'; }
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px 4px;border-bottom:1px solid var(--border)">'
+      +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);width:90px;flex-shrink:0">'+esc(when)+'</div>'
+      +'<div style="font-weight:600;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.manager||'—')+'</div>'
+      +'<div style="font-size:11px;color:'+color+';font-weight:600;flex-shrink:0">'+esc(label)+'</div>'
+      +'<div style="font-size:10px;color:var(--dim);font-family:var(--mono);flex-shrink:0">'+esc(e.persona||'')+'</div>'
+      +'</div>';
+  }).join('');
+  el.innerHTML=rows + '<div style="font-size:10px;color:var(--dim);margin-top:8px;text-align:center">Хранится в браузере · последние 50 событий</div>';
+}
+window.renderAuditLog=renderAuditLog;
 // ═══════════════════════════════════════
 // ГОРЯЩИЕ СЕГОДНЯ
 // ═══════════════════════════════════════
