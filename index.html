@@ -2433,7 +2433,9 @@ function renderTeamTable(data,filter) {
   var avCls=['c1','c2','c3','c4','c5','c6'];
   tbody.innerHTML='';
   sorted.forEach((r,i)=>{
-    var conv=r.mk?(r.paid/r.mk*100).toFixed(1):'—';
+    // Use r.conv (locked to primary paid / МК) — NOT r.paid/r.mk, because
+    // r.paid was bumped with renewals which must not inflate conversion.
+    var conv=r.mk?(r.conv||0).toFixed(1):'—';
     var cn=parseFloat(conv);
     var convPill=conv!=='—'?`<span class="pill ${cn>=40?'g':cn>=30?'y':'r'}" style="font-size:9.5px">${conv}%</span>`:'<span class="pill">—</span>';
     var badgeHtml='';
