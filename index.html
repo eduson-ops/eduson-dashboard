@@ -2277,6 +2277,8 @@ function calcTotals(data) {
 
 // Сумма выручки продлений по менеджеру (ключ — первое слово имени)
 function renRevByMgr(rows){var m={};rows.forEach(function(r){if(r.manager){var k=r.manager.split(' ')[0];m[k]=(m[k]||0)+r.rev;}});return m;}
+// Количество продлений-оплат по менеджеру (нужно чтобы paid рос синхронно с rev)
+function renCountByMgr(rows){var m={};rows.forEach(function(r){if(r.manager){var k=r.manager.split(' ')[0];m[k]=(m[k]||0)+1;}});return m;}
 
 function syncRenewalToggle(){
   var b=document.getElementById('renewToggle');
@@ -2334,8 +2336,14 @@ function renderMain() {
     if(mSb) mSb.textContent='Выручка, конверсия, команда и прогресс плана';
   }
   var data=visibleMain(),t=calcTotals(data);
-  var renRev=visibleRenewalsMain().reduce((s,r)=>s+r.rev,0);
-  if(COUNT_RENEWALS) t.rev+=renRev;
+  // Conv is locked to primary payments / MK — renewals don't affect it,
+  // they come from existing clients, not from booked МК.
+  // But avg-check and rpm DO scale with renewals if we're counting them.
+  if(COUNT_RENEWALS){
+    var ren=visibleRenewalsMain();
+    t.rev += ren.reduce((s,r)=>s+r.rev,0);
+    t.paid += ren.length;
+  }
   if(t.paid) t.avg=Math.round(t.rev/t.paid);
   if(t.mk) t.rpm=Math.round(t.rev/t.mk);
   var now=new Date();
@@ -2398,10 +2406,26 @@ function renderTeamTable(data,filter) {
   var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t};});
   var t=calcTotals(data);
   if(COUNT_RENEWALS){
-    var rmap=renRevByMgr(visibleRenewalsMain()),totRen=0;
-    sorted.forEach(r=>{var add=rmap[r.name.split(' ')[0]]||0;if(add){r.rev+=add;r.rpm=r.mk?Math.round(r.rev/r.mk):r.rpm;r.avg=r.paid?Math.round(r.rev/r.paid):r.avg;}});
-    for(var k in rmap)totRen+=rmap[k];
-    if(totRen){t.rev+=totRen;t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;}
+    var renRows=visibleRenewalsMain();
+    var rmap=renRevByMgr(renRows), cmap=renCountByMgr(renRows);
+    var totRen=0, totRenCount=0;
+    sorted.forEach(r=>{
+      var key=r.name.split(' ')[0];
+      var addRev=rmap[key]||0, addCnt=cmap[key]||0;
+      if(addRev||addCnt){
+        r.rev+=addRev;
+        r.paid+=addCnt;  // paid grows in sync with rev — avg now stays honest
+        r.rpm=r.mk?Math.round(r.rev/r.mk):r.rpm;
+        r.avg=r.paid?Math.round(r.rev/r.paid):r.avg;
+        // r.conv is intentionally left untouched — renewals don't come from MK
+      }
+    });
+    for(var k in rmap){totRen+=rmap[k];totRenCount+=(cmap[k]||0);}
+    if(totRen){
+      t.rev+=totRen; t.paid+=totRenCount;
+      t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;
+      t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
+    }
   }
   sorted.sort((a,b)=>b.rev-a.rev);
   if(filter)sorted=sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase()));
