@@ -2336,14 +2336,16 @@ function renderMain() {
     if(mSb) mSb.textContent='Выручка, конверсия, команда и прогресс плана';
   }
   var data=visibleMain(),t=calcTotals(data);
-  // Conv is locked to primary payments / MK — renewals don't affect it,
-  // they come from existing clients, not from booked МК.
-  // But avg-check and rpm DO scale with renewals if we're counting them.
+  // When renewals are counted, ALL totals (rev, paid, conv, avg, rpm) scale
+  // with them — that's the user's mental model of 'продажа = продажа,
+  // первичка или продление'. Conv can exceed 100% if a manager renews more
+  // than they booked МК in the period, and that's a legitimate signal.
   if(COUNT_RENEWALS){
     var ren=visibleRenewalsMain();
     t.rev += ren.reduce((s,r)=>s+r.rev,0);
     t.paid += ren.length;
   }
+  if(t.mk) t.conv=Math.round(t.paid/t.mk*1000)/10;
   if(t.paid) t.avg=Math.round(t.rev/t.paid);
   if(t.mk) t.rpm=Math.round(t.rev/t.mk);
   var now=new Date();
@@ -2414,15 +2416,16 @@ function renderTeamTable(data,filter) {
       var addRev=rmap[key]||0, addCnt=cmap[key]||0;
       if(addRev||addCnt){
         r.rev+=addRev;
-        r.paid+=addCnt;  // paid grows in sync with rev — avg now stays honest
+        r.paid+=addCnt;
+        r.conv=r.mk?Math.round(r.paid/r.mk*1000)/10:r.conv;
         r.rpm=r.mk?Math.round(r.rev/r.mk):r.rpm;
         r.avg=r.paid?Math.round(r.rev/r.paid):r.avg;
-        // r.conv is intentionally left untouched — renewals don't come from MK
       }
     });
     for(var k in rmap){totRen+=rmap[k];totRenCount+=(cmap[k]||0);}
     if(totRen){
       t.rev+=totRen; t.paid+=totRenCount;
+      t.conv=t.mk?Math.round(t.paid/t.mk*1000)/10:t.conv;
       t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;
       t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
     }
