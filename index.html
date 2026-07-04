@@ -2414,8 +2414,10 @@ function renderMain() {
 // first-word is 'МВП' is treated as renewals-only — never included in the
 // sales-manager ranking, never given a 'Top' badge, and any МК records that
 // accidentally leak to their name are dropped from the primary totals.
+// NB: JS \b works only on ASCII word chars, so we can't use it with Cyrillic.
 function isMvp(name){
-  return /^мвп\b/i.test((name||'').trim());
+  var first=(name||'').trim().split(/\s+/)[0]||'';
+  return first.toLowerCase()==='мвп';
 }
 
 function renderTeamTable(data,filter) {
