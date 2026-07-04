@@ -2255,8 +2255,16 @@ function visibleMain() {
 }
 
 function visibleRenewalsMain() {
-  var mgrSet=new Set(managers);
-  var data=renewals.filter(r=>r.manager && mgrSet.has(r.manager) && (!personalMgr || r.manager===personalMgr));
+  // Match by first-word so the form value ('МВП' or 'МВП Иванова А.') matches
+  // the managers-sheet value ('МВП', 'МВП Иванова А.', or vice versa).
+  var mgrKeys=new Set(managers.map(function(m){return m.split(' ')[0];}));
+  var data=renewals.filter(function(r){
+    if(!r.manager) return false;
+    var k=r.manager.split(' ')[0];
+    if(!mgrKeys.has(k)) return false;
+    if(personalMgr && r.manager!==personalMgr && k!==personalMgr.split(' ')[0]) return false;
+    return true;
+  });
   if(mainDfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
     var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
@@ -2405,13 +2413,37 @@ function renderMain() {
 function renderTeamTable(data,filter) {
   var mgrs={};
   data.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
-  var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t};});
+  var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t,renewalOnly:false};});
   var t=calcTotals(data);
+  // Renewals-only managers (МВП — Менеджер внутренних продаж). They never
+  // conduct МК; they only close renewals. Show them in the team table so
+  // their revenue is visible, but mark them so their absent conversion isn't
+  // treated as a red flag.
+  var renRows=visibleRenewalsMain();
+  var rmap=renRevByMgr(renRows), cmap=renCountByMgr(renRows);
+  // Build a set of "first-word keys" already present in sorted (from МК data)
+  var sortedKeys=new Set(sorted.map(r=>r.name.split(' ')[0]));
+  // Collect full names of renewal-owners not represented in sorted yet
+  var renewalOnlyNames={};
+  renRows.forEach(function(r){
+    if(!r.manager) return;
+    var key=r.manager.split(' ')[0];
+    if(sortedKeys.has(key)) return;
+    if(!renewalOnlyNames[key]) renewalOnlyNames[key]=r.manager;
+  });
+  Object.keys(renewalOnlyNames).forEach(function(key){
+    var name=renewalOnlyNames[key];
+    var rev=rmap[key]||0, cnt=cmap[key]||0;
+    sorted.push({
+      name:name, mk:0, paid:cnt, rev:rev,
+      conv:0, avg:cnt?Math.round(rev/cnt):0, rpm:0,
+      renewalOnly:true
+    });
+  });
   if(COUNT_RENEWALS){
-    var renRows=visibleRenewalsMain();
-    var rmap=renRevByMgr(renRows), cmap=renCountByMgr(renRows);
     var totRen=0, totRenCount=0;
     sorted.forEach(r=>{
+      if(r.renewalOnly) return; // already fully counted at construction time
       var key=r.name.split(' ')[0];
       var addRev=rmap[key]||0, addCnt=cmap[key]||0;
       if(addRev||addCnt){
@@ -2429,6 +2461,9 @@ function renderTeamTable(data,filter) {
       t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;
       t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
     }
+  } else {
+    // When toggle is OFF, drop renewal-only rows entirely — they'd show 0/0
+    sorted=sorted.filter(function(r){return !r.renewalOnly;});
   }
   sorted.sort((a,b)=>b.rev-a.rev);
   if(filter)sorted=sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase()));
@@ -2436,22 +2471,30 @@ function renderTeamTable(data,filter) {
   var avCls=['c1','c2','c3','c4','c5','c6'];
   tbody.innerHTML='';
   sorted.forEach((r,i)=>{
-    // Use r.conv (locked to primary paid / МК) — NOT r.paid/r.mk, because
-    // r.paid was bumped with renewals which must not inflate conversion.
-    var conv=r.mk?(r.conv||0).toFixed(1):'—';
-    var cn=parseFloat(conv);
-    var convPill=conv!=='—'?`<span class="pill ${cn>=40?'g':cn>=30?'y':'r'}" style="font-size:9.5px">${conv}%</span>`:'<span class="pill">—</span>';
+    var conv, cn, convPill;
+    if(r.renewalOnly){
+      // МВП has no conversion concept — she never does МК
+      convPill='<span class="pill b" style="font-size:9.5px" title="Только продления, без МК">МВП</span>';
+      cn=null;
+    } else {
+      conv=r.mk?(r.conv||0).toFixed(1):'—';
+      cn=parseFloat(conv);
+      convPill=conv!=='—'?`<span class="pill ${cn>=40?'g':cn>=30?'y':'r'}" style="font-size:9.5px">${conv}%</span>`:'<span class="pill">—</span>';
+    }
     var badgeHtml='';
-    if(i===0&&r.mk>0) badgeHtml='<span class="mgr-badge top" style="font-size:9px">👑 Топ</span>';
+    if(r.renewalOnly) badgeHtml='<span class="mgr-badge up" style="font-size:9px" title="Менеджер внутренних продаж">🔄 Продления</span>';
+    else if(i===0&&r.mk>0) badgeHtml='<span class="mgr-badge top" style="font-size:9px">👑 Топ</span>';
     else if(cn>=50) badgeHtml='<span class="mgr-badge up" style="font-size:9px">↑ Сильный</span>';
     else if(r.mk===0) badgeHtml='<span class="mgr-badge risk" style="font-size:9px">⚠ 0 МК</span>';
     var ac=avCls[i%avCls.length];
+    var mkCell=r.renewalOnly?'—':r.mk;
+    var rpmCell=r.renewalOnly?'—':(r.rpm?fmt(r.rpm):'—');
     tbody.innerHTML+=`<tr onclick="openMgr('${r.name}')">
       <td class="tn"><div class="av-chip emoji ${ac}">${mgrEmoji(r.name)}</div>${esc(r.name)}${badgeHtml?'&nbsp;'+badgeHtml:''}</td>
-      <td>${r.mk}</td><td>${r.paid}</td>
+      <td>${mkCell}</td><td>${r.paid}</td>
       <td>${convPill}</td>
       <td style="color:${r.rev>100000?'var(--g)':'var(--sub)'}">${fmt(r.rev)}</td>
-      <td style="color:var(--b)">${r.rpm?fmt(r.rpm):'—'}</td></tr>`;
+      <td style="color:var(--b)">${rpmCell}</td></tr>`;
   });
   tbody.innerHTML+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc">${fmt(t.rev)} ₽</td><td class="bc">${fmt(t.rpm)}</td></tr>`;
 }
