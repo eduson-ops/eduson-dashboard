@@ -2410,40 +2410,40 @@ function renderMain() {
 
 }
 
+// МВП (Менеджер внутренних продаж) is a role, not a person. Anyone whose
+// first-word is 'МВП' is treated as renewals-only — never included in the
+// sales-manager ranking, never given a 'Top' badge, and any МК records that
+// accidentally leak to their name are dropped from the primary totals.
+function isMvp(name){
+  return /^мвп\b/i.test((name||'').trim());
+}
+
 function renderTeamTable(data,filter) {
+  // Strip МВП rows out of the МК data — she should never contribute МК stats,
+  // even if she was accidentally selected as the manager in the МК form.
+  var primaryData=data.filter(r=>!isMvp(r.manager));
   var mgrs={};
-  data.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
+  primaryData.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
   var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t,renewalOnly:false};});
-  var t=calcTotals(data);
-  // Renewals-only managers (МВП — Менеджер внутренних продаж). They never
-  // conduct МК; they only close renewals. Show them in the team table so
-  // their revenue is visible, but mark them so their absent conversion isn't
-  // treated as a red flag.
+  var t=calcTotals(primaryData);
   var renRows=visibleRenewalsMain();
   var rmap=renRevByMgr(renRows), cmap=renCountByMgr(renRows);
-  // Build a set of "first-word keys" already present in sorted (from МК data)
-  var sortedKeys=new Set(sorted.map(r=>r.name.split(' ')[0]));
-  // Collect full names of renewal-owners not represented in sorted yet
-  var renewalOnlyNames={};
+  // Build МВП row(s) SEPARATELY from the sales ranking
+  var mvpRows=[];
+  var mvpByKey={};
   renRows.forEach(function(r){
-    if(!r.manager) return;
+    if(!r.manager || !isMvp(r.manager)) return;
     var key=r.manager.split(' ')[0];
-    if(sortedKeys.has(key)) return;
-    if(!renewalOnlyNames[key]) renewalOnlyNames[key]=r.manager;
+    if(!mvpByKey[key]) mvpByKey[key]={name:r.manager, rev:0, paid:0};
+    mvpByKey[key].rev += r.rev;
+    mvpByKey[key].paid += 1;
   });
-  Object.keys(renewalOnlyNames).forEach(function(key){
-    var name=renewalOnlyNames[key];
-    var rev=rmap[key]||0, cnt=cmap[key]||0;
-    sorted.push({
-      name:name, mk:0, paid:cnt, rev:rev,
-      conv:0, avg:cnt?Math.round(rev/cnt):0, rpm:0,
-      renewalOnly:true
-    });
-  });
+  Object.keys(mvpByKey).forEach(k=>mvpRows.push(mvpByKey[k]));
+
   if(COUNT_RENEWALS){
     var totRen=0, totRenCount=0;
+    // Only non-МВП renewals inflate sales-manager stats
     sorted.forEach(r=>{
-      if(r.renewalOnly) return; // already fully counted at construction time
       var key=r.name.split(' ')[0];
       var addRev=rmap[key]||0, addCnt=cmap[key]||0;
       if(addRev||addCnt){
@@ -2454,6 +2454,7 @@ function renderTeamTable(data,filter) {
         r.avg=r.paid?Math.round(r.rev/r.paid):r.avg;
       }
     });
+    // Total row includes МВП too — the company's revenue is the sum of both
     for(var k in rmap){totRen+=rmap[k];totRenCount+=(cmap[k]||0);}
     if(totRen){
       t.rev+=totRen; t.paid+=totRenCount;
@@ -2462,41 +2463,47 @@ function renderTeamTable(data,filter) {
       t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
     }
   } else {
-    // When toggle is OFF, drop renewal-only rows entirely — they'd show 0/0
-    sorted=sorted.filter(function(r){return !r.renewalOnly;});
+    mvpRows=[]; // toggle off → hide МВП block entirely
   }
   sorted.sort((a,b)=>b.rev-a.rev);
-  if(filter)sorted=sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase()));
+  var visibleSorted = filter ? sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase())) : sorted;
+  var visibleMvp   = filter ? mvpRows.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase())) : mvpRows;
   var tbody=document.getElementById('tbody');
   var avCls=['c1','c2','c3','c4','c5','c6'];
-  tbody.innerHTML='';
-  sorted.forEach((r,i)=>{
-    var conv, cn, convPill;
-    if(r.renewalOnly){
-      // МВП has no conversion concept — she never does МК
-      convPill='<span class="pill b" style="font-size:9.5px" title="Только продления, без МК">МВП</span>';
-      cn=null;
-    } else {
-      conv=r.mk?(r.conv||0).toFixed(1):'—';
-      cn=parseFloat(conv);
-      convPill=conv!=='—'?`<span class="pill ${cn>=40?'g':cn>=30?'y':'r'}" style="font-size:9.5px">${conv}%</span>`:'<span class="pill">—</span>';
-    }
+  var html='';
+  visibleSorted.forEach((r,i)=>{
+    var conv=r.mk?(r.conv||0).toFixed(1):'—';
+    var cn=parseFloat(conv);
+    var convPill=conv!=='—'?`<span class="pill ${cn>=40?'g':cn>=30?'y':'r'}" style="font-size:9.5px">${conv}%</span>`:'<span class="pill">—</span>';
     var badgeHtml='';
-    if(r.renewalOnly) badgeHtml='<span class="mgr-badge up" style="font-size:9px" title="Менеджер внутренних продаж">🔄 Продления</span>';
-    else if(i===0&&r.mk>0) badgeHtml='<span class="mgr-badge top" style="font-size:9px">👑 Топ</span>';
+    if(i===0&&r.mk>0) badgeHtml='<span class="mgr-badge top" style="font-size:9px">👑 Топ</span>';
     else if(cn>=50) badgeHtml='<span class="mgr-badge up" style="font-size:9px">↑ Сильный</span>';
     else if(r.mk===0) badgeHtml='<span class="mgr-badge risk" style="font-size:9px">⚠ 0 МК</span>';
     var ac=avCls[i%avCls.length];
-    var mkCell=r.renewalOnly?'—':r.mk;
-    var rpmCell=r.renewalOnly?'—':(r.rpm?fmt(r.rpm):'—');
-    tbody.innerHTML+=`<tr onclick="openMgr('${r.name}')">
+    html+=`<tr onclick="openMgr('${r.name}')">
       <td class="tn"><div class="av-chip emoji ${ac}">${mgrEmoji(r.name)}</div>${esc(r.name)}${badgeHtml?'&nbsp;'+badgeHtml:''}</td>
-      <td>${mkCell}</td><td>${r.paid}</td>
+      <td>${r.mk}</td><td>${r.paid}</td>
       <td>${convPill}</td>
       <td style="color:${r.rev>100000?'var(--g)':'var(--sub)'}">${fmt(r.rev)}</td>
-      <td style="color:var(--b)">${rpmCell}</td></tr>`;
+      <td style="color:var(--b)">${r.rpm?fmt(r.rpm):'—'}</td></tr>`;
   });
-  tbody.innerHTML+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc">${fmt(t.rev)} ₽</td><td class="bc">${fmt(t.rpm)}</td></tr>`;
+  // ── Отдельная секция для МВП (визуально не соревнуется с сейлами) ──
+  if(visibleMvp.length){
+    html+=`<tr class="mvp-divider"><td colspan="6" style="padding:14px 6px 4px;font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em;border-bottom:none">🔄 Внутренние продажи · продления</td></tr>`;
+    visibleMvp.forEach(function(r){
+      var avg = r.paid?Math.round(r.rev/r.paid):0;
+      html+=`<tr class="mvp-row" style="background:rgba(96,165,250,0.04)">
+        <td class="tn"><div class="av-chip emoji" style="background:none">🔄</div>${esc(r.name)}&nbsp;<span class="mgr-badge up" style="font-size:9px" title="Менеджер внутренних продаж">МВП</span></td>
+        <td>—</td><td>${r.paid}</td>
+        <td><span class="pill b" style="font-size:9.5px" title="Только продления, не считается конверсия">продления</span></td>
+        <td style="color:var(--g)">${fmt(r.rev)}</td>
+        <td style="color:var(--sub)" title="Средний чек продления">${avg?fmt(avg):'—'}</td></tr>`;
+    });
+  }
+
+  // ── Итого = сейлы + МВП (полная выручка воронки отдела) ──
+  html+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc">${fmt(t.rev)} ₽</td><td class="bc">${fmt(t.rpm)}</td></tr>`;
+  tbody.innerHTML=html;
 }
 
 function filterTeam(v){renderTeamTable(visibleMain(),v);}
