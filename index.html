@@ -1284,7 +1284,7 @@ window.updatePersonaFooter=updatePersonaFooter;
         </div>
       </div>
       <div style="overflow-x:auto">
-        <table class="tt" style="min-width:780px"><thead><tr><th>Менеджер</th><th>МК</th><th>Оплат</th><th>Конв.</th><th>Выручка</th><th>Ср. чек</th><th title="Прогноз выручки к концу месяца по календарным дням">Run rate ⓘ</th></tr></thead><tbody id="tbody"></tbody></table>
+        <table class="tt" style="min-width:780px"><thead><tr><th>Менеджер</th><th>МК</th><th>Оплат</th><th>Конв.</th><th>Выручка</th><th>Ср. чек</th><th title="Фактическая выручка на одно проведённое МК">₽/МК</th></tr></thead><tbody id="tbody"></tbody></table>
       </div>
     </div>
     <div class="panel">
@@ -1892,23 +1892,6 @@ function workDaysLeft() {
   return days;
 }
 
-// RUN RATE HELPERS START
-function countCalendarDays(from, to) {
-  var start = new Date(from.getFullYear(), from.getMonth(), from.getDate());
-  var end = new Date(to.getFullYear(), to.getMonth(), to.getDate());
-  return Math.max(0, Math.floor((end - start) / 86400000) + 1);
-}
-
-function calcRunRate(revenue, now) {
-  now = now || new Date();
-  var start = new Date(now.getFullYear(), now.getMonth(), 1);
-  var end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  var elapsed = countCalendarDays(start, now);
-  var total = countCalendarDays(start, end);
-  return elapsed > 0 ? Math.round((Number(revenue) || 0) / elapsed * total) : 0;
-}
-// RUN RATE HELPERS END
-
 function parseDate(s) {
   if(!s)return null;
   var p=s.replace(/\//g,'.').split(/[.\-]/);
@@ -2492,8 +2475,6 @@ function renderTeamTable(data,filter) {
   var tbody=document.getElementById('tbody');
   var avCls=['c1','c2','c3','c4','c5','c6'];
   var html='';
-  var showRunRate=mainDfMode === 'all';
-  var runRateNow=new Date();
   visibleSorted.forEach((r,i)=>{
     var conv=r.mk?(r.conv||0).toFixed(1):'—';
     var cn=parseFloat(conv);
@@ -2503,36 +2484,31 @@ function renderTeamTable(data,filter) {
     else if(cn>=50) badgeHtml='<span class="mgr-badge up" style="font-size:9px">↑ Сильный</span>';
     else if(r.mk===0) badgeHtml='<span class="mgr-badge risk" style="font-size:9px">⚠ 0 МК</span>';
     var ac=avCls[i%avCls.length];
-    var rowRunRate=showRunRate?calcRunRate(r.rev,runRateNow):null;
     html+=`<tr onclick="openMgr('${r.name}')">
       <td class="tn"><div class="av-chip emoji ${ac}">${mgrEmoji(r.name)}</div>${esc(r.name)}${badgeHtml?'&nbsp;'+badgeHtml:''}</td>
       <td>${r.mk}</td><td>${r.paid}</td>
       <td>${convPill}</td>
       <td style="color:${r.rev>100000?'var(--g)':'var(--sub)'};white-space:nowrap">${fmt(r.rev)} ₽</td>
       <td style="color:var(--b);white-space:nowrap">${r.avg?fmt(r.avg)+' ₽':'—'}</td>
-      <td style="color:var(--y);white-space:nowrap" title="Прогноз выручки к концу месяца по календарным дням">${rowRunRate===null?'—':fmt(rowRunRate)+' ₽'}</td></tr>`;
+      <td style="color:var(--b);white-space:nowrap" title="Фактическая выручка на одно проведённое МК">${r.rpm?fmt(r.rpm)+' ₽':'—'}</td></tr>`;
   });
   // ── Отдельная секция для МВП (визуально не соревнуется с сейлами) ──
   if(visibleMvp.length){
     html+=`<tr class="mvp-divider"><td colspan="7" style="padding:14px 6px 4px;font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em;border-bottom:none">🔄 Внутренние продажи · продления</td></tr>`;
     visibleMvp.forEach(function(r){
       var avg = r.paid?Math.round(r.rev/r.paid):0;
-      var renewalRunRate=showRunRate?calcRunRate(r.rev,runRateNow):null;
       html+=`<tr class="mvp-row" style="background:rgba(96,165,250,0.04)">
         <td class="tn"><div class="av-chip emoji" style="background:none">🔄</div>${esc(r.name)}&nbsp;<span class="mgr-badge up" style="font-size:9px" title="Менеджер внутренних продаж">МВП</span></td>
         <td>—</td><td>${r.paid}</td>
         <td><span class="pill b" style="font-size:9.5px" title="Только продления, не считается конверсия">продления</span></td>
         <td style="color:var(--g);white-space:nowrap">${fmt(r.rev)} ₽</td>
         <td style="color:var(--b);white-space:nowrap" title="Средний чек продления">${avg?fmt(avg)+' ₽':'—'}</td>
-        <td style="color:var(--y);white-space:nowrap" title="Прогноз выручки к концу месяца по календарным дням">${renewalRunRate===null?'—':fmt(renewalRunRate)+' ₽'}</td></tr>`;
+        <td style="color:var(--sub);white-space:nowrap" title="У продлений нет МК в этой таблице">—</td></tr>`;
     });
   }
 
   // ── Итого = сейлы + МВП (полная выручка воронки отдела) ──
-  var totalRunRate=showRunRate?calcRunRate(t.rev,runRateNow):null;
-  var totalRunRatePct=totalRunRate===null?null:pct(totalRunRate,targets.rev);
-  var totalRunRateHtml=totalRunRate===null?'—':fmt(totalRunRate)+' ₽<div style="font-size:9px;color:var(--muted);font-weight:500;white-space:nowrap">'+totalRunRatePct+'% от плана</div>';
-  html+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc" style="white-space:nowrap">${fmt(t.rev)} ₽</td><td class="bc" style="white-space:nowrap">${t.avg?fmt(t.avg)+' ₽':'—'}</td><td class="yc" style="white-space:nowrap" title="Прогноз выручки к концу месяца по календарным дням">${totalRunRateHtml}</td></tr>`;
+  html+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc" style="white-space:nowrap">${fmt(t.rev)} ₽</td><td class="bc" style="white-space:nowrap">${t.avg?fmt(t.avg)+' ₽':'—'}</td><td class="bc" style="white-space:nowrap" title="Фактическая выручка на одно проведённое МК">${t.rpm?fmt(t.rpm)+' ₽':'—'}</td></tr>`;
   tbody.innerHTML=html;
 }
 
