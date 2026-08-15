@@ -1034,20 +1034,7 @@ html[data-season="season"] .season-strip{display:flex}
 </head>
 <body>
 <canvas id="season-canvas" aria-hidden="true"></canvas>
-<script>
-(function(){
-  var KEY = 'eduson_auth';
-  var PWD = 'edusonkidstothemoon';
-  if(localStorage.getItem(KEY) !== '1'){
-    var p = prompt('Введите пароль для доступа к дашборду:');
-    if(p !== PWD){
-      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#888;font-size:16px;">Доступ запрещён</div>';
-      return;
-    }
-    localStorage.setItem(KEY,'1');
-  }
-})();
-</script>
+<!-- auth removed -->
 
 <!-- LOADER -->
 <div class="loader-overlay" id="loader">
