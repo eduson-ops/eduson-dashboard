@@ -13,7 +13,7 @@
 <script src="./dashboard-load.js?v=paid-mk-20260915"></script>
 <script src="./analytics-views.js?v=colors-rubles-20260915"></script>
 <script src="./schedule-verification.js?v=analytics-20260915"></script>
-<script src="./schedule-overview.js?v=overview-20260915"></script>
+<script src="./schedule-overview.js?v=mini-cards-20260915"></script>
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -446,19 +446,21 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .so-tools .dfbtn{min-height:36px}
 .so-tools .dfbtn[aria-pressed="true"]{color:var(--r);background:var(--r-bg);border-color:var(--r-bd)}
 .so-results{font-size:11px;color:var(--muted);margin-left:auto}
-.so-scroll{max-height:330px;overflow:auto;scrollbar-gutter:stable;border-top:1px solid var(--border)}
-.so-table{width:100%;border-collapse:collapse;table-layout:fixed}
-.so-table th,.so-table td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border);font-size:12px;color:var(--sub)}
-.so-table th{position:sticky;top:0;z-index:1;background:var(--bg2);font-size:10px;font-weight:500;color:var(--muted)}
-.so-table th:first-child{width:48%}
-.so-table th:not(:first-child),.so-table td:not(:first-child){text-align:right}
-.so-table td:first-child{color:var(--text);font-weight:500;overflow-wrap:anywhere}
-.so-table td:nth-child(2){font-family:var(--mono);color:var(--g);font-weight:600}
-.so-table tr.so-empty td:nth-child(2){color:var(--r)}
-.so-table .so-no-results{text-align:center!important;padding:24px 12px;color:var(--muted)!important;font-weight:400!important}
+.so-scroll{max-height:348px;overflow:auto;scrollbar-gutter:stable}
+.so-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:8px;list-style:none;padding:2px;margin:0}
+.so-card{min-width:0;min-height:108px;max-width:184px;padding:11px 12px;border:1px solid var(--g-bd);border-radius:12px;background:var(--g-bg);display:flex;flex-direction:column;gap:7px}
+.so-name{font-size:11px;line-height:1.35;font-weight:500;color:var(--text);overflow-wrap:anywhere}
+.so-value{display:flex;align-items:baseline;gap:5px;margin-top:auto;color:var(--g)}
+.so-hours{font:600 27px/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-1px}
+.so-value>span{font:500 12px var(--sans)}
+.so-days{font-size:10px;line-height:1.35;color:var(--sub)}
+.so-card.so-empty{background:var(--bg3);border-color:var(--border-s)}
+.so-empty .so-value{color:var(--r)}
+.so-empty .so-days{color:var(--muted)}
+.so-cards .so-no-results{grid-column:1/-1;text-align:center;padding:24px 12px;color:var(--muted);font-size:12px;list-style:none}
 .schedule-overview :is(input,button,.so-scroll):focus-visible{outline:2px solid var(--y);outline-offset:2px}
 #sched-view>.hm-wrap{max-height:530px;overflow:auto}
-@media(max-width:600px){.so-head{gap:12px}.so-totals{width:100%;justify-content:space-between;gap:8px}.so-tools label{max-width:none}.so-results{width:100%;margin:0}.so-table th:first-child{width:43%}.so-table th,.so-table td{padding:9px 5px;font-size:11px}}
+@media(max-width:600px){.so-head{gap:12px}.so-totals{width:100%;justify-content:space-between;gap:8px}.so-tools label{max-width:none}.so-results{width:100%;margin:0}.so-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.so-card{max-width:none;min-height:102px}}
 
 /* ── EMPTY STATE ── */
 .empty{text-align:center;padding:30px 20px;color:var(--muted)}
@@ -1628,7 +1630,7 @@ window.updatePersonaFooter=updatePersonaFooter;
         <span class="so-results" id="hm-results" role="status"></span>
       </div>
       <div class="so-scroll" tabindex="0" role="region" aria-label="Открытые часы по сотрудникам">
-        <table class="so-table"><thead><tr><th scope="col">Сотрудник</th><th scope="col">Открыто часов</th><th scope="col">Дней с часами</th></tr></thead><tbody id="hm-summary"></tbody></table>
+        <ul class="so-cards" id="hm-summary" aria-label="Выставленные часы сотрудников"></ul>
       </div>
     </section>
     <div class="hm-wrap"><table class="hm" id="hm-table"></table></div>
@@ -2472,7 +2474,7 @@ function renderSchedule() {
   emptyButton.setAttribute('aria-pressed',String(hmEmptyOnly));
   document.getElementById('hm-overview-title').textContent=personalMgr?'Моя доступность':'Доступность команды';
   if(!ready){
-    document.getElementById('hm-summary').innerHTML='<tr><td colspan="3" class="so-no-results">Источник расписания или список сотрудников недоступен. Обновите данные; сохранённое расписание не изменено.</td></tr>';
+    document.getElementById('hm-summary').innerHTML='<li class="so-no-results">Источник расписания или список сотрудников недоступен. Обновите данные; сохранённое расписание не изменено.</li>';
     document.getElementById('hm-table').innerHTML='';document.getElementById('hm-total-banner').innerHTML='';
     document.getElementById('hm-results').textContent='';document.getElementById('hm-overview-period').textContent='';return;
   }
@@ -2480,7 +2482,7 @@ function renderSchedule() {
   var overview=ScheduleOverview.build(scheduleManagerNames(),scheduleData,days.map(dateStr));
   var visibleRows=ScheduleOverview.filter(overview.rows,{query:hmSearch,emptyOnly:hmEmptyOnly});
   var scheduleManagers=visibleRows.map(function(row){return row.name;});
-  document.getElementById('hm-summary').innerHTML=ScheduleOverview.rowsHtml(visibleRows,overview.managerCount?'По этому фильтру сотрудников нет.':'Нет сотрудников для расписания.');
+  document.getElementById('hm-summary').innerHTML=ScheduleOverview.cardsHtml(visibleRows,overview.managerCount?'По этому фильтру сотрудников нет.':'Нет сотрудников для расписания.');
   document.getElementById('hm-overview-period').textContent=dateStr(days[0]).slice(0,5)+' — '+dateStr(days[days.length-1]).slice(0,5)+' · доступность, не число записей';
   document.getElementById('hm-results').textContent='Показано '+visibleRows.length+' из '+overview.managerCount;
   document.getElementById('hm-total-banner').innerHTML='<span>Сотрудники<strong>'+overview.managerCount+'</strong></span><span>Открыто часов<strong>'+overview.totalHours+'</strong></span><span'+(overview.emptyCount?' class="so-zero"':'')+'>Без часов<strong>'+overview.emptyCount+'</strong></span>';

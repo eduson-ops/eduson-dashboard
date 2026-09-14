@@ -1,4 +1,4 @@
-/* Read-only availability totals and compact manager table rows. */
+/* Read-only availability totals and compact manager cards. */
 (function (root, factory) {
   var api = factory();
   if (typeof module === 'object' && module.exports) module.exports = api;
@@ -47,19 +47,20 @@
     });
   }
 
-  function rowsHtml(rows, emptyMessage) {
+  function cardsHtml(rows, emptyMessage) {
     if (!rows || !rows.length) {
-      return '<tr><td colspan="3" class="so-no-results">' +
-        escapeHtml(emptyMessage == null ? 'Менеджеры не найдены' : emptyMessage) + '</td></tr>';
+      return '<li class="so-no-results">' +
+        escapeHtml(emptyMessage == null ? 'Менеджеры не найдены' : emptyMessage) + '</li>';
     }
     return rows.map(function (row) {
-      var empty = row.total === 0;
-      return '<tr class="so-row' + (empty ? ' so-empty' : '') + '">' +
-        '<td class="so-name">' + escapeHtml(row.name) + '</td>' +
-        '<td class="so-hours">' + (empty ? 'Нет часов' : escapeHtml(row.total) + ' ч') + '</td>' +
-        '<td class="so-days">' + escapeHtml(row.activeDays) + ' из ' + escapeHtml(row.dayCount) + ' дней</td></tr>';
+      var empty = row.total === 0, name = escapeHtml(row.name);
+      return '<li class="so-card' + (empty ? ' so-empty' : '') + '">' +
+        '<div class="so-name" title="' + name + '">' + name + '</div>' +
+        '<div class="so-value"><strong class="so-hours">' + escapeHtml(row.total) + '</strong><span>ч</span></div>' +
+        '<div class="so-days">' + (empty ? 'Нет открытых часов' :
+          escapeHtml(row.activeDays) + ' из ' + escapeHtml(row.dayCount) + ' дней') + '</div></li>';
     }).join('');
   }
 
-  return Object.freeze({ build: build, filter: filter, rowsHtml: rowsHtml });
+  return Object.freeze({ build: build, filter: filter, cardsHtml: cardsHtml });
 });
