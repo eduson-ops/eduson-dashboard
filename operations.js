@@ -102,6 +102,49 @@
     return result;
   }
 
+  // Aggregate capacity, not individual booking roles: Sheets does not provide event IDs or creation times.
+  function buildSchedule(options) {
+    var input = options || {};
+    var calendarDate = function (value) {
+      var text = clean(value);
+      return /^(?:\d{4}-\d{2}-\d{2}|\d{1,2}\.\d{1,2}\.\d{4}|\d{1,2}\/\d{1,2}\/\d{4})$/.test(text) ? dateKey(text) : '';
+    };
+    var nameText = function (value) { return clean(value).replace(/\s+/g, ' '); };
+    var nameKey = function (value) { return nameText(value).toLowerCase(); };
+    var date = calendarDate(input.date), filter = nameKey(input.manager);
+    var result = { date: date, groups: [], bookingCount: 0, primaryCount: 0, reserveCount: 0 };
+    if (!date) return result;
+    var groups = new Map();
+    (Array.isArray(input.rows) ? input.rows : []).forEach(function (row, index) {
+      if (!row || calendarDate(row.date) !== date) return;
+      var clock = clean(row.time).match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!clock || +clock[1] > 23 || +clock[2] > 59 || (clock[3] && +clock[3] > 59)) return;
+      var time = pad(+clock[1]) + ':' + clock[2];
+      var name = nameText(row.manager), normalizedName = nameKey(name);
+      if (filter && normalizedName !== filter) return;
+      var missingManager = !normalizedName || normalizedName === 'не указан';
+      if (missingManager) name = 'Не указан';
+      // Missing manager placeholders are not a shared identity and must remain separate entries.
+      var key = JSON.stringify([date, time, missingManager ? null : normalizedName, missingManager ? index : null]);
+      var group = groups.get(key);
+      if (!group) {
+        group = { date: date, time: time, manager: name, bookingCount: 0, primaryCount: 1, reserveCount: 0 };
+        groups.set(key, group);
+      }
+      // Stable presentation even if source rows arrive in a different order or use different casing.
+      if (name < group.manager) group.manager = name;
+      group.bookingCount++;
+      group.reserveCount = group.bookingCount - 1;
+      result.bookingCount++;
+    });
+    result.groups = Array.from(groups.values()).sort(function (a, b) {
+      return a.time.localeCompare(b.time) || a.manager.localeCompare(b.manager, 'ru') || (a.manager < b.manager ? -1 : a.manager > b.manager ? 1 : 0);
+    });
+    result.primaryCount = result.groups.length;
+    result.reserveCount = result.bookingCount - result.primaryCount;
+    return result;
+  }
+
   function updateSource(previous, state, now, details) {
     var result = Object.assign({}, previous || {}, details || {}, { state: state, lastAttemptAt: now });
     if (state === 'success') { result.lastSuccessAt = now; result.message = ''; }
@@ -143,5 +186,5 @@
     return result;
   }
 
-  root.OpsControl = Object.freeze({ dateKey: dateKey, selectedDate: selectedDate, matchManager: matchManager, parseSlots: parseSlots, parseReports: parseReports, parseCancels: parseCancels, updateSource: updateSource, buildView: buildView });
+  root.OpsControl = Object.freeze({ dateKey: dateKey, selectedDate: selectedDate, matchManager: matchManager, parseSlots: parseSlots, buildSchedule: buildSchedule, parseReports: parseReports, parseCancels: parseCancels, updateSource: updateSource, buildView: buildView });
 })(typeof globalThis === 'object' ? globalThis : this);

@@ -7,7 +7,7 @@
 <title>Eduson Kids · Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@400;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="./operations.js"></script>
+<script src="./operations.js?v=schedule-20260915"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -746,25 +746,40 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .stagger .kpi:nth-child(4){animation-delay:.19s}
 .stagger .kpi:nth-child(5){animation-delay:.24s}
 
-/* ── REDESIGNED SLOT CARDS ── */
-.slot-card{
-  display:flex;align-items:center;gap:12px;
-  padding:10px 13px;border-radius:var(--r10);
-  background:var(--bg3);border:1px solid var(--border);
-  transition:all var(--dur) var(--ease);margin-bottom:6px;
-}
-.slot-card:hover{border-color:var(--border-s)}
-.slot-card.slot-live{background:color-mix(in oklab,var(--r) 10%,var(--bg3));border-color:color-mix(in oklab,var(--r) 25%,transparent)}
-.slot-card.slot-done{opacity:.55}
-.slot-time-big{font:700 14px/1 var(--mono);color:var(--text);min-width:44px}
-.slot-avatar{width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1}
-.slot-info{flex:1;min-width:0}
-.slot-name{font:600 12.5px/1.2 var(--sans);color:var(--text)}
-.slot-pkg{font:500 10.5px/1 var(--mono);color:var(--muted);margin-top:2px}
-.slot-status{font:700 9.5px/1 var(--mono);padding:3px 8px;border-radius:999px;flex-shrink:0}
-.slot-status.live{background:var(--r-bg);color:var(--r);animation:blink .9s infinite}
-.slot-status.done{background:var(--bg4);color:var(--dim)}
-.slot-status.wait{background:var(--b-bg);color:var(--b)}
+/* ── SCHEDULE: one methodist/time, primary + reserve ── */
+.scheduled-panel,.ranking-panel{margin-bottom:12px;min-width:0}
+.scheduled-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:16px}
+.scheduled-heading .pt{margin-bottom:5px;color:var(--sub)}
+.scheduled-caption{margin:0;color:var(--sub);font-size:11px;line-height:1.5}
+.scheduled-totals{display:flex;gap:24px;flex-shrink:0}
+.scheduled-totals>div{display:flex;flex-direction:column;gap:4px}
+.scheduled-totals span{font-size:10px;color:var(--sub);white-space:nowrap}
+.scheduled-totals strong{font:700 24px/1.1 var(--mono);font-variant-numeric:tabular-nums;color:var(--text)}
+.scheduled-totals .scheduled-reserve-total strong{color:var(--y)}
+.scheduled-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.scheduled-days{display:flex;gap:5px;flex-wrap:wrap}
+.scheduled-date input{font-size:11px;min-height:30px;max-width:100%}
+.scheduled-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr));gap:8px;list-style:none;padding:0;margin:0;align-items:start}
+.scheduled-row{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:10px;align-items:center;min-height:64px;padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r10)}
+.scheduled-row.has-reserve{border-left:3px solid var(--y);padding-left:10px}
+.scheduled-row.is-current{background:var(--g-bg);border-color:var(--g-bd)}
+.scheduled-time{font:700 13px/1.2 var(--mono);font-variant-numeric:tabular-nums;color:var(--text)}
+.scheduled-person{min-width:0}
+.scheduled-name{display:flex;align-items:center;gap:6px;font:600 12px/1.35 var(--sans);color:var(--text)}
+.scheduled-name>span:last-child{overflow-wrap:anywhere}
+.scheduled-avatar{font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif;font-size:16px;flex-shrink:0}
+.scheduled-timing{font-size:10px;line-height:1.3;color:var(--sub);margin-top:4px}
+.is-current .scheduled-timing{color:var(--g)}
+.scheduled-roles{display:flex;flex-direction:column;align-items:flex-end;gap:5px;font-size:10px;white-space:nowrap}
+.scheduled-primary-label{color:var(--sub)}
+.scheduled-reserve-label{padding:4px 6px;border-radius:5px;background:var(--y-bg);color:var(--y);font-weight:700}
+.scheduled-empty{padding:24px 0;color:var(--sub);font-size:12px;text-align:center}
+.scheduled-notice{margin:0 0 12px;padding:9px 11px;border-left:2px solid var(--y);background:var(--y-bg);color:var(--sub);font-size:11px;line-height:1.5}
+.scheduled-notice[hidden]{display:none}
+.scheduled-date .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.scheduled-footnote{font-size:10px;line-height:1.5;color:var(--sub);margin:12px 0 0}
+@media(min-width:1600px){.scheduled-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:640px){.scheduled-heading{align-items:flex-start;flex-direction:column;gap:14px}.scheduled-totals{width:100%;gap:24px}.scheduled-totals strong{font-size:22px}.scheduled-grid{grid-template-columns:1fr}.scheduled-row{padding:10px;gap:8px}.scheduled-row.has-reserve{padding-left:8px}.scheduled-toolbar{gap:8px}.scheduled-days .stab{padding:6px 8px;font-size:10px}}
 
 /* ── SKIN BADGE IN TOPBAR ── */
 .skin-btn{
@@ -1218,7 +1233,6 @@ function setPersona(name){
   // Re-render everything that depends on filter
   try{
     if(typeof renderMain==='function')renderMain();
-    if(typeof renderHot==='function')renderHot();
     if(typeof renderAnalytics==='function')renderAnalytics();
     if(typeof renderManagers==='function')renderManagers();
     if(typeof renderRetention==='function')renderRetention();
@@ -1332,8 +1346,28 @@ window.updatePersonaFooter=updatePersonaFooter;
     <div class="kpi info"><div class="kl">Выручка / МК</div><div class="kv bc" id="kv-rpm"><span class="skel skel-kv"></span></div><div class="ks" id="ks-rpm"><span class="skel skel-ks"></span></div><span class="ktag info" id="kt-rpm">—</span><svg class="kpi-spark b" id="spark-rpm" width="68" height="22" viewBox="0 0 68 22"></svg></div>
   </div>
 
-  <div class="mg">
-    <div class="panel">
+  <section class="panel scheduled-panel" aria-labelledby="scheduled-title">
+    <div class="scheduled-heading">
+      <div><div class="pt" id="scheduled-title">Запланированные МК</div><p id="slots-caption" class="scheduled-caption"></p></div>
+      <div class="scheduled-totals" aria-label="Итоги записей" aria-live="polite">
+        <div><span>Всего записей</span><strong id="slots-cnt">—</strong></div>
+        <div><span>Основных</span><strong id="slots-primary">—</strong></div>
+        <div class="scheduled-reserve-total"><span>Резервов</span><strong id="slots-reserve">—</strong></div>
+      </div>
+    </div>
+    <div class="scheduled-toolbar">
+      <div class="scheduled-days" role="group" aria-label="День записей">
+        <button class="stab active" onclick="setSlotDate('today')" id="sd-today" aria-pressed="true">Сегодня</button>
+        <button class="stab" onclick="setSlotDate('tomorrow')" id="sd-tom" aria-pressed="false">Завтра</button>
+        <button class="stab" onclick="setSlotDate('after')" id="sd-after" aria-pressed="false">Послезавтра</button>
+      </div>
+      <label class="scheduled-date"><span class="sr-only">Дата записей</span><input type="date" id="sd-custom" class="dfinput" onchange="setSlotDate('custom')"></label>
+    </div>
+    <p class="scheduled-notice" id="slots-notice" hidden></p>
+    <div id="slots-box"><div class="scheduled-empty">Загружаем записи…</div></div>
+  </section>
+
+    <div class="panel ranking-panel">
       <div class="pt">Рейтинг команды
         <div style="display:flex;align-items:center;gap:8px">
           <button onclick="shareReport()" style="background:none;border:1px solid var(--border-s);color:var(--muted);font-size:11px;padding:3px 10px;border-radius:6px;cursor:pointer;white-space:nowrap" title="Скопировать сводку">📋 Поделиться</button>
@@ -1344,20 +1378,6 @@ window.updatePersonaFooter=updatePersonaFooter;
         <table class="tt" style="min-width:780px"><thead><tr><th>Менеджер</th><th>МК</th><th>Оплат</th><th>Конв.</th><th>Выручка</th><th>Ср. чек</th><th title="Фактическая выручка на одно проведённое МК">₽/МК</th></tr></thead><tbody id="tbody"></tbody></table>
       </div>
     </div>
-    <div class="panel">
-      <div class="pt">
-        <span>Запланированные МК</span>
-        <span class="ptb" id="slots-cnt">0</span>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap">
-        <button class="stab active" onclick="setSlotDate('today',this)" id="sd-today">Сегодня</button>
-        <button class="stab" onclick="setSlotDate('tomorrow',this)" id="sd-tom">Завтра</button>
-        <button class="stab" onclick="setSlotDate('after',this)" id="sd-after">Послезавтра</button>
-        <input type="date" id="sd-custom" class="dfinput" style="font-size:10px;padding:3px 8px" oninput="setSlotDate('custom',null)">
-      </div>
-      <div id="slots-box"><div class="empty"><div class="empty-ic">📅</div><div>Загрузка слотов...</div></div></div>
-    </div>
-  </div>
 
   <div class="cr">
     <div class="panel">
@@ -1377,26 +1397,7 @@ window.updatePersonaFooter=updatePersonaFooter;
     </div>
   </div>
 
-  <div class="panel" style="margin-bottom:12px">
-    <div class="pt" style="margin-bottom:12px">
-      Что делать сейчас
-      <span class="ptb" id="insights-cnt">—</span>
-    </div>
-    <div class="ins-list" id="insights"></div>
-  </div>
 
-  <!-- ══ ГОРЯЩИЕ СЕГОДНЯ ══ -->
-  <div class="panel" style="margin-top:10px">
-    <div class="pt" style="margin-bottom:10px">
-      Горящие сегодня
-      <span class="ptb" id="hot-cnt">—</span>
-    </div>
-    <div class="dfilter" id="hot-mgr-filter" style="margin-bottom:10px">
-      <span style="font-size:11px;color:var(--muted);font-weight:600">Менеджер:</span>
-      <button class="dfbtn active" onclick="setHotMgr('',this)">Все</button>
-    </div>
-    <div id="hot-table"><div class="empty" style="padding:20px 0"><div class="empty-ic">⏳</div><div>Загрузка...</div></div></div>
-  </div>
 </div>
 
 <!-- ══ ОПЕРАЦИОННЫЙ КОНТРОЛЬ ══ -->
@@ -1890,7 +1891,7 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 // STATE
 // ═══════════════════════════════════════
 let lessons=[], renewals=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
-let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
+let charts={}, curPer='week', curSlotMode='today', curSlotCustom='', dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
 let opsDay='today', opsCustomDate='', opsMgr='', opsDataReady=false, dashboardLoadPromise=null;
 let actualLessonReports=[], actualCancelReports=[], opsSlotData={rows:[],invalidDates:0,invalidTimes:0,unknownManagers:0}, opsSourceStates={};
 const OPS_SOURCE_NAMES={slots:'Записи по расписанию',form:'Отчёты об уроках',cancels:'Отчёты об отменах',payments:'Оплаты',managers:'Менеджеры',schedule:'Доступность менеджеров',targets:'Планы'};
@@ -1898,7 +1899,7 @@ const OPS_SOURCE_NAMES={slots:'Записи по расписанию',form:'О�
 const OPS_SLOT_MANAGERS={'@lucky_8_8':'Перебейносов А.','@GeorgiPC':'Николаев Г.','@Daria_K53':'Куюмджу Д.','@orlean40':'Папашвили Д.','@kayzen_look':'Масимова Р.','@Evgeny_Fedyainov':'Федяинов Е.'};
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
 let COUNT_RENEWALS=(function(){try{return localStorage.getItem('eks-cr')!=='0';}catch(e){return true;}})();
-let analyticsMgr='', hotMgr='';
+let analyticsMgr='';
 // Personal view: when set to a manager name, all "team" views filter to just them.
 // Persisted in localStorage; chosen via picker in topbar.
 let personalMgr=(function(){try{return localStorage.getItem('eks-me')||'';}catch(e){return '';}})();
@@ -2367,8 +2368,6 @@ async function loadAllData() {
   opsDataReady=true;
   renderOperations();
   renderMain();
-  buildHotMgrFilter();
-  renderHot();
   buildAnalyticsMgrFilter();
   renderAnalytics();
   renderManagers();
@@ -2696,7 +2695,6 @@ function renderMain() {
   renderProg(t);
   renderRevChart(data);
   renderTeamChart(data);
-  renderInsights(data,t);
   renderKpiSparks(data);
 
 }
@@ -2803,79 +2801,64 @@ function renderTeamTable(data,filter) {
 
 function filterTeam(v){renderTeamTable(visibleMain(),v);}
 
-function renderSlots() {
-  var targetDate = fmtDate(curSlotDate);
-  var slotData = allSlots.filter(function(s){ return s.date === targetDate; });
-  var el=document.getElementById('slots-box');
-  document.getElementById('slots-cnt').textContent=slotData.length;
+function scheduledDate() {
+  if(curSlotMode==='custom')return OpsControl.dateKey(curSlotCustom);
+  if(curSlotMode==='after'){
+    var day=new Date(OpsControl.selectedDate('today','',new Date())+'T00:00:00Z');
+    day.setUTCDate(day.getUTCDate()+2);
+    return day.toISOString().slice(0,10);
+  }
+  return OpsControl.selectedDate(curSlotMode,'',new Date());
+}
 
-  if(!slotData.length){
-    el.innerHTML='<div class="empty"><div class="empty-ic">📅</div><div>Нет МК запланировано</div></div>';
+function renderSlots() {
+  var date=scheduledDate(),el=document.getElementById('slots-box'),source=opsSourceStates.slots||{};
+  var input=document.getElementById('sd-custom');
+  if(curSlotMode!=='custom'||document.activeElement!==input)input.value=date;
+  [['today','today'],['tom','tomorrow'],['after','after']].forEach(function(pair){
+    var button=document.getElementById('sd-'+pair[0]),active=curSlotMode===pair[1];
+    button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
+  });
+  var caption=date?new Date(date+'T12:00:00Z').toLocaleDateString('ru-RU',{day:'numeric',month:'long',timeZone:'Europe/Moscow'}):'Выберите дату';
+  document.getElementById('slots-caption').textContent=caption+' · МСК'+(personalMgr?' · '+personalMgr:'');
+  var notice=document.getElementById('slots-notice');
+  notice.hidden=true;notice.textContent='';
+  if(!opsDataReady||source.state!=='success'){
+    ['slots-cnt','slots-primary','slots-reserve'].forEach(function(id){document.getElementById(id).textContent='—';});
+    el.innerHTML='<div class="scheduled-empty">'+(source.state==='error'?'Не удалось загрузить записи. Обновите данные.':'Загружаем записи…')+'</div>';
     return;
   }
-
-  // TG handle → {name, initials, cls}
-  var MGR_MAP={
-    '@lucky_8_8':{name:'Перебейносов А.',ini:'ПА',cls:'c1'},
-    '@GeorgiPC':{name:'Николаев Г.',ini:'НГ',cls:'c2'},
-    '@Daria_K53':{name:'Куюмджу Д.',ini:'КД',cls:'c3'},
-    '@orlean40':{name:'Папашвили Д.',ini:'ПД',cls:'c4'},
-    '@kayzen_look':{name:'Масимова Р.',ini:'МР',cls:'c5'},
-    '@Evgeny_Fedyainov':{name:'Федяинов Е.',ini:'ФЕ',cls:'c6'},
-  };
-
-  // Sort by time
-  slotData = slotData.slice().sort(function(a,b){ return (a.time||'').localeCompare(b.time||''); });
-
-  var now = new Date();
-  var html = '';
-  slotData.forEach(function(s){
-    var mgr = MGR_MAP[s.who] || {name: s.who, ini: (s.who||'?').slice(1,3).toUpperCase(), cls:'c1'};
-    var statusCls='wait', statusLbl='Ожидает';
-    if(s.status==='done'){statusCls='done';statusLbl='Завершён';}
-    else if(s.status==='live'){statusCls='live';statusLbl='Live ●';}
-
-    var cardCls='slot-card';
-    if(s.status==='live')cardCls+=' slot-live';
-    if(s.status==='done')cardCls+=' slot-done';
-
-    html+=`<div class="${cardCls}">
-      <span class="slot-time-big">${esc(s.time||'—')}</span>
-      <span class="slot-avatar ${mgr.cls}" style="font-size:15px;font-family:'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--display)">${mgrEmoji(mgr.name)}</span>
-      <div class="slot-info">
-        <div class="slot-name">${esc(mgr.name)}</div>
-      </div>
-      <span class="slot-status ${statusCls}">${statusLbl}</span>
-    </div>`;
-  });
-
-  var pot=Math.round(slotData.length*.45);
-  html+=`<div class="spot"><span>Всего: <strong>${slotData.length}</strong></span><span>Потенциал: <strong>~${fmt(pot*35000)} ₽</strong></span></div>`;
-  el.innerHTML=html;
+  var view=OpsControl.buildSchedule({date:date,rows:opsSlotData.rows,manager:personalMgr||''});
+  document.getElementById('slots-cnt').textContent=view.bookingCount;
+  document.getElementById('slots-primary').textContent=view.primaryCount;
+  document.getElementById('slots-reserve').textContent=view.reserveCount;
+  if(opsSlotData.invalidDates||opsSlotData.invalidTimes){
+    notice.hidden=false;
+    notice.textContent='В таблице есть строки без корректной даты или времени ('+(opsSlotData.invalidDates+opsSlotData.invalidTimes)+'). Они не включены в итоги — проверьте лист «Слоты».';
+  }
+  if(!date){el.innerHTML='<div class="scheduled-empty">Выберите корректную дату.</div>';return;}
+  if(!view.groups.length){el.innerHTML='<div class="scheduled-empty">На этот день '+(personalMgr?'у вас ':'')+'нет записей.</div>';return;}
+  var now=Date.now();
+  el.innerHTML='<ul class="scheduled-grid" aria-label="Записи по времени">'+view.groups.map(function(group){
+    var start=Date.parse(group.date+'T'+group.time+':00+03:00'),elapsed=now-start;
+    var current=elapsed>=0&&elapsed<3600000;
+    var timing=current?'Сейчас по расписанию':elapsed>=3600000?'Время прошло':'Ожидается';
+    var reserve=group.reserveCount;
+    var reserveWord=reserve%10===1&&reserve%100!==11?'резерв':reserve%10>=2&&reserve%10<=4&&(reserve%100<12||reserve%100>14)?'резерва':'резервов';
+    return '<li class="scheduled-row'+(reserve?' has-reserve':'')+(current?' is-current':'')+'">'
+      +'<time class="scheduled-time" datetime="'+group.date+'T'+group.time+':00+03:00">'+esc(group.time)+'</time>'
+      +'<div class="scheduled-person"><div class="scheduled-name"><span class="scheduled-avatar" aria-hidden="true">'+mgrEmoji(group.manager)+'</span><span>'+esc(group.manager)+'</span></div><div class="scheduled-timing">'+timing+'</div></div>'
+      +'<div class="scheduled-roles"><span class="scheduled-primary-label">Основная</span>'+(reserve?'<span class="scheduled-reserve-label">+'+reserve+' '+reserveWord+'</span>':'')+'</div></li>';
+  }).join('')+'</ul>'
+    +(view.reserveCount?'<p class="scheduled-footnote">Резерв — дополнительная запись на того же методиста в то же время.</p>':'');
 }
 
-function setSlotDate(mode, btn) {
-  var now = new Date();
-  var target = new Date(now);
-  if (mode === 'today') target.setDate(now.getDate());
-  else if (mode === 'tomorrow') target.setDate(now.getDate() + 1);
-  else if (mode === 'after') target.setDate(now.getDate() + 2);
-  else if (mode === 'custom') {
-    var val = document.getElementById('sd-custom').value;
-    if (!val) return;
-    target = new Date(val);
-  }
-  curSlotDate = target;
-  // Update active buttons
-  ['today','tom','after'].forEach(id => {
-    var el = document.getElementById('sd-' + id);
-    if (el) el.classList.remove('active');
-  });
-  if (btn) btn.classList.add('active');
+function setSlotDate(mode) {
+  if(!['today','tomorrow','after','custom'].includes(mode))return;
+  curSlotMode=mode;
+  if(mode==='custom')curSlotCustom=document.getElementById('sd-custom').value;
   renderSlots();
 }
-
-function setSlotDay(day,btn){} // legacy stub
 
 function renderProg(t) {
   var bars=[
@@ -2887,31 +2870,6 @@ function renderProg(t) {
   document.getElementById('prog').innerHTML=bars.map(b=>
     `<div class="pr"><span class="pl">${b.l}</span><div class="pt2"><div class="pf ${b.cls}" style="width:${b.v}%"></div></div><span class="pp" style="color:${b.c}">${b.v}%</span></div>`
   ).join('');
-}
-
-function renderInsights(data,t) {
-  var mgrs={};data.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
-  var sorted=Object.entries(mgrs).map(([name,rows])=>{var tt=calcTotals(rows);return Object.assign({name},tt);}).sort((a,b)=>b.rev-a.rev);
-  var items=[];
-  var wdLeft=workDaysLeft(),revLeft=Math.max(0,targets.rev-t.rev);
-  var mkLeft=Math.max(0,targets.mk-t.mk);
-  items.push({kind:'warn',ico:'⚡',badge:'Фокус',title:'План: нужно ещё '+mkLeft+' МК',text:'Осталось '+wdLeft+' раб. дней. Нужно '+fmt(wdLeft>0?Math.round(revLeft/wdLeft):0)+' ₽/день чтобы закрыть месяц.',cta:'Открыть расписание →'});
-  var low=sorted.filter(r=>r.mk>3&&r.paid/r.mk<.35);
-  if(low.length){var names=low.map(r=>r.name.split(' ')[0]).join(', ');items.push({kind:'warn',ico:'⚠️',badge:'Внимание',title:names+' — низкая конверсия',text:'Ниже 35% при >3 МК. Разобрать звонок сегодня и пройтись по возражениям.',cta:'Разобрать звонок →'});}
-  var risk=sorted.filter(r=>r.mk===0);
-  if(risk.length){var rnames=risk.map(r=>r.name.split(' ')[0]).join(', ');items.push({kind:'urgent',ico:'🚨',badge:'Риск',title:rnames+' — 0 МК в периоде',text:'Нет ни одного проведённого урока. Поставить слот сегодня, выяснить причину.',cta:'Поставить слот →'});}
-  if(sorted.length&&sorted[0].mk>0){var ldr=sorted[0];items.push({kind:'good',ico:'🏆',badge:'Лидер',title:ldr.name.split(' ')[0]+' — лидер периода',text:ldr.mk+' МК · '+(ldr.paid&&ldr.mk?(ldr.paid/ldr.mk*100).toFixed(1):0)+'% конв. · '+fmt(ldr.rev)+' ₽. Зафиксируй приёмы и расшари команде.',cta:'Поделиться в чат →'});}
-  var cnt=document.getElementById('insights-cnt');if(cnt)cnt.textContent=items.length+' подсказок';
-  document.getElementById('insights').innerHTML=items.map(function(i){
-    return`<div class="ins-item ${i.kind}">
-      <div class="ins-icon">${i.ico}</div>
-      <div class="ins-body">
-        <div class="ins-title">${i.title}<span class="pill ${i.kind==='urgent'?'r':i.kind==='good'?'g':'o'}">${i.badge}</span></div>
-        <div class="ins-text">${i.text}</div>
-        <div class="ins-cta">${i.cta}</div>
-      </div>
-    </div>`;
-  }).join('');
 }
 
 // ═══════════════════════════════════════
@@ -4504,119 +4462,6 @@ function renderAuditLog(){
   el.innerHTML=rows + '<div style="font-size:10px;color:var(--dim);margin-top:8px;text-align:center">Хранится в браузере · последние 50 событий</div>';
 }
 window.renderAuditLog=renderAuditLog;
-// ═══════════════════════════════════════
-// ГОРЯЩИЕ СЕГОДНЯ
-// ═══════════════════════════════════════
-function classifyHot(lesson) {
-  var today = new Date(); today.setHours(0,0,0,0);
-  var ld = parseDate(lesson.date);
-  var days = ld ? Math.floor((today - ld) / 86400000) : 0;
-  var agr = (lesson.agreement || '').toLowerCase();
-  var todayNum = today.getDate();
-
-  // СЕГОДНЯ: есть слово "сегодня" или число совпадает с сегодняшним днём
-  var isToday = agr.includes('сегодня')
-    || new RegExp('(?<![0-9])' + todayNum + '(?![0-9])').test(agr);
-
-  if (isToday) return {days, priority:0, label:'Сегодня', bg:'var(--r-bg)', color:'var(--r)'};
-  if (days <= 2) return {days, priority:1, label:'Горячий', bg:'rgba(245,158,11,.13)', color:'#f59e0b'};
-  if (days <= 5) return {days, priority:2, label:'Тёплый',  bg:'rgba(249,115,22,.13)', color:'#f97316'};
-  return              {days, priority:3, label:'Холодный', bg:'rgba(255,255,255,.05)', color:'var(--muted)'};
-}
-
-function renderHot() {
-  var today = new Date(); today.setHours(0,0,0,0);
-  var rows = lessons.filter(function(l){
-    return l.objection !== 'Оплатили' && !l.paid
-      && managers.some(function(m){ return l.manager && l.manager.includes(m.split(' ')[0]); });
-  });
-  if (hotMgr) rows = rows.filter(function(l){ return l.manager === hotMgr; });
-
-  rows = rows.map(function(l){ return Object.assign({}, l, {_h: classifyHot(l)}); })
-    .sort(function(a,b){ return a._h.priority - b._h.priority || a._h.days - b._h.days; });
-
-  var cntEl = document.getElementById('hot-cnt');
-  var el = document.getElementById('hot-table');
-  if (!cntEl || !el) return;
-
-  // Badge: СЕГОДНЯ красным если есть
-  var todayCnt = rows.filter(function(r){ return r._h.priority===0; }).length;
-  cntEl.textContent = rows.length;
-  cntEl.style.background = todayCnt ? 'var(--r-bg)' : '';
-  cntEl.style.color = todayCnt ? 'var(--r)' : '';
-
-  if (!rows.length) {
-    el.innerHTML = '<div class="empty" style="padding:20px 0"><div class="empty-ic">🎉</div><div>Нет горящих — все закрыты</div></div>';
-    return;
-  }
-
-  // 3-column layout: Кто | Договорённость | Статус + AMO
-  var dayWord = function(n){ return n===1?'день':n<=4?'дня':'дней'; };
-  var statDot = {0:'🔴',1:'🟡',2:'🟠',3:'⚪'};
-
-  var pillCls = ['r','o','y','b'];
-  var avClsMap = {};
-  var avCls = ['c1','c2','c3','c4','c5','c6'];
-  var uidx = 0;
-  rows.forEach(function(r){ if(!avClsMap[r.manager]){avClsMap[r.manager]=avCls[uidx%avCls.length];uidx++;} });
-
-  el.innerHTML = '<table class="tt"><thead><tr>'
-    + '<th style="text-align:left;width:190px">Менеджер</th>'
-    + '<th style="text-align:left">Договорённость</th>'
-    + '<th style="text-align:right;width:110px">Статус</th>'
-    + '<th style="width:48px"></th>'
-    + '</tr></thead><tbody>'
-    + rows.map(function(l){
-        var h = l._h;
-        var obj = l.objection || '';
-        var mgrFull = l.manager || '';
-        var mgrShort = mgrFull.split(' ').slice(0,2).join(' ');
-        var ac = avClsMap[l.manager] || 'c1';
-        var course = [l.practice, l.age].filter(Boolean).join(' · ');
-        var daysBadge = h.priority > 0
-          ? ' <span style="font-size:10px;color:var(--muted)">' + h.days + ' ' + dayWord(h.days) + '</span>'
-          : '';
-        var pCls = pillCls[h.priority] || 'b';
-        return '<tr>'
-          + '<td style="padding:9px 6px;vertical-align:middle">'
-          +   '<div style="display:flex;align-items:center;gap:8px">'
-          +     '<div class="av-chip emoji ' + ac + '" style="width:28px;height:28px;border-radius:7px">' + mgrEmoji(mgrFull) + '</div>'
-          +     '<div><div style="font-weight:600;font-size:12.5px;color:var(--text)">' + esc(mgrShort) + '</div>'
-          +     (course ? '<div style="font-size:10px;color:var(--muted);margin-top:1px">' + course + '</div>' : '')
-          +     '</div>'
-          +   '</div>'
-          +   (obj ? '<span class="pill" style="margin-top:5px;display:inline-flex">' + obj + '</span>' : '')
-          + '</td>'
-          + '<td style="padding:9px 6px;vertical-align:middle">' + agrBtn(l.agreement) + '</td>'
-          + '<td style="text-align:right;padding:9px 6px;vertical-align:middle;white-space:nowrap">'
-          +   '<span class="pill ' + pCls + '">' + h.label + '</span>'
-          +   daysBadge
-          + '</td>'
-          + '<td style="text-align:right;padding:9px 6px;vertical-align:middle">'
-          +   (l.crm ? '<a href="' + l.crm + '" target="_blank" class="crml">AMO ↗</a>' : '')
-          + '</td>'
-          + '</tr>';
-      }).join('')
-    + '</tbody></table>';
-}
-
-function setHotMgr(mgr, btn) {
-  hotMgr = mgr;
-  document.querySelectorAll('#hot-mgr-filter .dfbtn').forEach(function(b){ b.classList.remove('active'); });
-  btn.classList.add('active');
-  renderHot();
-}
-
-function buildHotMgrFilter() {
-  var wrap = document.getElementById('hot-mgr-filter');
-  if (!wrap) return;
-  wrap.innerHTML = '<span style="font-size:11px;color:var(--muted);font-weight:600">Менеджер:</span>'
-    + '<button class="dfbtn' + (hotMgr===''?' active':'') + '" onclick="setHotMgr(\'\',this)">Все</button>'
-    + managers.map(function(m){
-        return '<button class="dfbtn' + (hotMgr===m?' active':'') + '" onclick="setHotMgr(\'' + m.replace(/'/g,"\\'") + '\',this)">' + m.split(' ')[0] + '</button>';
-      }).join('');
-}
-
 var SKINS=['dark','paper','light'];
 var SKIN_LABELS={dark:'Тёмная',paper:'Бумага',light:'Светлая'};
 var SKIN_ICOS={dark:'🌙',paper:'📄',light:'☀️'};
