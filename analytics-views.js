@@ -1,4 +1,4 @@
-/* Independent event views. Source rows are reports, never synthetic lessons. */
+/* Event views with traceable MK reports from lesson and payment forms. */
 'use strict';
 
 function avText(id, text) { var el=document.getElementById(id); if(el) el.textContent=text; }
@@ -51,22 +51,22 @@ function avBars(key,id,entries,ready,label,note){avChart(key,id,entries.map(func
 function avLessonRegister(rows) {
   return avTable(['Дата МК','Менеджер','Время','Практика','Запись / договорённость','CRM','Источник'],rows.slice().sort(function(a,b){return b.day.localeCompare(a.day)||b.row-a.row;}).map(function(r){
     var recording=safeUrl(r.rec);
-    return [esc(avDate(r.day)),esc(avName(r.manager)),esc(r.time||'—'),esc(r.practice||'—'),(recording?'<a href="'+recording+'" target="_blank" rel="noopener noreferrer">Запись ↗</a>':'Нет записи')+'<br>'+esc(r.agreement||'Нет договорённости'),avCrm(r),avOrigin(r)];
+    return [esc(avDate(r.day))+(r.dateBasis==='payment'?'<br><span class="ops-note">По дате первичной оплаты</span>':''),esc(avName(r.manager)),esc(r.time||'—'),esc(r.practice||'—'),(recording?'<a href="'+recording+'" target="_blank" rel="noopener noreferrer">Запись ↗</a>':'Нет записи')+'<br>'+esc(r.agreement||'Нет договорённости'),avCrm(r),avOrigin(r)];
   }));
 }
 function avPaymentRegister(rows) {
-  return avNote(avPaymentCaveat(rows))+avTable(['Дата оплаты','Менеджер оплаты','Тип','Сумма','Связь с МК','CRM','Источник'],rows.slice().sort(function(a,b){return b.day.localeCompare(a.day)||b.row-a.row;}).map(function(r){return [esc(avDate(r.day)),esc(avName(r.manager)),esc(r.renewal?'Продление':r.paytype||'Первичная'),esc(avMoney(r.rev)),!analyticsReady(['form'])?'Источник МК недоступен':r.lessonRow?'Отчёт МК · строка '+r.lessonRow:'Нет однозначной связи',avCrm(r),avOrigin(r)];}));
+  return avNote(avPaymentCaveat(rows))+avTable(['Дата оплаты','Менеджер оплаты','Тип','Сумма','Связь с МК','CRM','Источник'],rows.slice().sort(function(a,b){return b.day.localeCompare(a.day)||b.row-a.row;}).map(function(r){return [esc(avDate(r.day)),esc(avName(r.manager)),esc(r.renewal?'Продление':r.paytype||'Первичная'),esc(avMoney(r.rev)),!analyticsReady(['form','payments'])?'Источник МК недоступен':r.lessonRow?'<a href="'+sourceRowLink(r.lessonSource,r.lessonRow)+'" target="_blank" rel="noopener">'+(r.lessonSource==='payments'?'МК из оплаты':'Отчёт МК')+' · строка '+r.lessonRow+'</a>':'Нет однозначной связи',avCrm(r),avOrigin(r)];}));
 }
 function avRegisters(selection, lessonReady, paymentReady) {
-  return '<details open><summary style="cursor:pointer;padding:10px 0;font-weight:600">Отчёты о МК'+(lessonReady?' · '+selection.lessons.length:'')+'</summary>'+(lessonReady?avLessonRegister(selection.lessons):avUnavailable())+'</details><details><summary style="cursor:pointer;padding:10px 0;font-weight:600">Оплаты'+(paymentReady?' · '+selection.payments.length:'')+'</summary>'+(paymentReady?avPaymentRegister(selection.payments):avUnavailable())+'</details>';
+  return '<details open><summary style="cursor:pointer;padding:10px 0;font-weight:600">Проведённые МК'+(lessonReady?' · '+selection.lessons.length:'')+'</summary>'+(lessonReady?avLessonRegister(selection.lessons):avUnavailable())+'</details><details><summary style="cursor:pointer;padding:10px 0;font-weight:600">Оплаты'+(paymentReady?' · '+selection.payments.length:'')+'</summary>'+(paymentReady?avPaymentRegister(selection.payments):avUnavailable())+'</details>';
 }
 function avFacts(t, ready) {
   var items=[['МК по отчётам',ready.lesson?t.mk:null],['Оплаты по отчётам',ready.payment?t.paid:null],['Отчёты об отменах',ready.cancel?t.cancelled:null]];
-  return '<div class="ms4">'+items.map(function(item){return '<div class="kpi"><div class="kl">'+esc(item[0])+'</div><div class="kv">'+avNumber(item[1])+'</div></div>';}).join('')+'</div>'+avNote('Это независимые события периода. МК — по дате занятия, оплаты — по дате оплаты, отмены — по дате отправки отчёта.');
+  return '<div class="ms4">'+items.map(function(item){return '<div class="kpi"><div class="kl">'+esc(item[0])+'</div><div class="kv">'+avNumber(item[1])+'</div></div>';}).join('')+'</div>'+avNote('МК — отчёты об уроках и первичные оплаты без отдельного отчёта. Совпадения по сделке учтены один раз. Дата МК — из отчёта об уроке, а при его отсутствии — дата первой первичной оплаты. Продления не добавляют МК.');
 }
 
 function renderAnalytics() {
-  var selection=analyticsSelection(), q=analyticsQuery(), ready={lesson:analyticsReady(['form']),payment:analyticsReady(['payments']),cancel:analyticsReady(['cancels'])};
+  var selection=analyticsSelection(), q=analyticsQuery(), ready={lesson:analyticsReady(['form','payments']),payment:analyticsReady(['payments']),cancel:analyticsReady(['cancels'])};
   var header=document.querySelector('#page-analytics .page-eyebrow'), sub=document.querySelector('#page-analytics .page-sub');
   if(header) header.textContent=avPeriod(q);
   if(sub) sub.textContent='Проведённые МК и оплаты за выбранный период · '+(q.includeRenewals?'с продлениями':'без продлений');
@@ -76,7 +76,7 @@ function renderAnalytics() {
   avBars('timeSlot','timeSlotC',times,ready.lesson,'МК');
   avTitle('payDelayC','Связь первичных оплат с МК');
   var primary=selection.payments.filter(function(r){return !r.renewal && r.positive;});
-  avBars('payDelay','payDelayC',[['Однозначная связь',primary.filter(function(r){return !!r.lessonRow;}).length],['Без однозначной связи',primary.filter(function(r){return !r.lessonRow;}).length]],ready.payment && ready.lesson,'Оплат','Связь только по точному CRM ID и единственному отчёту о МК. Отсутствие связи не означает отсутствие занятия.');
+  avBars('payDelay','payDelayC',[['Однозначная связь',primary.filter(function(r){return !!r.lessonRow;}).length],['Без однозначной связи',primary.filter(function(r){return !r.lessonRow;}).length]],ready.payment && ready.lesson,'Оплат','МК подтверждается отчётом об уроке или первичной оплатой. Повторы между источниками объединены по точному CRM ID; при нескольких отчётах об уроке связь остаётся неоднозначной.');
   avTitle('ageC','Возраст в отчётах о МК');avBars('age','ageC',avCount(selection.lessons,'age'),ready.lesson,'МК');
   avBars('paytype','paytypeC',avCount(selection.payments,'paytype'),ready.payment,'Отчётов об оплатах');
   avBars('obj','objC',avCount(selection.lessons,'objection'),ready.lesson,'МК');
@@ -91,7 +91,7 @@ function renderAnalytics() {
 }
 
 function renderCancels() {
-  var selection=analyticsSelection(), ready=analyticsReady(['cancels']), lessonReady=analyticsReady(['form']), t=selection.totals;
+  var selection=analyticsSelection(), ready=analyticsReady(['cancels']), lessonReady=analyticsReady(['form','payments']), t=selection.totals;
   avHtml('cancels-kpi','<div class="ms4">'+[['МК по отчётам',lessonReady?t.mk:null],['Отчёты об отменах',ready?t.cancelled:null],['МК / (МК + отмены)',ready && lessonReady?t.attendance:null]].map(function(item,i){return '<div class="kpi"><div class="kl">'+esc(item[0])+'</div><div class="kv">'+avNumber(item[1],i===2?'%':'')+'</div></div>';}).join('')+'</div>'+avNote('Оценка по отчётам, не точная доходимость записанных клиентов. Отмены относятся к дате отправки отчёта; МК — к дате занятия. Историческая полнота записей и переносы не подтверждены.'));
   var daily=SalesAnalytics.daily(analyticsModel,analyticsQuery());
   avTitle('arrivalDayC','МК и отчёты об отменах по дням');
@@ -115,7 +115,7 @@ function weekConv(name,weeksAgo) {
   return SalesAnalytics.select(analyticsModel,q).totals.conv;
 }
 function renderManagers() {
-  var q=analyticsQuery(), selection=analyticsSelection(), lessonReady=analyticsReady(['form']), payReady=analyticsReady(['payments']), names=new Set();
+  var q=analyticsQuery(), selection=analyticsSelection(), lessonReady=analyticsReady(['form','payments']), payReady=analyticsReady(['payments']), names=new Set();
   if(lessonReady)selection.lessons.forEach(function(r){names.add(r.manager||'__unassigned__');});
   if(payReady)selection.payments.forEach(function(r){names.add(r.manager||'__unassigned__');});
   if(analyticsReady(['cancels']))selection.cancels.forEach(function(r){names.add(r.manager||'__unassigned__');});
@@ -129,7 +129,7 @@ function renderManagers() {
   if(currentDetailManager)avRenderManagerDetail(currentDetailManager);
 }
 function avRenderManagerDetail(name) {
-  var selection=analyticsSelection(name), t=selection.totals, lessonReady=analyticsReady(['form']), payReady=analyticsReady(['payments']);
+  var selection=analyticsSelection(name), t=selection.totals, lessonReady=analyticsReady(['form','payments']), payReady=analyticsReady(['payments']);
   avText('mname',name==='__unassigned__'?'Не указан':name);avText('mav',mgrEmoji(name));avText('msub',avPeriod(analyticsQuery(name))+' · деньги по дате оплаты, МК по дате занятия');
   var cards=[['МК по отчётам',avNumber(lessonReady?t.mk:null)],['Оплаты',avNumber(payReady?t.paid:null)],['Выручка',avMoney(payReady?t.rev:null)],['Оплаты / МК',avNumber(lessonReady&&payReady?t.conv:null,'%')],['Средний платёж',avMoney(payReady?t.avg:null)],['Выручка / МК',avMoney(lessonReady&&payReady?t.rpm:null)],['Первичная выручка',avMoney(payReady?t.primaryRev:null)],['Выручка продлений',avMoney(payReady?t.renewalRev:null)]];
   avHtml('mstats',cards.map(function(item){return '<div class="kpi"><div class="kl">'+esc(item[0])+'</div><div class="kv" style="font-size:17px">'+esc(item[1])+'</div></div>';}).join(''));

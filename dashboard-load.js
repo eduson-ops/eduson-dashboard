@@ -12,7 +12,7 @@ async function loadAllData(){
     if(!managers.length && !analyticsReady(['managers']))managers=FALLBACK_MGRS.slice();
     window.__canonicalMgr=function(name){return OpsControl.matchManager(name,analyticsModel.managers.map(function(row){return row.name;}),OPS_SLOT_MANAGERS).manager;};
     lessons=analyticsModel.lessons;renewals=analyticsModel.payments.filter(function(row){return row.renewal;});cancelsList=analyticsModel.cancels;
-    actualLessonReports=lessons;actualCancelReports=cancelsList;
+    actualLessonReports=analyticsModel.lessonReports;actualCancelReports=cancelsList;
     opsSlotData=OpsControl.parseSlots(raw.slots,managers,OPS_SLOT_MANAGERS);
     allSlots=opsSlotData.rows.map(function(row){return {date:row.date,time:row.time,who:row.manager,status:'wait'};});
     var day=SalesAnalytics.period('today').from,next=new Date(day+'T00:00:00Z');next.setUTCDate(next.getUTCDate()+1);

@@ -21,9 +21,9 @@ test('all payments remain independent and lesson event date never moves',()=>{
  assert.equal(core.select(model,{from:'2026-09-15',to:'2026-09-15'}).totals.mk,0);
  assert.equal(model.payments[0].lessonRow,2);
 });
-test('unmatched, missing and ambiguous CRM never create or choose a lesson',()=>{
+test('ambiguous reports are preserved while unmatched paid reports add their MK',()=>{
  const model=core.buildModel(raw([lesson(),lesson()],[pay('100'),pay('200',''),pay('300','99999')]));
- assert.equal(model.lessons.length,2); assert.ok(model.payments.every(p=>p.lessonRow===null));
+ assert.equal(model.lessons.length,4); assert.equal(model.payments[0].lessonRow,null); assert.equal(model.payments[1].lessonSource,'payments'); assert.equal(model.payments[2].lessonSource,'payments');
  assert.equal(core.select(model,query).totals.rev,600);
  assert.equal(core.extractCrmId('https://crm.test/leads/detail/12345?utm=99999'),'12345');
  assert.equal(core.extractCrmId('https://crm.test/foo?phone=1234567'),'');
@@ -62,7 +62,7 @@ test('strict dates, no payment timestamp fallback, Moscow Sunday and offsets',()
  assert.equal(core.select(core.buildModel(raw([],[pay('100','12345','')])),query).totals.rev,0);
 });
 test('empty denominators are null and cancellation attendance is report proxy',()=>{
- const model=core.buildModel(raw([],[pay()],[['14.09.2026 10:00','','reason','','','','','Иванов А.']]));
+ const model=core.buildModel(raw([],[pay('100','12345','15.09.2026','Продление')],[['14.09.2026 10:00','','reason','','','','','Иванов А.']]));
  const t=core.select(model,query).totals;
  assert.equal(t.conv,null);assert.equal(t.rpm,null);assert.equal(t.cancelled,1);assert.equal(t.attendance,0);
  assert.equal(core.select(core.buildModel(raw()),query).totals.avg,null);
