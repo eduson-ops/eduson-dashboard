@@ -183,6 +183,7 @@ async function fetchSource(response, previous) {
   let state = previous;
   const runtime = vm.createContext({
     URLS: { form: 'https://example.test/source' },
+    sourceSnapshots: {},
     fetch: async () => response,
     AbortController, setTimeout, clearTimeout,
     console: { log() {}, warn() {} },
@@ -218,7 +219,8 @@ function loadRuntime(raw, fetcher) {
   const end = html.indexOf('// OPERATIONAL CONTROL', start);
   const runtime = vm.createContext({
     OpsControl: ops, fetchCSV: fetcher || (async key => raw[key]), Date,
-    dashboardLoadPromise: null, opsSourceStates: {}, __lastLoadAt: 0,
+    dashboardLoadPromise: null, opsSourceStates: Object.fromEntries(Object.keys(raw).map(key => [key, { state: 'success' }])), __lastLoadAt: 0,
+    scheduleData: {},
     FALLBACK_MGRS: ['A.'], OPS_SLOT_MANAGERS: {},
     cc: value => value == null ? '' : String(value).trim(),
     extractCrmId: value => value.split('/').at(-1),
@@ -229,13 +231,18 @@ function loadRuntime(raw, fetcher) {
     document: { getElementById: () => ({ classList: { add() {}, remove() {} } }) },
     ...Object.fromEntries(['renderOperations', 'renderMain', 'buildHotMgrFilter', 'renderHot', 'buildAnalyticsMgrFilter', 'renderAnalytics', 'renderManagers', 'renderSchedule', 'renderRetention'].map(name => [name, () => {}])),
   });
+  for (const file of ['analytics-core.js', 'dashboard-analytics.js', 'dashboard-load.js']) {
+    vm.runInContext(fs.readFileSync(new URL('../' + file, import.meta.url), 'utf8'), runtime);
+  }
+  runtime.renderAnalyticsAll = () => {};
+  runtime.renderMain = () => {};
   vm.runInContext(html.slice(start, end), runtime);
   const safeStart = html.indexOf('function safeReload(');
   vm.runInContext(html.slice(safeStart, html.indexOf('setInterval(', safeStart)), runtime);
   return runtime;
 }
 
-test('load integration keeps submitted reports separate from payment mutation and synthetic lessons', async () => {
+test('load integration preserves actual lessons and keeps unmatched payments independent', async () => {
   const raw = {
     form: [[], ['14.09.2026 12:00', 'A.', '14.09.2026', '11:00', 'https://crm.test/detail/123456', '', 'Original course']],
     payments: [[], ['14.09.2026', 'A.', 'https://crm.test/detail/123456', '14.09.2026', 'Paid course', 'Pack', 'Payment', '100'], ['14.09.2026', 'A.', 'https://crm.test/detail/234567', '14.09.2026', 'Course', 'Pack', 'Payment', '200']],
@@ -244,12 +251,13 @@ test('load integration keeps submitted reports separate from payment mutation an
   const runtime = loadRuntime(raw);
   await runtime.loadAll();
   assert.equal(runtime.actualLessonReports.length, 1);
-  assert.equal(runtime.actualLessonReports[0].paid, false);
   assert.equal(runtime.actualLessonReports[0].practice, 'Original course');
-  assert.equal(runtime.lessons.length, 2);
-  assert.equal(runtime.lessons[0].paid, true);
-  assert.equal(runtime.lessons[0].practice, 'Paid course');
-  assert.equal(runtime.lessons[1].scenario, 'pay_on_lesson');
+  assert.equal(runtime.lessons.length, 1);
+  assert.equal(runtime.lessons[0].practice, 'Original course');
+  assert.equal(runtime.analyticsModel.payments.length, 2);
+  assert.equal(runtime.analyticsModel.payments[0].practice, 'Paid course');
+  assert.equal(runtime.analyticsModel.payments[1].lessonRow, null);
+  assert.equal(raw.form[1][6], 'Original course');
   assert.equal(runtime.opsDataReady, true);
 });
 
@@ -293,8 +301,11 @@ test('nonempty raw rows with missing managers or timestamps remain visible to op
   await runtime.loadAll();
   assert.equal(runtime.actualLessonReports.length, 2);
   assert.equal(runtime.actualCancelReports.length, 1);
-  assert.equal(runtime.lessons.length, 0, 'legacy KPI inclusion remains unchanged');
-  assert.equal(runtime.cancelsList.length, 0, 'legacy analytics inclusion remains unchanged');
+  assert.equal(runtime.lessons.length, 2, 'nonempty source facts are retained for diagnostics');
+  assert.equal(runtime.cancelsList.length, 1, 'invalid dates stay in the source model');
+  const selected = runtime.SalesAnalytics.select(runtime.analyticsModel, { from: '2026-09-14', to: '2026-09-14' });
+  assert.equal(selected.lessons.length, 1, 'valid unassigned lessons count for the team');
+  assert.equal(selected.cancels.length, 0, 'invalid event dates do not enter a period');
   const view = ops.buildView({ date: '2026-09-14', sources, reports: runtime.actualLessonReports, cancels: runtime.actualCancelReports });
   assert.equal(view.reports.length, 1);
   assert.ok(view.reports[0].missing.includes('Менеджер'));
@@ -303,7 +314,7 @@ test('nonempty raw rows with missing managers or timestamps remain visible to op
   assert.equal(view.missingReportManagers, 2);
 });
 
-test('operational reports, cancellations and slots share strict manager matching without changing legacy KPIs', async () => {
+test('operational and analytical facts share strict manager matching', async () => {
   const raw = {
     managers: [[], ['Иванов А.', 'да'], ['Иванов Б.', 'да'], ['Петров Д.', 'да'], ['Петров Д.С.', 'да']],
     form: [[], ['14.09.2026 12:00', 'Иванов Борис', '14.09.2026', '11:00', 'https://crm.test/detail/123456'], ['14.09.2026 13:00', 'Петров Дмитрий', '14.09.2026', '12:00', 'https://crm.test/detail/234567']],
@@ -320,8 +331,8 @@ test('operational reports, cancellations and slots share strict manager matching
   assert.equal(runtime.opsSlotData.rows[1].knownManager, false);
   assert.equal(runtime.actualLessonReports[1].manager, 'Петров Дмитрий');
   assert.equal(runtime.actualCancelReports[1].manager, 'Петров Дмитрий');
-  assert.equal(runtime.lessons[0].manager, 'Иванов А.', 'legacy KPI normalization is intentionally untouched');
-  assert.equal(runtime.cancelsList[0].manager, 'Иванов А.', 'legacy analytics normalization is intentionally untouched');
+  assert.equal(runtime.lessons[0].manager, 'Иванов Б.');
+  assert.equal(runtime.cancelsList[0].manager, 'Иванов Б.');
   const view = ops.buildView({ date: '2026-09-14', manager: 'Иванов Б.', sources, slots: runtime.opsSlotData.rows, reports: runtime.actualLessonReports, cancels: runtime.actualCancelReports });
   assert.equal(view.slots.length, 1);
   assert.equal(view.reports.length, 1);
