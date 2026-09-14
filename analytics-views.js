@@ -45,7 +45,10 @@ function avChart(key, id, labels, datasets, ready, note) {
   var c=gc(), hasRatio=datasets.some(function(d){return d.yAxisID==='ratio';});
   var scales={x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{beginAtZero:true,ticks:{color:c.tick,font:{size:10}},grid:{color:c.grid}}};
   if(hasRatio) scales.ratio={position:'right',beginAtZero:true,ticks:{color:c.tick,callback:function(v){return v+'%';}},grid:{display:false}};
-  charts[key]=new Chart(canvas,{type:'bar',data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:datasets.length>1,labels:{color:c.tick,font:{size:10}}}},scales:scales}});
+  if(datasets.every(function(d){return (d.label||'').includes('₽');}))scales.y.ticks.callback=function(value){return analyticsMetric(value,' ₽');};
+  charts[key]=new Chart(canvas,{type:'bar',data:{labels:labels,datasets:datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:datasets.length>1,labels:{color:c.tick,font:{size:10}}},tooltip:{callbacks:{label:function(context){
+    return (context.dataset.label||'').includes('₽')?analyticsMoneyLabel(context):(context.dataset.label||'')+': '+analyticsMetric(context.parsed.y,context.dataset.yAxisID==='ratio'?'%':'');
+  }}}},scales:scales}});
 }
 function avBars(key,id,entries,ready,label,note){avChart(key,id,entries.map(function(x){return x[0];}),[{label:label||'Записей',data:entries.map(function(x){return x[1];}),backgroundColor:'#60a5fa88',borderRadius:3}],ready,note);}
 function avLessonRegister(rows) {
