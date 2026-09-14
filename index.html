@@ -13,6 +13,7 @@
 <script src="./dashboard-load.js?v=paid-mk-20260915"></script>
 <script src="./analytics-views.js?v=colors-rubles-20260915"></script>
 <script src="./schedule-verification.js?v=analytics-20260915"></script>
+<script src="./schedule-overview.js?v=overview-20260915"></script>
 
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -432,11 +433,32 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .hm-week{display:flex;gap:4px;margin-bottom:12px}
 .wbtn{font-size:11px;font-weight:600;padding:4px 14px;border-radius:var(--r6);border:1px solid var(--border-s);background:transparent;color:var(--muted);cursor:pointer;transition:all var(--dur) var(--ease);font-family:var(--sans)}
 .wbtn.active{background:var(--y);color:#000;border-color:var(--y)}
-.hm-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:12px}
-.hms-card{background:var(--bg2);border-radius:var(--r10);padding:10px 12px;border:1px solid var(--border)}
-.hms-name{font-size:11px;color:var(--sub);margin-bottom:4px}
-.hms-val{font-size:17px;font-weight:700;font-family:var(--mono);color:var(--y)}
-.hms-sub{font-size:10px;color:var(--muted)}
+.schedule-overview{margin-bottom:14px;min-width:0}
+.so-head{display:flex;justify-content:space-between;align-items:start;gap:16px;flex-wrap:wrap}
+.so-head h2{font-size:15px;color:var(--text);font-weight:600;margin:0 0 5px}
+.so-period{font-size:11px;color:var(--muted);line-height:1.5}
+.so-totals{display:flex;gap:18px;flex-wrap:wrap;color:var(--sub);font-size:11px}
+.so-totals strong{display:block;font:600 20px/1.5 var(--mono);color:var(--text)}
+.so-totals .so-zero strong{color:var(--r)}
+.so-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0 10px}
+.so-tools label{flex:1;min-width:150px;max-width:320px}
+.so-search{width:100%;min-height:36px;padding:8px 11px;background:var(--bg3);border:1px solid var(--border-s);border-radius:var(--r6);font:12px var(--sans);color:var(--text)}
+.so-tools .dfbtn{min-height:36px}
+.so-tools .dfbtn[aria-pressed="true"]{color:var(--r);background:var(--r-bg);border-color:var(--r-bd)}
+.so-results{font-size:11px;color:var(--muted);margin-left:auto}
+.so-scroll{max-height:330px;overflow:auto;scrollbar-gutter:stable;border-top:1px solid var(--border)}
+.so-table{width:100%;border-collapse:collapse;table-layout:fixed}
+.so-table th,.so-table td{padding:10px 8px;text-align:left;border-bottom:1px solid var(--border);font-size:12px;color:var(--sub)}
+.so-table th{position:sticky;top:0;z-index:1;background:var(--bg2);font-size:10px;font-weight:500;color:var(--muted)}
+.so-table th:first-child{width:48%}
+.so-table th:not(:first-child),.so-table td:not(:first-child){text-align:right}
+.so-table td:first-child{color:var(--text);font-weight:500;overflow-wrap:anywhere}
+.so-table td:nth-child(2){font-family:var(--mono);color:var(--g);font-weight:600}
+.so-table tr.so-empty td:nth-child(2){color:var(--r)}
+.so-table .so-no-results{text-align:center!important;padding:24px 12px;color:var(--muted)!important;font-weight:400!important}
+.schedule-overview :is(input,button,.so-scroll):focus-visible{outline:2px solid var(--y);outline-offset:2px}
+#sched-view>.hm-wrap{max-height:530px;overflow:auto}
+@media(max-width:600px){.so-head{gap:12px}.so-totals{width:100%;justify-content:space-between;gap:8px}.so-tools label{max-width:none}.so-results{width:100%;margin:0}.so-table th:first-child{width:43%}.so-table th,.so-table td{padding:9px 5px;font-size:11px}}
 
 /* ── EMPTY STATE ── */
 .empty{text-align:center;padding:30px 20px;color:var(--muted)}
@@ -1076,7 +1098,6 @@ html[data-season="season"] .season-strip{display:flex}
   /* heatmap: scroll hint */
   .hm-wrap{position:relative;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
   .hm{min-width:780px}
-  .hm-summary{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:520px){
   .kpis{grid-template-columns:1fr 1fr}
@@ -1392,7 +1413,6 @@ window.updatePersonaFooter=updatePersonaFooter;
 
 
 
-    <details class="panel analytics-quality" id="analytics-quality"></details>
     <div class="panel ranking-panel">
       <div class="pt">Рейтинг команды
         <div style="display:flex;align-items:center;gap:8px">
@@ -1456,11 +1476,7 @@ window.updatePersonaFooter=updatePersonaFooter;
     <p class="ops-note">По дате отправки отчёта об отмене. Повторную запись можно проверить в CRM.</p>
     <div id="ops-cancels"></div>
   </section>
-  <section class="panel ops-block" aria-labelledby="ops-sources-title">
-    <div class="pt" id="ops-sources-title">Загрузка источников</div>
-    <p class="ops-note">Последнее успешное чтение таблиц на этой странице, время МСК. Это время загрузки, а не изменения исходных данных.</p>
-    <div class="ops-sources" id="ops-sources" aria-live="polite"></div>
-  </section>
+  <details class="panel analytics-quality" id="analytics-quality"></details>
 </div>
 
 <!-- ══ АНАЛИТИКА ══ -->
@@ -1577,7 +1593,7 @@ window.updatePersonaFooter=updatePersonaFooter;
   <div class="page-hdr">
     <div class="page-eyebrow">Операционка · Команда</div>
     <div class="page-title">Расписание</div>
-    <div class="page-sub">Тепловая карта слотов на 14 дней вперёд</div>
+    <div class="page-sub">Доступность сотрудников и слоты на ближайшие две недели</div>
   </div>
 
   <!-- TABS: view / edit -->
@@ -1601,8 +1617,20 @@ window.updatePersonaFooter=updatePersonaFooter;
       <div class="hm-leg-item"><div class="hm-leg-dot" style="background:rgba(245,158,11,0.3)"></div>14:00–16:00 (средний спрос)</div>
       <div class="hm-leg-item"><div class="hm-leg-dot" style="background:rgba(62,207,142,0.3)"></div>17:00–21:00 (прайм тайм)</div>
     </div>
-    <div id="hm-total-banner" style="margin-bottom:10px"></div>
-    <div class="hm-summary" id="hm-summary"></div>
+    <section class="panel schedule-overview" aria-labelledby="hm-overview-title">
+      <div class="so-head">
+        <div><h2 id="hm-overview-title">Доступность команды</h2><p class="so-period" id="hm-overview-period"></p></div>
+        <div class="so-totals" id="hm-total-banner" aria-live="polite"></div>
+      </div>
+      <div class="so-tools">
+        <label><input type="search" class="so-search" id="hm-search" aria-label="Найти сотрудника в расписании" placeholder="Найти сотрудника" oninput="setHmSearch(this.value)"></label>
+        <button class="dfbtn" id="hm-empty-filter" type="button" aria-pressed="false" onclick="toggleHmEmpty()">Нет открытых часов</button>
+        <span class="so-results" id="hm-results" role="status"></span>
+      </div>
+      <div class="so-scroll" tabindex="0" role="region" aria-label="Открытые часы по сотрудникам">
+        <table class="so-table"><thead><tr><th scope="col">Сотрудник</th><th scope="col">Открыто часов</th><th scope="col">Дней с часами</th></tr></thead><tbody id="hm-summary"></tbody></table>
+      </div>
+    </section>
     <div class="hm-wrap"><table class="hm" id="hm-table"></table></div>
   </div>
 
@@ -2141,18 +2169,7 @@ function recordOpsSource(key,state,details){
 }
 
 function renderOpsSources(){
-  var el=document.getElementById('ops-sources');if(!el)return;
-  el.innerHTML=Object.keys(OPS_SOURCE_NAMES).map(function(key){
-    var source=opsSourceStates[key]||{},label='Ещё не загружен',color='var(--sub)';
-    if(source.state==='loading')label='Загрузка…';
-    if(source.state==='success'){label='Загружен';color='var(--g)';}
-    if(source.state==='error'){label='Ошибка';color='var(--r)';}
-    var when=source.lastSuccessAt?new Date(source.lastSuccessAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Успешной загрузки ещё нет';
-    return '<div class="ops-source"><div>'+esc(OPS_SOURCE_NAMES[key])+'<small>'+esc(when)+'</small>'
-      +(source.state==='error'?'<small class="ops-warning">'+esc(source.message||'Источник недоступен')+'</small>':'')
-      +'</div><div class="ops-source-state" style="color:'+color+'">'+label
-      +(source.state==='success'?'<small>Строк: '+source.rowCount+'</small>':'')+'</div></div>';
-  }).join('');
+  if(typeof renderDataHealth==='function')renderDataHealth();
 }
 
 function setOpsDay(mode){
@@ -2442,49 +2459,32 @@ function showCopyToast(name, empty) {
 
 // ─── VIEW: Heatmap ───
 var selectedHmDay = null;
+var hmSearch = '', hmEmptyOnly = false;
+function scheduleManagerNames(){return (personalMgr?[personalMgr]:managers).filter(function(name){return !isMvp(name);});}
+function setHmSearch(value){hmSearch=value||'';renderSchedule();}
+function toggleHmEmpty(){hmEmptyOnly=!hmEmptyOnly;renderSchedule();}
 
 function renderSchedule() {
-  if(!analyticsReady(['schedule'])){
-    document.getElementById('hm-summary').innerHTML='<div class="analytics-note">Источник расписания недоступен. Обновите данные; сохранённое расписание не изменено.</div>';
-    document.getElementById('hm-table').innerHTML='';document.getElementById('hm-total-banner').innerHTML='';return;
+  var ready=analyticsReady(['schedule','managers']);
+  var input=document.getElementById('hm-search'),emptyButton=document.getElementById('hm-empty-filter');
+  input.disabled=!ready;emptyButton.disabled=!ready;
+  if(input.value!==hmSearch)input.value=hmSearch;
+  emptyButton.setAttribute('aria-pressed',String(hmEmptyOnly));
+  document.getElementById('hm-overview-title').textContent=personalMgr?'Моя доступность':'Доступность команды';
+  if(!ready){
+    document.getElementById('hm-summary').innerHTML='<tr><td colspan="3" class="so-no-results">Источник расписания или список сотрудников недоступен. Обновите данные; сохранённое расписание не изменено.</td></tr>';
+    document.getElementById('hm-table').innerHTML='';document.getElementById('hm-total-banner').innerHTML='';
+    document.getElementById('hm-results').textContent='';document.getElementById('hm-overview-period').textContent='';return;
   }
-  var scheduleManagers=personalMgr?[personalMgr]:managers;
-  var days=get14Days(hmWeek);
-  var now=new Date();
-  var todayStr=fmtDate(now);
-
-  // Summary — count only slots within the visible 7-day window
-  var visibleDates=new Set(days.map(dateStr));
-  var grandTotal=0;
-  var emptyMgrs=[];
-  var summaryHtml=scheduleManagers.map(m=>{
-    var total=0;
-    if(scheduleData[m])Object.entries(scheduleData[m]).forEach(([ds,dSlots])=>{
-      if(visibleDates.has(ds))total+=Object.keys(dSlots).length;
-    });
-    grandTotal+=total;
-    if(total===0)emptyMgrs.push(m);
-    var warnStyle=total===0?'background:var(--r-bg);border-color:var(--r-bd)':'';
-    var valColor=total===0?'color:var(--r)':'';
-    return`<div class="hms-card" style="${warnStyle}"><div class="hms-name">💼 ${m}</div><div class="hms-val" style="${valColor}">${total}</div><div class="hms-sub">${total===0?'нет открытых часов':'слотов на нед '+(hmWeek+1)}</div></div>`;
-  }).join('');
-  document.getElementById('hm-summary').innerHTML=summaryHtml;
-
-  // Total hours banner
-  var bannerEl=document.getElementById('hm-total-banner');
-  if(bannerEl){
-    bannerEl.innerHTML=`<div style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,rgba(245,200,66,0.1),rgba(62,207,142,0.06));border:1px solid var(--y-bd);border-radius:var(--r10);padding:14px 18px">
-      <div style="flex:1">
-        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Итого слотов на неделю ${hmWeek+1} — выбранные менеджеры</div>
-        <div style="display:flex;align-items:baseline;gap:8px">
-          <span style="font-size:32px;font-weight:700;font-family:var(--mono);color:var(--y)">${grandTotal}</span>
-          <span style="font-size:13px;color:var(--sub);font-weight:500">ч доступности</span>
-        </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">${scheduleManagers.length} менеджеров · доступность не равна числу записей</div>
-      </div>
-      <div style="font-size:42px;opacity:.15">🕐</div>
-    </div>`;
-  }
+  var days=get14Days(hmWeek),now=new Date(),todayStr=fmtDate(now);
+  var overview=ScheduleOverview.build(scheduleManagerNames(),scheduleData,days.map(dateStr));
+  var visibleRows=ScheduleOverview.filter(overview.rows,{query:hmSearch,emptyOnly:hmEmptyOnly});
+  var scheduleManagers=visibleRows.map(function(row){return row.name;});
+  document.getElementById('hm-summary').innerHTML=ScheduleOverview.rowsHtml(visibleRows,overview.managerCount?'По этому фильтру сотрудников нет.':'Нет сотрудников для расписания.');
+  document.getElementById('hm-overview-period').textContent=dateStr(days[0]).slice(0,5)+' — '+dateStr(days[days.length-1]).slice(0,5)+' · доступность, не число записей';
+  document.getElementById('hm-results').textContent='Показано '+visibleRows.length+' из '+overview.managerCount;
+  document.getElementById('hm-total-banner').innerHTML='<span>Сотрудники<strong>'+overview.managerCount+'</strong></span><span>Открыто часов<strong>'+overview.totalHours+'</strong></span><span'+(overview.emptyCount?' class="so-zero"':'')+'>Без часов<strong>'+overview.emptyCount+'</strong></span>';
+  if(!visibleRows.length){document.getElementById('hm-table').innerHTML='';renderAuditLog();return;}
 
   var dn=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
   var html='<thead>';
@@ -2516,7 +2516,7 @@ function renderSchedule() {
   html+='</tr></thead><tbody>';
 
   scheduleManagers.forEach(function(m){
-    html+=`<tr class="hm-row"><td class="mgr-td">💼 ${m}<button class="copy-slots-btn" onclick="copyManagerSlots('${m}')" title="Скопировать слоты">📋</button></td>`;
+    html+=`<tr class="hm-row"><td class="mgr-td">💼 ${esc(m)}<button class="copy-slots-btn" data-copy-manager="${esc(m)}" title="Скопировать слоты">📋</button></td>`;
     days.forEach(function(d){
       var ds=dateStr(d);
       var isSel=ds===selectedHmDay;
@@ -2525,27 +2525,17 @@ function renderSchedule() {
         var hasSlot=scheduleData[m]&&scheduleData[m][ds]&&scheduleData[m][ds][hr];
         var colorCls=hasSlot?`slot-${HOUR_COLORS[hr]}`:'slot-0';
         var dayCls=isSel?' day-col':'';
-        html+=`<td class="${colorCls}${dayCls}" title="${m} · ${ds} · ${h}">${hasSlot?'<span class="slot-num">💼</span>':''}</td>`;
+        html+=`<td class="${colorCls}${dayCls}" title="${esc(m)} · ${ds} · ${h}">${hasSlot?'<span class="slot-num">💼</span>':''}</td>`;
       });
     });
     html+='</tr>';
   });
   html+='</tbody>';
   document.getElementById('hm-table').innerHTML=html;
+  document.getElementById('hm-table').querySelectorAll('[data-copy-manager]').forEach(function(button){button.addEventListener('click',function(){copyManagerSlots(button.dataset.copyManager);});});
   // Render audit log (best-effort; no-op if container absent)
   renderAuditLog();
 
-  // Show empty state if no schedule data at all
-  var totalSlots=0;
-  scheduleManagers.forEach(function(m){
-    if(scheduleData[m])Object.values(scheduleData[m]).forEach(function(d){totalSlots+=Object.keys(d).length;});
-  });
-  if(totalSlots===0){
-    var hmWrap=document.getElementById('hm-summary');
-    if(hmWrap){
-      hmWrap.innerHTML='<div class="sched-empty"><div class="sched-empty-ic">📅</div><div class="sched-empty-title">Расписание ещё не заполнено</div><div class="sched-empty-sub">Менеджеры пока не выставили слоты на эту неделю.<br>Нажми «Заполнить слоты» чтобы добавить расписание.</div><button class="sched-empty-btn" onclick="goToEditSched()">💼 Заполнить слоты →</button></div>';
-    }
-  }
 }
 
 function goToEditSched() {
@@ -2587,7 +2577,7 @@ var mobileEditDay = null; // dateStr of the day shown in mobile editor
 function renderMgrPickerMobile(){
   var el=document.getElementById('mgr-picker-mobile');
   if(!el)return;
-  el.innerHTML=managers.map(function(m){
+  el.innerHTML=managers.filter(function(m){return !isMvp(m);}).map(function(m){
     var active=currentEditMgr===m;
     return '<div class="slot-mgr-chip'+(active?' active':'')+'" onclick="selectEditMgr(\''+esc(m)+'\')">'
       +'<div class="mc-av" style="font-size:15px">'+mgrEmoji(m)+'</div>'
@@ -2679,7 +2669,7 @@ function quickSlot(kind){
 
 function renderMgrPicker(){
   var el=document.getElementById('mgr-picker');
-  el.innerHTML=managers.map(m=>{
+  el.innerHTML=managers.filter(m=>!isMvp(m)).map(m=>{
     var active=currentEditMgr===m;
     return`<div onclick="selectEditMgr('${esc(m)}')" style="display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:8px;border:2px solid ${active?'var(--y)':'var(--border-s)'};background:${active?'var(--y-bg)':'var(--bg3)'};cursor:pointer;transition:all .15s">
       <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:20px;line-height:1">${mgrEmoji(m)}</div>
@@ -2689,6 +2679,7 @@ function renderMgrPicker(){
 }
 
 function selectEditMgr(name){
+  if(isMvp(name))return;
   currentEditMgr=name;
   // Load existing schedule for this manager
   selectedSlots={};
