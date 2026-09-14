@@ -2421,6 +2421,7 @@ function renderOpsSources(){
 function setOpsDay(mode){
   opsDay=mode;
   if(mode==='custom')opsCustomDate=document.getElementById('ops-date').value;
+  else if(mode==='today'||mode==='tomorrow')document.getElementById('ops-date').value=OpsControl.selectedDate(mode,'',new Date());
   renderOperations();
 }
 function setOpsManager(name){opsMgr=name;renderOperations();}
