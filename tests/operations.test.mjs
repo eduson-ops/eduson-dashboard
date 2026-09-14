@@ -218,7 +218,7 @@ function loadRuntime(raw, fetcher) {
   if (html.slice(start - 6, start) === 'async ') start -= 6;
   const end = html.indexOf('// OPERATIONAL CONTROL', start);
   const runtime = vm.createContext({
-    OpsControl: ops, fetchCSV: fetcher || (async key => raw[key]), Date,
+    OpsControl: ops, fetchCSV: fetcher || (async key => raw[key]), Date, URL,
     dashboardLoadPromise: null, opsSourceStates: Object.fromEntries(Object.keys(raw).map(key => [key, { state: 'success' }])), __lastLoadAt: 0,
     scheduleData: {},
     FALLBACK_MGRS: ['A.'], OPS_SLOT_MANAGERS: {},
@@ -242,7 +242,7 @@ function loadRuntime(raw, fetcher) {
   return runtime;
 }
 
-test('load integration preserves actual lessons and keeps unmatched payments independent', async () => {
+test('load integration preserves raw lesson reports and reconciles paid-only MK separately', async () => {
   const raw = {
     form: [[], ['14.09.2026 12:00', 'A.', '14.09.2026', '11:00', 'https://crm.test/detail/123456', '', 'Original course']],
     payments: [[], ['14.09.2026', 'A.', 'https://crm.test/detail/123456', '14.09.2026', 'Paid course', 'Pack', 'Payment', '100'], ['14.09.2026', 'A.', 'https://crm.test/detail/234567', '14.09.2026', 'Course', 'Pack', 'Payment', '200']],
@@ -252,11 +252,12 @@ test('load integration preserves actual lessons and keeps unmatched payments ind
   await runtime.loadAll();
   assert.equal(runtime.actualLessonReports.length, 1);
   assert.equal(runtime.actualLessonReports[0].practice, 'Original course');
-  assert.equal(runtime.lessons.length, 1);
+  assert.equal(runtime.lessons.length, 2);
   assert.equal(runtime.lessons[0].practice, 'Original course');
   assert.equal(runtime.analyticsModel.payments.length, 2);
   assert.equal(runtime.analyticsModel.payments[0].practice, 'Paid course');
-  assert.equal(runtime.analyticsModel.payments[1].lessonRow, null);
+  assert.equal(runtime.analyticsModel.payments[1].lessonRow, 3);
+  assert.equal(runtime.analyticsModel.payments[1].lessonSource, 'payments');
   assert.equal(raw.form[1][6], 'Original course');
   assert.equal(runtime.opsDataReady, true);
 });

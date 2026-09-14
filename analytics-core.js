@@ -92,17 +92,35 @@
     var cancels=parse('cancels',function (entry) {
       var r=entry.cells;return Object.assign(base(entry,'cancels',r[7],r[1],r[0]),{reason:clean(r[2]),is_first:clean(r[3]),contact:clean(r[4]),age:clean(r[5]),comment:clean(r[6])});
     });
-    var lessonIds=new Map();
+    var lessonReports=lessons.slice(),lessonIds=new Map();
     lessons.forEach(function (lesson) {if(lesson.crmId){if(!lessonIds.has(lesson.crmId))lessonIds.set(lesson.crmId,[]);lessonIds.get(lesson.crmId).push(lesson);}});
+    // A primary payment form also reports a paid MK. Reconcile across the full
+    // history before filtering dates, so later instalments cannot add another MK.
+    var paidReports=new Map();
+    payments.forEach(function(payment){
+      if(payment.renewal || !payment.positive || lessonIds.has(payment.crmId))return;
+      var key=payment.crmId?'crm:'+payment.crmId:'row:'+payment.row;
+      if(!paidReports.has(key))paidReports.set(key,[]);
+      paidReports.get(key).push(payment);
+    });
+    paidReports.forEach(function(rows){
+      rows.sort(function(a,b){return (a.day||'9999').localeCompare(b.day||'9999')||a.row-b.row;});
+      var first=rows[0],conflict=new Set(rows.map(function(p){return p.manager;}).filter(Boolean)).size>1;
+      if(conflict)rows.forEach(function(p){p.issues.push('conflicting_lesson_manager');});
+      var lesson=Object.assign({},first,{manager:conflict?'':first.manager,paid:true,scenario:'pay_on_lesson',dateBasis:'payment',time:'',age:'',channel:'',objection:'',agreement:'',notes:''});
+      lessons.push(lesson);
+      if(first.crmId)lessonIds.set(first.crmId,[lesson]);
+      else {first.lessonRow=first.row;first.lessonSource='payments';}
+    });
     payments.forEach(function (payment) {
       var candidates=lessonIds.get(payment.crmId)||[];
-      if(payment.crmId&&candidates.length===1){payment.lessonRow=candidates[0].row;if(payment.positive&&!payment.renewal)candidates[0].paid=true;}
+      if(payment.crmId&&candidates.length===1){payment.lessonRow=candidates[0].row;payment.lessonSource=candidates[0].source;if(payment.positive&&!payment.renewal)candidates[0].paid=true;}
       else if(candidates.length>1)payment.issues.push('ambiguous_lesson');
-      else if(payment.crmId)payment.issues.push('unmatched_lesson');
+      else if(payment.crmId&&!payment.renewal)payment.issues.push('unmatched_lesson');
     });
     var issues=[];
-    lessons.concat(payments,cancels).forEach(function (fact) {fact.issues.forEach(function (code) {issues.push({source:fact.source,row:fact.row,code:code});});});
-    return {lessons:lessons,payments:payments,cancels:cancels,managers:managers,issues:issues};
+    lessonReports.concat(payments,cancels).forEach(function (fact) {fact.issues.forEach(function (code) {issues.push({source:fact.source,row:fact.row,code:code});});});
+    return {lessons:lessons,lessonReports:lessonReports,payments:payments,cancels:cancels,managers:managers,issues:issues};
   }
   function select(model,query) {
     query=query||{};

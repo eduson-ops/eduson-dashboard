@@ -85,20 +85,34 @@ const money = value => value.toLocaleString('ru-RU',{maximumFractionDigits:2})+'
 const chart = (app,key) => app.run('charts')[key]?.config.data;
 const chartSum = (app,key) => chart(app,key).datasets.reduce((sum,series)=>sum+series.data.reduce((s,n)=>s+(n ?? 0),0),0);
 
-test('CSV refresh retains repeated CRM payments and never synthesizes an actual lesson',async()=>{
+test('CSV refresh includes paid-only MK without duplicating linked lessons or raw form reports',async()=>{
   const app=dashboard(data({form:[lesson()],payments:[payment('100'),payment('200'),payment('50','Иванов А.','15.09.2026','Первичная','999')]}));
   await app.runtime.loadAll();app.period();
   assert.equal(app.requests.length,7);
   assert.equal(app.run('actualLessonReports.length'),1);
   assert.equal(app.run('actualLessonReports[0].practice'),'Scratch');
-  assert.equal(app.run('lessons.length'),1);
+  assert.equal(app.run('lessons.length'),2);
   assert.equal(app.run('analyticsModel.payments.length'),3);
   assert.equal(app.ids.get('kv-rev').textContent,money(350));
-  assert.equal(app.ids.get('kv-mk').textContent,'1');
-  assert.equal(app.ids.get('kv-conv').textContent,'300%');
+  assert.equal(app.ids.get('kv-mk').textContent,'2');
+  assert.equal(app.ids.get('kv-conv').textContent,'150%');
   assert.equal(chartSum(app,'rev'),350);
   assert.equal(chartSum(app,'revday'),350);
-  assert.deepEqual(plain(chart(app,'timeSlot').datasets[0].data),[1]);
+  assert.deepEqual(plain(chart(app,'timeSlot').datasets[0].data),[1,1]);
+});
+
+test('twenty reconciled MK and ninety percent reach cards, manager detail, register and copied summary',async()=>{
+  const reports=[lesson('Иванов А.','03.09.2026','101'),lesson('Иванов А.','04.09.2026','102'),lesson('Иванов А.','10.09.2026','103')];
+  const payments=Array.from({length:18},(_,i)=>payment('100','Иванов А.','10.09.2026','Первичная',String(101+i*3)));
+  const app=dashboard(data({form:reports,payments}));
+  await app.runtime.loadAll();app.period();app.runtime.setAnalyticsMgr('Иванов А.');app.runtime.openMgr('Иванов А.');
+  assert.equal(app.ids.get('kv-mk').textContent,'20');assert.equal(app.ids.get('kv-conv').textContent,'90%');
+  assert.match(app.ids.get('mstats').innerHTML,/>20</);assert.match(app.ids.get('mstats').innerHTML,/>90%</);
+  assert.match(app.ids.get('mlessons').innerHTML,/Проведённые МК · 20/);
+  assert.match(app.ids.get('mlessons').innerHTML,/По дате первичной оплаты/);
+  assert.match(app.ids.get('mlessons').innerHTML,/МК из оплаты/);
+  app.runtime.shareReport();await Promise.resolve();
+  assert.match(app.clipboard[0],/Проведено МК: 20/);assert.match(app.clipboard[0],/Конверсия: 90%/);
 });
 
 test('a failed refresh retains the snapshot while hiding only metrics that depend on it',async()=>{
@@ -114,7 +128,8 @@ test('a failed refresh retains the snapshot while hiding only metrics that depen
   assert.equal(app.run('opsSourceStates.payments.state'),'error');
   assert.ok(app.run('opsSourceStates.payments.lastSuccessAt'));
   for(const id of ['kv-rev','kv-avg','kv-rpm','kv-conv'])assert.equal(app.ids.get(id).textContent,'—',id);
-  assert.equal(app.ids.get('kv-mk').textContent,'2');
+  assert.equal(app.ids.get('kv-mk').textContent,'—','MK count depends on both forms');
+  assert.equal(chart(app,'timeSlot'),undefined);
   assert.equal(chart(app,'rev'),undefined);
   assert.equal(chart(app,'revday'),undefined);
   assert.equal(previousChart.destroyed,true);
@@ -200,7 +215,7 @@ test('invalid custom dates keep the previous selection and show a corrective mes
   assert.equal(app.runtime.analyticsQuery().from,'2026-09-15');
 });
 
-test('a payment-only day shows unavailable conversion in cards, charts and copied report',async()=>{
+test('a delayed payment for an already reported MK does not move the lesson to payment day',async()=>{
   const app=dashboard(data({form:[lesson()],payments:[payment('100')]}));await app.runtime.loadAll();app.period('2026-09-15','2026-09-15');
   assert.equal(app.ids.get('kv-rev').textContent,money(100));assert.equal(app.ids.get('kv-mk').textContent,'0');
   assert.equal(app.ids.get('kv-conv').textContent,'—');assert.equal(app.ids.get('kv-rpm').textContent,'—');
