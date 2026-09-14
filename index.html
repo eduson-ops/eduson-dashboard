@@ -7,6 +7,7 @@
 <title>Eduson Kids · Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@400;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="./operations.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -1066,6 +1067,35 @@ html[data-season="season"] .season-strip{display:flex}
   .panel{padding:14px}
   .alert{font-size:12px;padding:10px 12px}
 }
+/* Operational control uses the existing theme and keeps wide tables inside their panel. */
+#page-operations .ops-filters{display:flex;align-items:end;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+#page-operations .ops-field{display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--sub)}
+#page-operations .ops-field input,#page-operations .ops-field select{min-height:36px;max-width:100%;border:1px solid var(--border-s);border-radius:6px;background:var(--bg3);color:var(--text);padding:7px 9px;font:inherit;font-size:12px;color-scheme:dark}
+html[data-theme="light"] #page-operations .ops-field :is(input,select){color-scheme:light}
+#page-operations :is(button,a,input,select):focus-visible{outline:2px solid var(--y);outline-offset:3px}
+#page-operations .ops-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:12px}
+#page-operations .ops-summary .panel{margin:0}
+#page-operations .ops-number{font:700 25px/1.4 var(--display);margin:5px 0;color:var(--text)}
+#page-operations .ops-note{font-size:11.5px;line-height:1.65;color:var(--sub)}
+#page-operations .ops-warning{color:var(--o)}
+#page-operations .ops-block{margin-bottom:12px}
+#page-operations .ops-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+#page-operations .ops-heading .pt{margin-bottom:0}
+#page-operations .ops-table-wrap{overflow-x:auto;margin-top:10px}
+#page-operations .ops-table{min-width:470px;width:100%}
+#page-operations .ops-table td{vertical-align:top;white-space:normal;overflow-wrap:anywhere}
+#page-operations .ops-table th{text-align:left}
+#page-operations .ops-message{padding:18px 0;color:var(--sub);font-size:12px;line-height:1.6}
+#page-operations .ops-sources{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px;margin-top:10px}
+#page-operations .ops-source{display:flex;justify-content:space-between;gap:14px;border-top:1px solid var(--border);padding:10px 0;font-size:12px}
+#page-operations .ops-source small{display:block;margin-top:4px;font-size:10.5px;color:var(--sub)}
+#page-operations .ops-source-state{text-align:right;flex-shrink:0;font-size:11px}
+@media(max-width:700px){
+  #page-operations .ops-summary,#page-operations .ops-sources{grid-template-columns:1fr}
+  #page-operations .ops-summary .panel{padding:12px 14px}
+  #page-operations .ops-number{font-size:21px}
+  #page-operations .ops-field{flex:1;min-width:130px}
+}
 </style>
 </head>
 <body>
@@ -1096,6 +1126,9 @@ html[data-season="season"] .season-strip{display:flex}
   </button>
   <button class="sb-item" onclick="showPage('schedule')" data-page="schedule" title="Расписание">
     <span class="sb-ico">🗓️</span><span class="sb-label">Расписание</span><span class="pdot info"></span>
+  </button>
+  <button class="sb-item" onclick="showPage('operations')" data-page="operations" title="Контроль">
+    <span class="sb-ico">☑️</span><span class="sb-label">Контроль</span>
   </button>
 
   <div class="sb-section"><span class="sb-label">Аналитика</span></div>
@@ -1190,6 +1223,7 @@ function setPersona(name){
     if(typeof renderManagers==='function')renderManagers();
     if(typeof renderRetention==='function')renderRetention();
     if(typeof renderSchedule==='function')renderSchedule();
+    if(typeof renderOperations==='function')renderOperations();
   }catch(e){console.warn('setPersona render error',e);}
   closePersonaPicker();
 }
@@ -1363,6 +1397,46 @@ window.updatePersonaFooter=updatePersonaFooter;
     </div>
     <div id="hot-table"><div class="empty" style="padding:20px 0"><div class="empty-ic">⏳</div><div>Загрузка...</div></div></div>
   </div>
+</div>
+
+<!-- ══ ОПЕРАЦИОННЫЙ КОНТРОЛЬ ══ -->
+<div class="page" id="page-operations">
+  <div class="page-hdr">
+    <div class="page-eyebrow">Операционка</div>
+    <div class="page-title">Контроль</div>
+    <div class="page-sub">Записи по расписанию, заполненные отчёты и отмены</div>
+  </div>
+  <div class="ops-filters">
+    <div class="dfilter" id="ops-day-filter" style="margin:0" aria-label="День контроля">
+      <button class="dfbtn active" data-ops-day="today" onclick="setOpsDay('today')" aria-pressed="true">Сегодня</button>
+      <button class="dfbtn" data-ops-day="tomorrow" onclick="setOpsDay('tomorrow')" aria-pressed="false">Завтра</button>
+    </div>
+    <label class="ops-field">Дата<input type="date" id="ops-date" onchange="setOpsDay('custom')"></label>
+    <label class="ops-field">Менеджер<select id="ops-manager" onchange="setOpsManager(this.value)"><option value="">Все менеджеры</option></select></label>
+    <button class="dfbtn" id="ops-refresh" onclick="safeReload('operations')">Обновить данные</button>
+  </div>
+  <p class="ops-note" id="ops-date-label" style="margin-bottom:12px"></p>
+  <div class="ops-summary" id="ops-summary" aria-live="polite"></div>
+  <section class="panel ops-block" aria-labelledby="ops-slots-title">
+    <div class="ops-heading"><div class="pt" id="ops-slots-title">Записи по расписанию</div><button class="dfbtn" onclick="showPage('schedule')">Открыть расписание</button></div>
+    <p class="ops-note">Время из таблицы. Факт проведения и подтверждение клиента здесь не указаны.</p>
+    <div id="ops-slots"></div>
+  </section>
+  <section class="panel ops-block" aria-labelledby="ops-reports-title">
+    <div class="ops-heading"><div class="pt" id="ops-reports-title">Отчёты об уроках</div><button class="dfbtn" onclick="openOpsReports()">Формы отчётов</button></div>
+    <p class="ops-note">По дате занятия. Показаны пустые поля: менеджер, CRM, запись и договорённость.</p>
+    <div id="ops-reports"></div>
+  </section>
+  <section class="panel ops-block" aria-labelledby="ops-cancels-title">
+    <div class="ops-heading"><div class="pt" id="ops-cancels-title">Отмены</div></div>
+    <p class="ops-note">По дате отправки отчёта об отмене. Повторную запись можно проверить в CRM.</p>
+    <div id="ops-cancels"></div>
+  </section>
+  <section class="panel ops-block" aria-labelledby="ops-sources-title">
+    <div class="pt" id="ops-sources-title">Загрузка источников</div>
+    <p class="ops-note">Последнее успешное чтение таблиц на этой странице, время МСК. Это время загрузки, а не изменения исходных данных.</p>
+    <div class="ops-sources" id="ops-sources" aria-live="polite"></div>
+  </section>
 </div>
 
 <!-- ══ АНАЛИТИКА ══ -->
@@ -1817,6 +1891,11 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 // ═══════════════════════════════════════
 let lessons=[], renewals=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
 let charts={}, curPer='week', curSlotDate=new Date(), curSlotDay=0, dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
+let opsDay='today', opsCustomDate='', opsMgr='', opsDataReady=false, dashboardLoadPromise=null;
+let actualLessonReports=[], actualCancelReports=[], opsSlotData={rows:[],invalidDates:0,invalidTimes:0,unknownManagers:0}, opsSourceStates={};
+const OPS_SOURCE_NAMES={slots:'Записи по расписанию',form:'Отчёты об уроках',cancels:'Отчёты об отменах',payments:'Оплаты',managers:'Менеджеры',schedule:'Доступность менеджеров',targets:'Планы'};
+// Explicit account mapping from the existing slot renderer; no inference from event titles.
+const OPS_SLOT_MANAGERS={'@lucky_8_8':'Перебейносов А.','@GeorgiPC':'Николаев Г.','@Daria_K53':'Куюмджу Д.','@orlean40':'Папашвили Д.','@kayzen_look':'Масимова Р.','@Evgeny_Fedyainov':'Федяинов Е.'};
 let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
 let COUNT_RENEWALS=(function(){try{return localStorage.getItem('eks-cr')!=='0';}catch(e){return true;}})();
 let analyticsMgr='', hotMgr='';
@@ -1894,50 +1973,76 @@ const cc = s => (s||'').replace(/^"|"$/g,'').trim();
 const gc = () => ({grid:'rgba(255,255,255,0.05)',tick:'#606060'});
 
 function parseCSV(txt) {
-  // Handle both \r\n (Windows/gviz) and \n line endings
-  var rows=[], lines=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
-  for(var i=0;i<lines.length;i++){
-    var line=lines[i];
-    if(!line.trim())continue;
-    var cols=[],cur='',inQ=false;
-    for(var j=0;j<line.length;j++){
-      var c=line[j];
-      if(c==='"'){
-        if(inQ && line[j+1]==='"'){cur+='"';j++;} // escaped quote
-        else{inQ=!inQ;}
-      } else if(c===','&&!inQ){
-        cols.push(cur.trim());cur='';
-      } else{cur+=c;}
-    }
-    cols.push(cur.trim());
-    rows.push(cols);
+  // A quoted field can contain commas and line breaks, including in sheet headers.
+  var text=String(txt||'').replace(/^\uFEFF/,''),rows=[],row=[],field='';
+  var inQuotes=false,quoted=false,closed=false,rowStarted=false;
+  function endField(){row.push(quoted?field:field.trim());field='';quoted=false;closed=false;}
+  function endRow(){
+    if(rowStarted||row.length||field.trim()){endField();rows.push(row);}
+    row=[];field='';quoted=false;closed=false;rowStarted=false;
   }
+  for(var i=0;i<text.length;i++){
+    var c=text[i];
+    if(inQuotes){
+      if(c==='"'){
+        if(text[i+1]==='"'){field+='"';i++;}
+        else{inQuotes=false;closed=true;}
+      }else field+=c;
+      continue;
+    }
+    if(c===','){endField();rowStarted=true;continue;}
+    if(c==='\r'||c==='\n'){
+      endRow();
+      if(c==='\r'&&text[i+1]==='\n')i++;
+      continue;
+    }
+    if(c==='"'){
+      if(closed||field.trim())throw new Error('Некорректный CSV: кавычка внутри поля');
+      field='';inQuotes=true;quoted=true;rowStarted=true;continue;
+    }
+    if(closed){
+      if(!/\s/.test(c))throw new Error('Некорректный CSV: символ после закрывающей кавычки');
+    }else{
+      field+=c;
+      if(!/\s/.test(c))rowStarted=true;
+    }
+  }
+  if(inQuotes)throw new Error('Некорректный CSV: незакрытая кавычка');
+  endRow();
   return rows;
 }
 
 async function fetchCSV(key) {
   var url=URLS[key];
-  if(!url)return[];
+  if(!url){recordOpsSource(key,'error',{message:'Источник не настроен'});return[];}
+  recordOpsSource(key,'loading');
+  var controller=new AbortController();
+  var timeout=setTimeout(function(){controller.abort();},25000);
   try{
     var bustUrl = url + '&_t=' + Date.now();
-    var r=await fetch(bustUrl,{cache:'no-store',mode:'cors'});
-    if(!r.ok){console.warn('HTTP',r.status,'for',key);return[];}
+    var r=await fetch(bustUrl,{cache:'no-store',mode:'cors',signal:controller.signal});
+    if(!r.ok)throw new Error('HTTP '+r.status);
     var txt=await r.text();
     txt=txt.replace(/^\uFEFF/,''); // Remove BOM
-    if(!txt){console.warn('Empty response for',key);return[];}
-    if(txt.includes('<!DOCTYPE')){console.warn('HTML response for',key);return[];}
+    if(!txt.trim())throw new Error('Пустой ответ источника');
+    if(/<!doctype\s+html|<html\b/i.test(txt))throw new Error('Вместо таблицы получена HTML-страница');
     // gviz wraps in callback for JSON but for csv should be clean
     // Sometimes returns error wrapper
     if(txt.includes('google.visualization.Query.setResponse')){
-      console.warn('gviz error wrapper for',key,txt.slice(0,200));
-      return[];
+      throw new Error('Источник вернул ошибку Google Sheets');
     }
     var rows=parseCSV(txt);
+    var minColumns={form:12,payments:8,managers:2,targets:5,slots:3,schedule:3,cancels:8}[key]||2;
+    if(!rows.length||rows[0].length<minColumns)throw new Error('Не совпадают столбцы таблицы');
+    recordOpsSource(key,'success',{rowCount:Math.max(0,rows.length-1)});
     console.log('✅',key,':',rows.length,'rows, cols:', rows[0] ? rows[0].length : 0);
     return rows;
   }catch(e){
     console.warn('Fetch error:',key,e.message);
+    recordOpsSource(key,'error',{message:e.name==='AbortError'?'Нет ответа за 25 секунд':e.message});
     return[];
+  }finally{
+    clearTimeout(timeout);
   }
 }
 
@@ -1986,7 +2091,15 @@ function extractCrmId(url) {
 // ═══════════════════════════════════════
 // LOAD
 // ═══════════════════════════════════════
-async function loadAll() {
+function loadAll() {
+  if(dashboardLoadPromise)return dashboardLoadPromise;
+  dashboardLoadPromise=Promise.resolve().then(loadAllData).finally(function(){dashboardLoadPromise=null;});
+  return dashboardLoadPromise;
+}
+
+async function loadAllData() {
+  opsDataReady=false;
+  renderOperations();
   var loader = document.getElementById('loader');
   if (loader) loader.classList.add('visible');
   try {
@@ -2042,6 +2155,10 @@ async function loadAll() {
     mkList.push(lesson);
     if(crmId) mkMap[crmId] = lesson;
   }
+  // The operational model keeps nonempty raw rows, including records excluded by legacy KPIs.
+  var opsManagerName=function(name){return OpsControl.matchManager(name,canonList,OPS_SLOT_MANAGERS).manager;};
+  actualLessonReports=OpsControl.parseReports(rawForm,opsManagerName);
+  actualCancelReports=OpsControl.parseCancels(rawCancels,opsManagerName);
 
   // Parse payments (Форма 2 — только оплата)
   // Cols: 0=ts,1=manager,2=crm,3=paydate,4=practice,5=pack,6=paytype,7=revenue
@@ -2157,6 +2274,7 @@ async function loadAll() {
     if(name&&(act==='да'||act==='yes'||act==='1'))managers.push(name);
   }
   if(!managers.length)managers=FALLBACK_MGRS;
+  opsSlotData=OpsControl.parseSlots(rawSlots,managers,OPS_SLOT_MANAGERS);
 
   // Parse targets
   var now=new Date();
@@ -2246,6 +2364,8 @@ async function loadAll() {
     });
   }
 
+  opsDataReady=true;
+  renderOperations();
   renderMain();
   buildHotMgrFilter();
   renderHot();
@@ -2269,9 +2389,110 @@ async function loadAll() {
       ? '<strong>Превью Claude:</strong> данные недоступны в превью — открой дашборд на GitHub Pages'
       : '<strong>Ошибка загрузки:</strong> ' + err.message + ' — проверь доступ к таблице';
   } finally {
+    renderOperations();
     var loader = document.getElementById('loader');
     if (loader) loader.classList.remove('visible');
   }
+}
+
+// ═══════════════════════════════════════
+// OPERATIONAL CONTROL — does not use KPI-merged lessons or infer booking outcomes.
+// ═══════════════════════════════════════
+function recordOpsSource(key,state,details){
+  opsSourceStates[key]=OpsControl.updateSource(opsSourceStates[key],state,Date.now(),details);
+  renderOpsSources();
+}
+
+function renderOpsSources(){
+  var el=document.getElementById('ops-sources');if(!el)return;
+  el.innerHTML=Object.keys(OPS_SOURCE_NAMES).map(function(key){
+    var source=opsSourceStates[key]||{},label='Ещё не загружен',color='var(--sub)';
+    if(source.state==='loading')label='Загрузка…';
+    if(source.state==='success'){label='Загружен';color='var(--g)';}
+    if(source.state==='error'){label='Ошибка';color='var(--r)';}
+    var when=source.lastSuccessAt?new Date(source.lastSuccessAt).toLocaleString('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}):'Успешной загрузки ещё нет';
+    return '<div class="ops-source"><div>'+esc(OPS_SOURCE_NAMES[key])+'<small>'+esc(when)+'</small>'
+      +(source.state==='error'?'<small class="ops-warning">'+esc(source.message||'Источник недоступен')+'</small>':'')
+      +'</div><div class="ops-source-state" style="color:'+color+'">'+label
+      +(source.state==='success'?'<small>Строк: '+source.rowCount+'</small>':'')+'</div></div>';
+  }).join('');
+}
+
+function setOpsDay(mode){
+  opsDay=mode;
+  if(mode==='custom')opsCustomDate=document.getElementById('ops-date').value;
+  renderOperations();
+}
+function setOpsManager(name){opsMgr=name;renderOperations();}
+function openOpsReports(){
+  showPage('guide');
+  showGuideTab('reports',document.querySelector('.guide-tab[aria-controls="gtab-reports"]'));
+}
+function opsMessage(text,warning){return '<div class="ops-message'+(warning?' ops-warning':'')+'">'+esc(text)+'</div>';}
+function opsUnavailable(key){
+  var state=opsSourceStates[key]||{};
+  if(state.state==='error')return opsMessage('Данные недоступны: '+(state.message||'ошибка источника')+'. Повторите загрузку.',true);
+  if(state.state==='loading')return opsMessage('Источник загружается…');
+  return opsMessage('Данные ещё не готовы. Дождитесь загрузки или нажмите «Обновить данные».');
+}
+function opsTable(headers,rows){
+  return '<div class="ops-table-wrap"><table class="tt ops-table"><thead><tr>'
+    +headers.map(function(header){return '<th scope="col">'+esc(header)+'</th>';}).join('')
+    +'</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
+}
+function opsCrmLink(url){
+  var href=safeUrl(url);
+  return href?'<a class="crml" href="'+href+'" target="_blank" rel="noopener noreferrer">CRM ↗</a>':'<span class="ops-note">Нет ссылки</span>';
+}
+function renderOperations(){
+  var summary=document.getElementById('ops-summary');if(!summary)return;
+  var date=OpsControl.selectedDate(opsDay,opsCustomDate,new Date());
+  var input=document.getElementById('ops-date');
+  if(document.activeElement!==input)input.value=date;
+  document.querySelectorAll('#ops-day-filter [data-ops-day]').forEach(function(button){
+    var active=button.dataset.opsDay===opsDay;
+    button.classList.toggle('active',active);button.setAttribute('aria-pressed',String(active));
+  });
+  var filter=document.getElementById('ops-manager'),names=new Set(managers);
+  opsSlotData.rows.forEach(function(row){names.add(row.manager);});
+  actualLessonReports.concat(actualCancelReports).forEach(function(row){if(row.manager)names.add(row.manager);});
+  if(opsMgr)names.add(opsMgr);
+  if(personalMgr)names.add(personalMgr);
+  var options=Array.from(names).sort(function(a,b){return a.localeCompare(b,'ru');});
+  var chosen=personalMgr||opsMgr;
+  filter.innerHTML='<option value="">Все менеджеры</option>'+options.map(function(name){return '<option value="'+esc(name)+'"'+(chosen===name?' selected':'')+'>'+esc(name)+'</option>';}).join('');
+  filter.disabled=!!personalMgr;
+  filter.title=personalMgr?'Выбран личный режим. Сменить роль можно в боковом меню.':'';
+  document.getElementById('ops-date-label').textContent=date?'Дата: '+date.split('-').reverse().join('.')+' · МСК · '+(chosen||'Вся команда'):'Выберите корректную дату';
+  var view=OpsControl.buildView({date:date,manager:opsMgr,personalManager:personalMgr,sources:opsDataReady?opsSourceStates:{},slots:opsSlotData.rows,reports:actualLessonReports,cancels:actualCancelReports});
+  var cards=[
+    {label:'Записи по расписанию',value:view.slots===null?'—':view.slots.length,note:view.slots===null?'Нет подтверждённой загрузки':'Строки на выбранную дату'},
+    {label:'Отчёты об уроках',value:view.reports===null?'—':view.reports.length,note:view.reports===null?'Нет подтверждённой загрузки':(view.incompleteCount?'С пустыми полями: '+view.incompleteCount:'Проверенные поля заполнены')},
+    {label:'Отчёты об отменах',value:view.cancels===null?'—':view.cancels.length,note:view.cancels===null?'Нет подтверждённой загрузки':'Отправлены в выбранный день'}
+  ];
+  if(view.reports&&view.reports.length===0)cards[1].note='За выбранную дату нет отчётов';
+  summary.innerHTML=cards.map(function(card){return '<div class="panel"><div class="ops-note">'+card.label+'</div><div class="ops-number">'+card.value+'</div><div class="ops-note">'+card.note+'</div></div>';}).join('');
+
+  var slotHtml=view.slots===null?opsUnavailable('slots'):view.slots.length?opsTable(['Время','Менеджер'],view.slots.map(function(row){
+    return '<tr><td style="width:90px">'+esc(row.time)+'</td><td>'+esc(row.manager)+(row.knownManager===false?' <span class="ops-note">· нет в списке менеджеров</span>':'')+'</td></tr>';
+  })):opsMessage('В источнике нет записей на выбранную дату.');
+  if(view.slots!==null&&(opsSlotData.invalidDates||opsSlotData.invalidTimes))slotHtml+='<p class="ops-note ops-warning">Во всём источнике исключены строки без корректной даты: '+opsSlotData.invalidDates+'; без корректного времени: '+opsSlotData.invalidTimes+'. Их нельзя отнести к выбранному дню.</p>';
+  document.getElementById('ops-slots').innerHTML=date?slotHtml:opsMessage('Выберите дату.');
+
+  var reportHtml=view.reports===null?opsUnavailable('form'):view.reports.length?opsTable(['Время','Менеджер','Пустые поля','Сделка'],view.reports.map(function(row){
+    return '<tr><td>'+esc(row.time||'—')+'</td><td>'+esc(row.manager||'Не указан')+'</td><td'+(row.missing.length?' class="ops-warning"':'')+'>'+esc(row.missing.join(', ')||'—')+'</td><td>'+opsCrmLink(row.crm)+'</td></tr>';
+  })):opsMessage('Нет отправленных отчётов с выбранной датой занятия.');
+  if(view.invalidReportDates)reportHtml+='<p class="ops-note ops-warning">Отчёты без корректной даты занятия: '+view.invalidReportDates+'. Они не включены в выбранный день.</p>';
+  if(view.missingReportManagers)reportHtml+='<p class="ops-note ops-warning">Во всём источнике отчётов без менеджера: '+view.missingReportManagers+'. Они доступны в режиме всей команды.</p>';
+  document.getElementById('ops-reports').innerHTML=date?reportHtml:opsMessage('Выберите дату.');
+
+  var cancelHtml=view.cancels===null?opsUnavailable('cancels'):view.cancels.length?opsTable(['Менеджер','Причина из отчёта','Сделка'],view.cancels.map(function(row){
+    return '<tr><td>'+esc(row.manager||'Не указан')+'</td><td>'+esc(row.reason||'Не указана')+'</td><td>'+opsCrmLink(row.crm)+'</td></tr>';
+  })):opsMessage('В выбранный день нет отчётов об отменах.');
+  if(view.invalidCancelDates)cancelHtml+='<p class="ops-note ops-warning">Отчёты об отменах без корректной даты отправки: '+view.invalidCancelDates+'. Они не включены в выбранный день.</p>';
+  if(view.missingCancelManagers)cancelHtml+='<p class="ops-note ops-warning">Во всём источнике отмен без менеджера: '+view.missingCancelManagers+'. Они доступны в режиме всей команды.</p>';
+  document.getElementById('ops-cancels').innerHTML=date?cancelHtml:opsMessage('Выберите дату.');
+  renderOpsSources();
 }
 
 // ═══════════════════════════════════════
@@ -4040,12 +4261,13 @@ function showPage(id) {
   // Activate matching sidebar button by data-page attribute
   document.querySelectorAll('.sb-item[data-page]').forEach(b=>{if(b.dataset.page===id)b.classList.add('active');});
   // Activate inner-page tabs by text (analytics/schedule sub-tabs)
-  var labels={main:'Главная',analytics:'Аналитика',managers:'Менеджеры',schedule:'Расписание',guide:'Справка',retention:'Ретеншн'};
+  var labels={main:'Главная',analytics:'Аналитика',managers:'Менеджеры',schedule:'Расписание',guide:'Справка',retention:'Ретеншн',operations:'Контроль'};
   document.querySelectorAll('.nav-tabs .tab').forEach(b=>{if(b.textContent.trim()===labels[id])b.classList.add('active');});
-  var pageNames={main:'Сегодня',analytics:'Аналитика',managers:'Менеджеры',schedule:'Расписание',guide:'Справка',retention:'Ретеншн'};
+  var pageNames={main:'Сегодня',analytics:'Аналитика',managers:'Менеджеры',schedule:'Расписание',guide:'Справка',retention:'Ретеншн',operations:'Контроль'};
   var t=document.getElementById('topbar-title');
   if(t)t.innerHTML='EDUSON KIDS · <b>'+pageNames[id]+'</b>';
   if(id!=='managers'){backMgr();}
+  if(id==='operations')renderOperations();
 }
 
 // ═══════════════════════════════════════
