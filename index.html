@@ -8,6 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@400;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="./operations.js?v=schedule-20260915"></script>
+<script src="./analytics-core.js?v=analytics-20260915"></script>
+<script src="./dashboard-analytics.js?v=analytics-20260915"></script>
+<script src="./dashboard-load.js?v=analytics-20260915"></script>
+<script src="./analytics-views.js?v=analytics-20260915"></script>
+<script src="./schedule-verification.js?v=analytics-20260915"></script>
+
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -1111,6 +1117,16 @@ html[data-theme="light"] #page-operations .ops-field :is(input,select){color-sch
   #page-operations .ops-number{font-size:21px}
   #page-operations .ops-field{flex:1;min-width:130px}
 }
+
+.analytics-note,.analytics-period-label{color:var(--sub);font-size:12px;line-height:1.6}
+.analytics-quality{margin:16px 0;padding:16px 20px;font-size:12px;line-height:1.6}
+.analytics-quality summary{cursor:pointer;color:var(--sub);font-weight:600}
+.analytics-quality ul{padding-left:18px}.data-quality-list{max-height:320px;overflow:auto;padding-right:12px}
+.data-quality-list a{color:var(--b)}.period-error{color:var(--r);font-size:12px}
+.manager-open{border:0;background:none;color:var(--text);font:inherit;cursor:pointer;padding:5px 0;text-align:left}
+.scheduled-panel{margin-bottom:18px}.data-warning{border-color:var(--r)}
+.kpi .ktag:empty{display:none}.analytics-register{max-height:520px;overflow:auto}
+
 </style>
 </head>
 <body>
@@ -1228,12 +1244,15 @@ function renderPersonaList(){
 }
 function setPersona(name){
   personalMgr=name||'';
+  analyticsMgr='';currentDetailManager='';backMgr();
   try{localStorage.setItem('eks-me', personalMgr);}catch(e){}
   updatePersonaFooter();
   // Re-render everything that depends on filter
   try{
     if(typeof renderMain==='function')renderMain();
     if(typeof renderAnalytics==='function')renderAnalytics();
+    if(typeof renderCancels==='function')renderCancels();
+    if(typeof buildAnalyticsMgrFilter==='function')buildAnalyticsMgrFilter();
     if(typeof renderManagers==='function')renderManagers();
     if(typeof renderRetention==='function')renderRetention();
     if(typeof renderSchedule==='function')renderSchedule();
@@ -1284,7 +1303,7 @@ window.updatePersonaFooter=updatePersonaFooter;
 <!-- ══ ГЛАВНАЯ ══ -->
 <div class="page active" id="page-main">
   <div class="page-hdr">
-    <div class="page-eyebrow" id="main-eyebrow">Операционка · Май 2026</div>
+    <div class="page-eyebrow" id="main-eyebrow">Операционка · Команда</div>
     <div class="page-title" id="main-title">Сегодня</div>
     <div class="page-sub" id="main-sub">Выручка, конверсия, команда и прогресс плана</div>
   </div>
@@ -1308,44 +1327,6 @@ window.updatePersonaFooter=updatePersonaFooter;
     </div>
   </div>
   <div class="alert"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" style="flex-shrink:0;margin-top:1px"><path d="M8 1.5L14.5 13.5H1.5L8 1.5Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6V9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.5" r=".75" fill="currentColor"/></svg><span id="alert-text">Загрузка...</span></div>
-  <div class="cdown">
-    <div class="ring-wrap">
-      <svg viewBox="0 0 76 76">
-        <circle class="rbg" cx="38" cy="38" r="30"/>
-        <circle class="rfg" id="rfg" cx="38" cy="38" r="30" stroke-dasharray="188" stroke-dashoffset="188"/>
-        <text class="rnum" x="38" y="42" text-anchor="middle" id="rdays">—</text>
-        <text class="rsub" x="38" y="52" text-anchor="middle">ДНЕЙ</text>
-      </svg>
-    </div>
-    <div class="cc"><div class="ccl">Осталось выручки</div><div class="ccv yc" id="cc-rev">—</div><div class="ccs" id="cc-rev2">—</div></div>
-    <div class="cc"><div class="ccl">Нужно в день</div><div class="ccv gc" id="cc-day">—</div><div class="ccs">чтобы закрыть месяц</div></div>
-    <div class="cc"><div class="ccl">МК осталось</div><div class="ccv bc" id="cc-mk">—</div><div class="ccs">до плана</div></div>
-  </div>
-
-  <div class="dfilter">
-    <span style="font-size:11px;color:var(--muted);font-weight:600">Период:</span>
-    <button class="dfbtn active" onclick="setMainDfPer('all',this)">Весь месяц</button>
-    <button class="dfbtn" onclick="setMainDfPer('week',this)">Эта неделя</button>
-    <button class="dfbtn" onclick="setMainDfPer('custom',this)">Произвольный</button>
-    <div id="main-custom-dates" style="display:none;align-items:center;gap:6px">
-      <label>с</label><input type="date" class="dfinput" id="main-df-from">
-      <label>по</label><input type="date" class="dfinput" id="main-df-to">
-      <button class="dfbtn active" onclick="applyMainCustom()">Применить</button>
-    </div>
-    <div class="rtgl-wrap" title="Учитывать продления в выручке (KPI + рейтинг команды)">
-      <label for="renewToggle">Продления</label>
-      <button class="rtgl" id="renewToggle" role="switch" aria-checked="true" onclick="toggleRenewals()"><span class="rtgl-knob"></span></button>
-    </div>
-  </div>
-
-  <div class="kpis stagger">
-    <div class="kpi bad"><div class="kl">Выручка факт</div><div class="kv rc" id="kv-rev"><span class="skel skel-kv"></span></div><div class="ks" id="ks-rev"><span class="skel skel-ks"></span></div><span class="ktag bad" id="kt-rev">—</span><svg class="kpi-spark r" id="spark-rev" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi warn"><div class="kl">МК проведено</div><div class="kv yc" id="kv-mk"><span class="skel skel-kv"></span></div><div class="ks" id="ks-mk"><span class="skel skel-ks"></span></div><span class="ktag warn" id="kt-mk">—</span><svg class="kpi-spark" id="spark-mk" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi ok"><div class="kl">Конверсия</div><div class="kv gc" id="kv-conv"><span class="skel skel-kv"></span></div><div class="ks gc" id="ks-conv"><span class="skel skel-ks"></span></div><span class="ktag ok" id="kt-conv">—</span><svg class="kpi-spark g" id="spark-conv" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi ok"><div class="kl">Средний чек</div><div class="kv yc" id="kv-avg"><span class="skel skel-kv"></span></div><div class="ks" id="ks-avg"><span class="skel skel-ks"></span></div><span class="ktag ok" id="kt-avg">—</span><svg class="kpi-spark g" id="spark-avg" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-    <div class="kpi info"><div class="kl">Выручка / МК</div><div class="kv bc" id="kv-rpm"><span class="skel skel-kv"></span></div><div class="ks" id="ks-rpm"><span class="skel skel-ks"></span></div><span class="ktag info" id="kt-rpm">—</span><svg class="kpi-spark b" id="spark-rpm" width="68" height="22" viewBox="0 0 68 22"></svg></div>
-  </div>
-
   <section class="panel scheduled-panel" aria-labelledby="scheduled-title">
     <div class="scheduled-heading">
       <div><div class="pt" id="scheduled-title">Запланированные МК</div><p id="slots-caption" class="scheduled-caption"></p></div>
@@ -1367,6 +1348,49 @@ window.updatePersonaFooter=updatePersonaFooter;
     <div id="slots-box"><div class="scheduled-empty">Загружаем записи…</div></div>
   </section>
 
+  <div class="cdown">
+    <div class="ring-wrap">
+      <svg viewBox="0 0 76 76">
+        <circle class="rbg" cx="38" cy="38" r="30"/>
+        <circle class="rfg" id="rfg" cx="38" cy="38" r="30" stroke-dasharray="188" stroke-dashoffset="188"/>
+        <text class="rnum" x="38" y="42" text-anchor="middle" id="rdays">—</text>
+        <text class="rsub" x="38" y="52" text-anchor="middle">ДНЕЙ</text>
+      </svg>
+    </div>
+    <div class="cc"><div class="ccl">Осталось выручки</div><div class="ccv yc" id="cc-rev">—</div><div class="ccs" id="cc-rev2">—</div></div>
+    <div class="cc"><div class="ccl">Нужно в день</div><div class="ccv gc" id="cc-day">—</div><div class="ccs">на оставшийся календарный день</div></div>
+    <div class="cc"><div class="ccl">МК осталось</div><div class="ccv bc" id="cc-mk">—</div><div class="ccs">до плана</div></div>
+  </div>
+
+  <div class="dfilter">
+    <span style="font-size:11px;color:var(--muted);font-weight:600">Период:</span>
+    <button class="dfbtn active" onclick="setMainDfPer('today',this)">Сегодня</button>
+    <button class="dfbtn" onclick="setMainDfPer('all',this)">Весь месяц</button>
+    <button class="dfbtn" onclick="setMainDfPer('week',this)">Эта неделя</button>
+    <button class="dfbtn" onclick="setMainDfPer('custom',this)">Произвольный</button>
+    <div id="main-custom-dates" style="display:none;align-items:center;gap:6px">
+      <label>с</label><input type="date" class="dfinput" id="main-df-from">
+      <label>по</label><input type="date" class="dfinput" id="main-df-to">
+      <button class="dfbtn active" onclick="applyMainCustom()">Применить</button><span class="period-error" id="main-period-error" role="status"></span>
+    </div>
+    <div class="rtgl-wrap" title="Учитывать продления во всех финансовых показателях и конверсии">
+      <label for="renewToggle">Продления</label>
+      <button class="rtgl" id="renewToggle" role="switch" aria-checked="true" onclick="toggleRenewals()"><span class="rtgl-knob"></span></button>
+    </div>
+  </div>
+
+  <p class="analytics-period-label analytics-note"></p>
+  <div class="kpis stagger">
+    <div class="kpi bad"><div class="kl">Выручка факт</div><div class="kv rc" id="kv-rev"><span class="skel skel-kv"></span></div><div class="ks" id="ks-rev"><span class="skel skel-ks"></span></div><span class="ktag bad" id="kt-rev">—</span><svg class="kpi-spark r" id="spark-rev" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi warn"><div class="kl">МК проведено</div><div class="kv yc" id="kv-mk"><span class="skel skel-kv"></span></div><div class="ks" id="ks-mk"><span class="skel skel-ks"></span></div><span class="ktag warn" id="kt-mk">—</span><svg class="kpi-spark" id="spark-mk" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi ok"><div class="kl">Конверсия</div><div class="kv gc" id="kv-conv"><span class="skel skel-kv"></span></div><div class="ks gc" id="ks-conv"><span class="skel skel-ks"></span></div><span class="ktag ok" id="kt-conv">—</span><svg class="kpi-spark g" id="spark-conv" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi ok"><div class="kl">Средний чек</div><div class="kv yc" id="kv-avg"><span class="skel skel-kv"></span></div><div class="ks" id="ks-avg"><span class="skel skel-ks"></span></div><span class="ktag ok" id="kt-avg">—</span><svg class="kpi-spark g" id="spark-avg" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+    <div class="kpi info"><div class="kl">Выручка / МК</div><div class="kv bc" id="kv-rpm"><span class="skel skel-kv"></span></div><div class="ks" id="ks-rpm"><span class="skel skel-ks"></span></div><span class="ktag info" id="kt-rpm">—</span><svg class="kpi-spark b" id="spark-rpm" width="68" height="22" viewBox="0 0 68 22"></svg></div>
+  </div>
+
+
+
+    <details class="panel analytics-quality" id="analytics-quality"></details>
     <div class="panel ranking-panel">
       <div class="pt">Рейтинг команды
         <div style="display:flex;align-items:center;gap:8px">
@@ -1384,10 +1408,7 @@ window.updatePersonaFooter=updatePersonaFooter;
       <div class="pt">Выполнение плана</div>
       <div id="prog" style="margin-bottom:14px"></div>
       <div class="pt">Динамика выручки
-        <div class="pbts">
-          <button class="pbtn active" onclick="setPer('week',this)">Нед</button>
-          <button class="pbtn" onclick="setPer('month',this)">Мес</button>
-        </div>
+        <span class="analytics-note">за выбранный период</span>
       </div>
       <div style="position:relative;height:90px"><canvas id="revC"></canvas></div>
     </div>
@@ -1450,13 +1471,14 @@ window.updatePersonaFooter=updatePersonaFooter;
   <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
     <div class="dfilter" style="margin-bottom:0">
       <span style="font-size:11px;color:var(--muted);font-weight:600">Период:</span>
-      <button class="dfbtn active" onclick="setDfPer('all',this)">Весь месяц</button>
+      <button class="dfbtn active" onclick="setDfPer('today',this)">Сегодня</button>
+    <button class="dfbtn" onclick="setDfPer('all',this)">Весь месяц</button>
       <button class="dfbtn" onclick="setDfPer('week',this)">Эта неделя</button>
       <button class="dfbtn" onclick="setDfPer('custom',this)">Произвольный</button>
       <div id="custom-dates" style="display:none;align-items:center;gap:6px">
         <label>с</label><input type="date" class="dfinput" id="df-from">
         <label>по</label><input type="date" class="dfinput" id="df-to">
-        <button class="dfbtn active" onclick="applyCustom()">Применить</button>
+        <button class="dfbtn active" onclick="applyCustom()">Применить</button><span class="period-error" id="period-error" role="status"></span>
       </div>
     </div>
     <div class="nav-tabs">
@@ -1551,7 +1573,7 @@ window.updatePersonaFooter=updatePersonaFooter;
 <div class="page" id="page-schedule">
 
   <div class="page-hdr">
-    <div class="page-eyebrow">Операционка · Май 2026</div>
+    <div class="page-eyebrow">Операционка · Команда</div>
     <div class="page-title">Расписание</div>
     <div class="page-sub">Тепловая карта слотов на 14 дней вперёд</div>
   </div>
@@ -1797,21 +1819,21 @@ window.updatePersonaFooter=updatePersonaFooter;
   <div class="guide-panel" id="gtab-reports" style="display:none">
     <div class="guide-grid">
 
-      <a href="https://docs.google.com/forms/d/1DqWZXF5gYVca9oEWumlQLDfsZM5fNKOXSAnVSTee5vI/edit" target="_blank" class="guide-card guide-card-link" style="border-color:var(--g-bd)">
+      <a href="https://docs.google.com/forms/d/1DqWZXF5gYVca9oEWumlQLDfsZM5fNKOXSAnVSTee5vI/viewform" target="_blank" class="guide-card guide-card-link" style="border-color:var(--g-bd)">
         <div class="guide-card-icon" style="background:var(--g-bg);color:var(--g)">📋</div>
         <div class="guide-card-title">Отчёт об уроке</div>
         <div class="guide-card-sub">Заполнить сразу после МК</div>
         <div style="margin-top:12px;font-size:11px;color:var(--g);font-weight:600">Открыть форму ↗</div>
       </a>
 
-      <a href="https://docs.google.com/forms/d/1s0R4F1cMXrg02Ypi4uGvSZXJmDbN5T9qDGZbrPXmHaY/edit" target="_blank" class="guide-card guide-card-link" style="border-color:var(--y-bd)">
+      <a href="https://docs.google.com/forms/d/1s0R4F1cMXrg02Ypi4uGvSZXJmDbN5T9qDGZbrPXmHaY/viewform" target="_blank" class="guide-card guide-card-link" style="border-color:var(--y-bd)">
         <div class="guide-card-icon" style="background:var(--y-bg);color:var(--y)">💳</div>
         <div class="guide-card-title">Отчёт об оплате</div>
         <div class="guide-card-sub">Заполнить когда пришли деньги</div>
         <div style="margin-top:12px;font-size:11px;color:var(--y);font-weight:600">Открыть форму ↗</div>
       </a>
 
-      <a href="https://docs.google.com/forms/d/10AaRII1ORc_T6VZASKg9LZlV3WAxSWl4rd_IFTMzP80/edit" target="_blank" class="guide-card guide-card-link" style="border-color:var(--r-bd)">
+      <a href="https://docs.google.com/forms/d/10AaRII1ORc_T6VZASKg9LZlV3WAxSWl4rd_IFTMzP80/viewform" target="_blank" class="guide-card guide-card-link" style="border-color:var(--r-bd)">
         <div class="guide-card-icon" style="background:var(--r-bg);color:var(--r)">❌</div>
         <div class="guide-card-title">Отчёт об отмене</div>
         <div class="guide-card-sub">Заполнить при отмене МК</div>
@@ -1890,14 +1912,14 @@ const FALLBACK_MGRS = ['Перебейносов А.','Куюмджу Д.','Ни
 // ═══════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════
-let lessons=[], renewals=[], managers=[], targets={mk:52,rev:1885140,avg:36000,rpm:180000,conv:40}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
-let charts={}, curPer='week', curSlotMode='today', curSlotCustom='', dfFrom=null, dfTo=null, dfMode='all', hmWeek=0;
+let lessons=[], renewals=[], managers=[], targets={mk:null,rev:null,avg:null,rpm:null,conv:null}, slots=[], tomorrowSlots=[], allSlots=[], cancelsList=[];
+let charts={}, curPer='week', curSlotMode='today', curSlotCustom='', dfFrom=null, dfTo=null, dfMode='today', hmWeek=0;
 let opsDay='today', opsCustomDate='', opsMgr='', opsDataReady=false, dashboardLoadPromise=null;
 let actualLessonReports=[], actualCancelReports=[], opsSlotData={rows:[],invalidDates:0,invalidTimes:0,unknownManagers:0}, opsSourceStates={};
 const OPS_SOURCE_NAMES={slots:'Записи по расписанию',form:'Отчёты об уроках',cancels:'Отчёты об отменах',payments:'Оплаты',managers:'Менеджеры',schedule:'Доступность менеджеров',targets:'Планы'};
 // Explicit account mapping from the existing slot renderer; no inference from event titles.
 const OPS_SLOT_MANAGERS={'@lucky_8_8':'Перебейносов А.','@GeorgiPC':'Николаев Г.','@Daria_K53':'Куюмджу Д.','@orlean40':'Папашвили Д.','@kayzen_look':'Масимова Р.','@Evgeny_Fedyainov':'Федяинов Е.'};
-let mainDfMode='all', mainDfFrom=null, mainDfTo=null;
+let mainDfMode='today', mainDfFrom=null, mainDfTo=null;
 let COUNT_RENEWALS=(function(){try{return localStorage.getItem('eks-cr')!=='0';}catch(e){return true;}})();
 let analyticsMgr='';
 // Personal view: when set to a manager name, all "team" views filter to just them.
@@ -2035,13 +2057,22 @@ async function fetchCSV(key) {
     var rows=parseCSV(txt);
     var minColumns={form:12,payments:8,managers:2,targets:5,slots:3,schedule:3,cancels:8}[key]||2;
     if(!rows.length||rows[0].length<minColumns)throw new Error('Не совпадают столбцы таблицы');
+    var expected={
+      form:{0:/врем|отправлен/i,1:/менеджер|пров[её]л|методист/i,2:/дата/i,3:/время/i,4:/crm|amo|сделк/i},
+      payments:{0:/врем|отправлен/i,1:/менеджер|пров[её]л|методист/i,2:/crm|amo|сделк/i,3:/дата/i,6:/способ|тип|оплат/i,7:/сумм|выруч/i},
+      cancels:{0:/врем|отправлен/i,1:/crm|amo|сделк/i,2:/причин/i,7:/мимк|менеджер|методист/i},
+      managers:{0:/имя|менеджер/i,1:/актив/i},targets:{0:/месяц/i,1:/мк/i,2:/выруч/i},
+      slots:{0:/дата/i,1:/время/i,2:/менеджер/i},schedule:{0:/менеджер/i,1:/дата/i,2:/время/i}
+    }[key]||{};
+    if(Object.keys(expected).some(function(index){return !expected[index].test(rows[0][index]||'');}))throw new Error('Изменились заголовки таблицы — проверьте структуру источника');
+    sourceSnapshots[key]=rows;
     recordOpsSource(key,'success',{rowCount:Math.max(0,rows.length-1)});
     console.log('✅',key,':',rows.length,'rows, cols:', rows[0] ? rows[0].length : 0);
     return rows;
   }catch(e){
     console.warn('Fetch error:',key,e.message);
     recordOpsSource(key,'error',{message:e.name==='AbortError'?'Нет ответа за 25 секунд':e.message});
-    return[];
+    return sourceSnapshots[key]||[];
   }finally{
     clearTimeout(timeout);
   }
@@ -2093,305 +2124,10 @@ function extractCrmId(url) {
 // LOAD
 // ═══════════════════════════════════════
 function loadAll() {
+  if(window.__submittingSchedule)return Promise.resolve();
   if(dashboardLoadPromise)return dashboardLoadPromise;
   dashboardLoadPromise=Promise.resolve().then(loadAllData).finally(function(){dashboardLoadPromise=null;});
   return dashboardLoadPromise;
-}
-
-async function loadAllData() {
-  opsDataReady=false;
-  renderOperations();
-  var loader = document.getElementById('loader');
-  if (loader) loader.classList.add('visible');
-  try {
-  var [rawForm,rawPayments,rawMgrs,rawTar,rawSlots,rawSched,rawCancels] = await Promise.all([
-    fetchCSV('form'),fetchCSV('payments'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule'),fetchCSV('cancels')
-  ]);
-
-  // Build canonical-manager list early so we can normalize free-text manager fields
-  // from forms (where managers sometimes type "Перебейносов А" / "Перебейносов А.").
-  var canonList=[];
-  for(var __i=1;__i<rawMgrs.length;__i++){
-    var __r=rawMgrs[__i];
-    var __nm=cc((__r||[])[0]);
-    var __act=(cc((__r||[])[1])||'').toLowerCase();
-    if(__nm&&(__act==='да'||__act==='yes'||__act==='1')) canonList.push(__nm);
-  }
-  if(!canonList.length) canonList=FALLBACK_MGRS.slice();
-  // For matching: lowercase first word of canonical name → canonical
-  var canonByFirst={};
-  canonList.forEach(function(m){
-    var f=m.toLowerCase().split(' ')[0];
-    if(!canonByFirst[f]) canonByFirst[f]=m;
-  });
-  window.__canonicalMgr = function(raw){
-    if(!raw) return raw;
-    var s=String(raw).trim().replace(/\s+/g,' ');
-    // 1) exact match (trimmed)
-    for(var i=0;i<canonList.length;i++) if(canonList[i]===s) return canonList[i];
-    // 2) case-insensitive exact match
-    for(var i=0;i<canonList.length;i++) if(canonList[i].toLowerCase()===s.toLowerCase()) return canonList[i];
-    // 3) first-word match (handles "Перебейносов А" → "Перебейносов А.")
-    var f=s.toLowerCase().split(' ')[0];
-    if(canonByFirst[f]) return canonByFirst[f];
-    // 4) no match — return as-is, will be filtered out by `visible*()` exact check
-    return s;
-  };
-
-  // Parse lessons (Форма 1 — без оплаты)
-  // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=notes,10=agreement,11=objection
-  var mkMap = {}; // crmId → lesson object
-  var mkList = [];
-  for(var i=1;i<rawForm.length;i++){
-    var r=rawForm[i];
-    if(!r[1])continue;
-    var crmUrl=cc(r[4]);
-    var crmId=extractCrmId(crmUrl);
-    var lesson = {
-      ts:cc(r[0]),manager:window.__canonicalMgr(cc(r[1])),date:cc(r[2]),time:cc(r[3]),
-      crm:crmUrl,crmId:crmId,rec:cc(r[5]),practice:cc(r[6]),age:cc(r[7]),
-      pack:cc(r[8]),notes:cc(r[9]),agreement:cc(r[10]),objection:cc(r[11]),
-      rev:0,paid:false,paytype:'',scenario:'no_pay'
-    };
-    mkList.push(lesson);
-    if(crmId) mkMap[crmId] = lesson;
-  }
-  // The operational model keeps nonempty raw rows, including records excluded by legacy KPIs.
-  var opsManagerName=function(name){return OpsControl.matchManager(name,canonList,OPS_SLOT_MANAGERS).manager;};
-  actualLessonReports=OpsControl.parseReports(rawForm,opsManagerName);
-  actualCancelReports=OpsControl.parseCancels(rawCancels,opsManagerName);
-
-  // Parse payments (Форма 2 — только оплата)
-  // Cols: 0=ts,1=manager,2=crm,3=paydate,4=practice,5=pack,6=paytype,7=revenue
-  var payMap = {}; // crmId → payment object
-  var payOnlyList = []; // оплаты без МК (сценарий 2)
-  var renewalsList = []; // paytype='продление' — отдельная сущность, не мёрджится
-  for(var i=1;i<rawPayments.length;i++){
-    var r=rawPayments[i];
-    if(!r[1])continue;
-    var crmUrl=cc(r[2]);
-    var crmId=extractCrmId(crmUrl);
-    var rev=parseFloat(cc(r[7]).replace(/[^0-9.]/g,''))||0;
-    var pay = {
-      ts:cc(r[0]),manager:window.__canonicalMgr(cc(r[1])),crm:crmUrl,crmId:crmId,
-      paydate:cc(r[3]),practice:cc(r[4]),pack:cc(r[5]),paytype:cc(r[6]),rev:rev
-    };
-    var ptL=cc(r[6]).toLowerCase();
-    if(ptL.indexOf('продлен')>=0||ptL.indexOf('повторн')>=0){renewalsList.push(pay);continue;}
-    if(crmId) payMap[crmId] = pay;
-    // Сценарий 2: оплата есть, МК отчёта нет → оплата на занятии
-    if(crmId && !mkMap[crmId]){
-      payOnlyList.push(pay);
-      console.warn('[pay-only] нет МК для crmId:', crmId, '| url:', crmUrl);
-    }
-  }
-
-  // Мёрдж: накладываем оплаты на МК
-  for(var crmId in payMap){
-    if(mkMap[crmId]){
-      // Сценарий 3: МК + оплата позже → обновляем существующий урок
-      var mk = mkMap[crmId];
-      var pay = payMap[crmId];
-      mk.rev = pay.rev;
-      mk.paid = true;
-      mk.paytype = pay.paytype;
-      mk.paydate = pay.paydate;
-      mk.pack = pay.pack || mk.pack;
-      mk.practice = pay.practice || mk.practice;
-      mk.scenario = 'pay_later';
-    }
-  }
-
-  // Второй проход: fuzzy-матч для оставшихся payOnlyList
-  // Если crmId из оплаты содержится в URL МК (или наоборот) — считаем матчем
-  var payOnlyFinal = [];
-  for(var j=0;j<payOnlyList.length;j++){
-    var pay = payOnlyList[j];
-    var payUrl = pay.crm || '';
-    var fuzzyMk = null;
-    // Попытка 1: crmId МК содержится в URL оплаты
-    for(var id in mkMap){
-      if(id && id.length >= 5 && payUrl.includes(id)){
-        fuzzyMk = mkMap[id]; break;
-      }
-    }
-    // Попытка 2: crmId оплаты содержится в URL МК
-    if(!fuzzyMk && pay.crmId && pay.crmId.length >= 5){
-      for(var id in mkMap){
-        var mkUrl = mkMap[id].crm || '';
-        if(mkUrl.includes(pay.crmId)){ fuzzyMk = mkMap[id]; break; }
-      }
-    }
-    // Попытка 3: МК от того же менеджера, без CRM ID, ещё не оплачен — берём ближайший по дате
-    if(!fuzzyMk && pay.manager){
-      var payD = parseDate(normDate(pay.paydate || pay.ts));
-      var candidates = mkList.filter(function(l){
-        return !l.paid && l.manager === pay.manager && !l.crmId;
-      });
-      if(candidates.length > 0){
-        if(payD){
-          candidates.sort(function(a,b){
-            var da=parseDate(normDate(a.date)), db=parseDate(normDate(b.date));
-            return (da?Math.abs(da-payD):Infinity)-(db?Math.abs(db-payD):Infinity);
-          });
-        }
-        fuzzyMk = candidates[0];
-        if(pay.crmId) mkMap[pay.crmId] = fuzzyMk;
-      }
-    }
-    if(fuzzyMk){
-      // Нашли нечёткий матч — мёрджим оплату в найденный МК
-      fuzzyMk.rev = pay.rev; fuzzyMk.paid = true;
-      fuzzyMk.paytype = pay.paytype; fuzzyMk.paydate = pay.paydate;
-      fuzzyMk.pack = pay.pack || fuzzyMk.pack;
-      fuzzyMk.practice = pay.practice || fuzzyMk.practice;
-      fuzzyMk.scenario = 'pay_later';
-      console.info('[pay-fuzzy] matched:', pay.crmId, '→', fuzzyMk.crmId, pay.crm);
-    } else {
-      payOnlyFinal.push(pay);
-      console.warn('[pay-unmatched]', pay.manager, '| crmId:', pay.crmId, '| url:', pay.crm);
-    }
-  }
-
-  // Сценарий 2: только если реально нет МК (не нашли даже нечётко)
-  for(var j=0;j<payOnlyFinal.length;j++){
-    var pay = payOnlyFinal[j];
-    mkList.push({
-      ts:pay.ts,manager:pay.manager,date:pay.paydate,time:'',
-      crm:pay.crm,crmId:pay.crmId,rec:'',practice:pay.practice,age:'',
-      pack:pay.pack,notes:'',agreement:'',objection:'',
-      rev:pay.rev,paid:true,paytype:pay.paytype,scenario:'pay_on_lesson'
-    });
-  }
-
-  lessons = mkList;
-  renewals = renewalsList;
-
-  // Parse managers
-  managers=[];
-  for(var i=1;i<rawMgrs.length;i++){
-    var r=rawMgrs[i];
-    var name=cc(r[0]),act=(cc(r[1])||'').toLowerCase();
-    if(name&&(act==='да'||act==='yes'||act==='1'))managers.push(name);
-  }
-  if(!managers.length)managers=FALLBACK_MGRS;
-  opsSlotData=OpsControl.parseSlots(rawSlots,managers,OPS_SLOT_MANAGERS);
-
-  // Parse targets
-  var now=new Date();
-  var mnames=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-  var cm=mnames[now.getMonth()];
-  for(var i=1;i<rawTar.length;i++){
-    var r=rawTar[i];
-    var rm=cc(r[0]);
-    if(rm.includes(cm)&&rm.includes(String(now.getFullYear()))){
-      targets={
-        mk:parseInt(cc(r[1]))||52,
-        rev:parseInt(cc(r[2]).replace(/[^0-9]/g,''))||1885140,
-        avg:parseInt(cc(r[3]).replace(/[^0-9]/g,''))||36000,
-        rpm:parseInt(cc(r[4]).replace(/[^0-9]/g,''))||180000,
-        conv:40
-      };break;
-    }
-  }
-
-  // Parse slots — new format: Date, Time, Manager, Status
-  var nowT=new Date();
-  allSlots=[];slots=[];tomorrowSlots=[];
-
-  for(var i=1;i<rawSlots.length;i++){
-    var r=rawSlots[i];
-    // Support both formats:
-    // Old: Time, Manager, Status (3 cols)
-    // New: Date, Time, Manager, Status (4 cols)
-    var col0=cc(r[0]),col1=cc(r[1]),col2=cc(r[2]),col3=cc(r[3]||'');
-    // Detect if first col is a date (any format) or a time
-    var isDate = col0 && !col0.match(/^\d{1,2}:\d{2}$/) && col0.length > 5;
-    var slotDate = isDate ? normDate(col0) : fmtDate(nowT);
-    var time = isDate ? col1 : col0;
-    var who  = isDate ? col2 : col1;
-    var rawStatus = isDate ? col3 : col2;
-    if(!time||!who)continue;
-    // Debug
-    console.log('Slot raw:', col0, col1, col2, '-> date:', slotDate, 'time:', time, 'who:', who);
-
-    // Auto-update status based on time if today
-    var p=time.split(':');
-    var hh=parseInt(p[0]),mm=parseInt(p[1])||0;
-    var st=new Date(nowT);st.setHours(hh,mm,0,0);
-    var en=new Date(st.getTime()+3600000);
-    var todayStr=fmtDate(nowT);
-    var status=rawStatus||'wait';
-    if(!slotDate||slotDate===todayStr){
-      status=en<nowT?'done':st<=nowT&&nowT<en?'live':'wait';
-    }
-
-    allSlots.push({date:slotDate||todayStr, time, who, status});
-  }
-
-  // Build today/tomorrow for backward compat
-  var todayStr=fmtDate(nowT);
-  var tomorrowStr=fmtDate(new Date(nowT.getTime()+86400000));
-  slots=allSlots.filter(s=>s.date===todayStr);
-  tomorrowSlots=allSlots.filter(s=>s.date===tomorrowStr);
-
-  // Parse schedule data from sheet: Менеджер, Дата, Время
-  scheduleData={};
-  console.log('Raw schedule rows:', rawSched.length);
-  for(var i=1;i<rawSched.length;i++){
-    var r=rawSched[i];
-    if(!r||r.length<3)continue;
-    var mgr=cc(r[0]),ds=normDate(cc(r[1])),tm=cc(r[2]);
-    if(!mgr||!ds||!tm)continue;
-    var hr=parseInt(tm.split(':')[0]);
-    if(isNaN(hr))continue;
-    if(!scheduleData[mgr])scheduleData[mgr]={};
-    if(!scheduleData[mgr][ds])scheduleData[mgr][ds]={};
-    scheduleData[mgr][ds][hr]=true;
-    console.log('Schedule:', mgr, ds, hr);
-  }
-  console.log('scheduleData keys:', Object.keys(scheduleData));
-
-  // Parse cancels
-  // COLUMNS: 0=ts, 1=crm(AMO), 2=Причина, 3=Первичная(Да/Нет), 4=Как связались, 5=Возраст, 6=Комментарий, 7=МиМК(manager)
-  cancelsList = [];
-  for(var i=1;i<rawCancels.length;i++){
-    var r=rawCancels[i];
-    if(!r[0])continue;
-    cancelsList.push({
-      ts:cc(r[0]), crm:cc(r[1]), reason:cc(r[2]),
-      is_first:cc(r[3]), contact:cc(r[4]), age:cc(r[5]),
-      comment:cc(r[6]), manager:window.__canonicalMgr(cc(r[7]))
-    });
-  }
-
-  opsDataReady=true;
-  renderOperations();
-  renderMain();
-  buildAnalyticsMgrFilter();
-  renderAnalytics();
-  renderManagers();
-  renderSchedule();
-  renderRetention();
-  if(typeof updatePersonaFooter==='function') updatePersonaFooter();
-  if(typeof maybeShowOnboarding==='function') maybeShowOnboarding();
-
-  var n=new Date();
-  document.getElementById('upd').textContent=
-    n.toLocaleDateString('ru',{day:'2-digit',month:'short'})+' '+
-    n.toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
-
-  } catch(err) {
-    console.error('loadAll error:', err);
-    var isPreview = window.location.hostname === 'claude.ai' || window.location.protocol === 'file:';
-    document.getElementById('alert-text').innerHTML = isPreview
-      ? '<strong>Превью Claude:</strong> данные недоступны в превью — открой дашборд на GitHub Pages'
-      : '<strong>Ошибка загрузки:</strong> ' + err.message + ' — проверь доступ к таблице';
-  } finally {
-    renderOperations();
-    var loader = document.getElementById('loader');
-    if (loader) loader.classList.remove('visible');
-  }
 }
 
 // ═══════════════════════════════════════
@@ -2498,100 +2234,6 @@ function renderOperations(){
 // ═══════════════════════════════════════
 // VISIBLE DATA
 // ═══════════════════════════════════════
-function curMonthBounds() {
-  var now=new Date();
-  return {from:new Date(now.getFullYear(),now.getMonth(),1), to:new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59,999)};
-}
-
-function visible() {
-  var mgrSet=new Set(managers);
-  var data=lessons.filter(r=>r.manager && mgrSet.has(r.manager) && (!personalMgr || r.manager===personalMgr));
-  if(dfMode==='week'){
-    var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
-    var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mon&&d<=sun;});
-  } else if(dfMode==='custom'&&dfFrom&&dfTo){
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=dfFrom&&d<=dfTo;});
-  } else {
-    var b=curMonthBounds();
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=b.from&&d<=b.to;});
-  }
-  return data;
-}
-
-function visibleMain() {
-  var mgrSet=new Set(managers);
-  var data=lessons.filter(r=>r.manager && mgrSet.has(r.manager) && (!personalMgr || r.manager===personalMgr));
-  var from,to;
-  if(mainDfMode==='week'){
-    var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
-    var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-    from=mon;to=sun;
-  } else if(mainDfMode==='custom'&&mainDfFrom&&mainDfTo){
-    from=mainDfFrom;to=mainDfTo;
-  } else {
-    var b=curMonthBounds();from=b.from;to=b.to;
-  }
-  // Attribution: paid records → by paydate; unpaid → by MK date.
-  // This ensures every payment counts in exactly one period (the month it was paid).
-  return data.filter(function(r){
-    if(r.paid && r.paydate){
-      var pd=parseDate(normDate(r.paydate));
-      return pd && pd>=from && pd<=to;
-    }
-    var d=parseDate(r.date);
-    return d && d>=from && d<=to;
-  });
-}
-
-function visibleRenewalsMain() {
-  // Match by first-word so the form value ('МВП' or 'МВП Иванова А.') matches
-  // the managers-sheet value ('МВП', 'МВП Иванова А.', or vice versa).
-  var mgrKeys=new Set(managers.map(function(m){return m.split(' ')[0];}));
-  var data=renewals.filter(function(r){
-    if(!r.manager) return false;
-    var k=r.manager.split(' ')[0];
-    if(!mgrKeys.has(k)) return false;
-    if(personalMgr && r.manager!==personalMgr && k!==personalMgr.split(' ')[0]) return false;
-    return true;
-  });
-  if(mainDfMode==='week'){
-    var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
-    var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-    data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=mon&&d<=sun;});
-  } else if(mainDfMode==='custom'&&mainDfFrom&&mainDfTo){
-    data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=mainDfFrom&&d<=mainDfTo;});
-  } else {
-    var b=curMonthBounds();
-    data=data.filter(r=>{var d=parseDate(normDate(r.paydate||r.ts));return d&&d>=b.from&&d<=b.to;});
-  }
-  return data;
-}
-
-function calcTotals(data) {
-  var mk=data.length,paid=data.filter(r=>r.paid).length,rev=data.reduce((s,r)=>s+r.rev,0);
-  return{mk,paid,rev,conv:mk?Math.round(paid/mk*1000)/10:0,avg:paid?Math.round(rev/paid):0,rpm:mk?Math.round(rev/mk):0};
-}
-
-// Сумма выручки продлений по менеджеру (ключ — первое слово имени)
-function renRevByMgr(rows){var m={};rows.forEach(function(r){if(r.manager){var k=r.manager.split(' ')[0];m[k]=(m[k]||0)+r.rev;}});return m;}
-// Количество продлений-оплат по менеджеру (нужно чтобы paid рос синхронно с rev)
-function renCountByMgr(rows){var m={};rows.forEach(function(r){if(r.manager){var k=r.manager.split(' ')[0];m[k]=(m[k]||0)+1;}});return m;}
-
-function syncRenewalToggle(){
-  var b=document.getElementById('renewToggle');
-  if(b){b.classList.toggle('on',COUNT_RENEWALS);b.setAttribute('aria-checked',COUNT_RENEWALS?'true':'false');}
-}
-function toggleRenewals(){
-  COUNT_RENEWALS=!COUNT_RENEWALS;
-  try{localStorage.setItem('eks-cr',COUNT_RENEWALS?'1':'0');}catch(e){}
-  syncRenewalToggle();
-  renderMain();
-  var s=document.getElementById('search');
-  renderTeamTable(visibleMain(),s?s.value:'');
-}
-
-// ═══════════════════════════════════════
 // ─── Sparkline helpers ───
 function sparkPath(data,w,h){
   if(!data||data.length<2)return '';
@@ -2602,103 +2244,6 @@ function sparkPath(data,w,h){
   var last=pts[pts.length-1];
   return '<path class="sarea" d="'+d+' L'+w+' '+h+' L0 '+h+' Z"/><path class="sline" d="'+d+'"/><circle class="sdot" cx="'+last[0]+'" cy="'+last[1]+'" r="2"/>';
 }
-function renderKpiSparks(data){
-  var now=new Date(),W=68,H=22,DAYS=14;
-  var rArr=[],mArr=[],cArr=[],aArr=[],pArr=[];
-  for(var i=DAYS-1;i>=0;i--){
-    var d=new Date(now);d.setDate(now.getDate()-i);
-    var ds=d.toISOString().split('T')[0];
-    var dd=data.filter(function(r){var pd=parseDate(r.date);return pd&&pd.toISOString().split('T')[0]===ds;});
-    var t=calcTotals(dd);
-    rArr.push(t.rev);mArr.push(t.mk);
-    cArr.push(t.mk?(t.paid/t.mk*100):0);
-    aArr.push(t.paid?t.avg:0);pArr.push(t.mk?t.rpm:0);
-  }
-  var map={rev:rArr,mk:mArr,conv:cArr,avg:aArr,rpm:pArr};
-  for(var k in map){var el=document.getElementById('spark-'+k);if(el)el.innerHTML=sparkPath(map[k],W,H);}
-}
-
-// MAIN PAGE
-// ═══════════════════════════════════════
-function renderMain() {
-  syncRenewalToggle();
-  // Update page header for personal/team mode
-  var mEy=document.getElementById('main-eyebrow'),mTi=document.getElementById('main-title'),mSb=document.getElementById('main-sub');
-  if(personalMgr){
-    if(mEy) mEy.textContent='Личный режим · '+personalMgr;
-    if(mTi) mTi.textContent='Мой день';
-    if(mSb) mSb.textContent='Только мои МК, оплаты и слоты. Чтобы вернуться к команде — смени роль в сайдбаре.';
-  } else {
-    if(mEy) mEy.textContent='Операционка · Команда';
-    if(mTi) mTi.textContent='Сегодня';
-    if(mSb) mSb.textContent='Выручка, конверсия, команда и прогресс плана';
-  }
-  var data=visibleMain(),t=calcTotals(data);
-  // When renewals are counted, ALL totals (rev, paid, conv, avg, rpm) scale
-  // with them — that's the user's mental model of 'продажа = продажа,
-  // первичка или продление'. Conv can exceed 100% if a manager renews more
-  // than they booked МК in the period, and that's a legitimate signal.
-  if(COUNT_RENEWALS){
-    var ren=visibleRenewalsMain();
-    t.rev += ren.reduce((s,r)=>s+r.rev,0);
-    t.paid += ren.length;
-  }
-  if(t.mk) t.conv=Math.round(t.paid/t.mk*1000)/10;
-  if(t.paid) t.avg=Math.round(t.rev/t.paid);
-  if(t.mk) t.rpm=Math.round(t.rev/t.mk);
-  var now=new Date();
-
-  // Countdown — calendar days
-  var calLeft=calDaysLeft(),calTotal=calDaysTotal();
-  var wdLeft=workDaysLeft();
-  // Personal mode: scale plan proportionally to share-per-manager so the
-  // КПИ-карточки и countdown показывают реалистичную долю плана для одного
-  // человека, а не «командный» план, который менеджер физически не закроет.
-  var personalScale=(personalMgr && managers.length>1) ? (1/managers.length) : 1;
-  var effRev=targets.rev*personalScale, effMk=Math.max(1,Math.round(targets.mk*personalScale));
-  var revLeft=Math.max(0,effRev-t.rev);
-  var dailyNeed=wdLeft>0?Math.round(revLeft/wdLeft):0;
-
-  document.getElementById('rdays').textContent=calLeft;
-  var circ=2*Math.PI*30;
-  document.getElementById('rfg').style.strokeDashoffset=circ*(1-(calTotal-calLeft)/calTotal);
-  document.getElementById('cc-rev').textContent=fmt(revLeft)+' ₽';
-  document.getElementById('cc-rev2').textContent=(personalMgr?'моя доля':'план')+' '+fmt(effRev)+' ₽';
-  document.getElementById('cc-day').textContent=fmt(dailyNeed)+' ₽';
-  document.getElementById('cc-mk').textContent=Math.max(0,effMk-t.mk)+' МК';
-
-  // KPIs
-  var rp=pct(t.rev,effRev),mp=pct(t.mk,effMk);
-  document.getElementById('kv-rev').textContent=fmt(t.rev)+' ₽';
-  document.getElementById('ks-rev').textContent=rp+'% '+(personalMgr?'от моей доли':'от плана');
-  document.getElementById('kt-rev').textContent=rp+'%';
-  document.getElementById('kv-mk').textContent=t.mk+' / '+effMk;
-  document.getElementById('ks-mk').textContent=mp+'% '+(personalMgr?'от моей доли':'от плана');
-  document.getElementById('kt-mk').textContent=(t.mk-effMk)+' МК';
-  document.getElementById('kv-conv').textContent=t.conv+'%';
-  document.getElementById('ks-conv').textContent='план '+targets.conv+'% · +'+(t.conv-targets.conv).toFixed(1)+'%';
-  document.getElementById('kt-conv').textContent='↑'+pct(t.conv,targets.conv)+'%';
-  document.getElementById('kv-avg').textContent=fmt(t.avg)+' ₽';
-  document.getElementById('ks-avg').textContent='цель '+fmt(targets.avg)+' ₽';
-  document.getElementById('kt-avg').textContent=pct(t.avg,targets.avg)+'%';
-  document.getElementById('kv-rpm').textContent=fmt(t.rpm)+' ₽';
-  document.getElementById('ks-rpm').textContent='цель '+fmt(targets.rpm)+' ₽';
-  document.getElementById('kt-rpm').textContent='↑ растём';
-
-  document.getElementById('alert-text').innerHTML=
-    '<strong>'+(personalMgr?'Твой фокус':'Узкое место')+':</strong> нужно ещё <strong>+'+Math.max(0,effMk-t.mk)+' МК</strong>. '+
-    'Конверсия '+t.conv+'% '+(t.conv>=targets.conv?'✓ выше':'↓ ниже')+' плана · '+
-    'Осталось: <strong>'+fmt(revLeft)+' ₽</strong> · '+calLeft+' кал. дней';
-
-  renderTeamTable(data,'');
-  renderSlots();
-  renderProg(t);
-  renderRevChart(data);
-  renderTeamChart(data);
-  renderKpiSparks(data);
-
-}
-
 // МВП (Менеджер внутренних продаж) is a role, not a person. Anyone whose
 // first-word is 'МВП' is treated as renewals-only — never included in the
 // sales-manager ranking, never given a 'Top' badge, and any МК records that
@@ -2708,98 +2253,6 @@ function isMvp(name){
   var first=(name||'').trim().split(/\s+/)[0]||'';
   return first.toLowerCase()==='мвп';
 }
-
-function renderTeamTable(data,filter) {
-  // Strip МВП rows out of the МК data — she should never contribute МК stats,
-  // even if she was accidentally selected as the manager in the МК form.
-  var primaryData=data.filter(r=>!isMvp(r.manager));
-  var mgrs={};
-  primaryData.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
-  var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t,renewalOnly:false};});
-  var t=calcTotals(primaryData);
-  var renRows=visibleRenewalsMain();
-  var rmap=renRevByMgr(renRows), cmap=renCountByMgr(renRows);
-  // Build МВП row(s) SEPARATELY from the sales ranking
-  var mvpRows=[];
-  var mvpByKey={};
-  renRows.forEach(function(r){
-    if(!r.manager || !isMvp(r.manager)) return;
-    var key=r.manager.split(' ')[0];
-    if(!mvpByKey[key]) mvpByKey[key]={name:r.manager, rev:0, paid:0};
-    mvpByKey[key].rev += r.rev;
-    mvpByKey[key].paid += 1;
-  });
-  Object.keys(mvpByKey).forEach(k=>mvpRows.push(mvpByKey[k]));
-
-  if(COUNT_RENEWALS){
-    var totRen=0, totRenCount=0;
-    // Only non-МВП renewals inflate sales-manager stats
-    sorted.forEach(r=>{
-      var key=r.name.split(' ')[0];
-      var addRev=rmap[key]||0, addCnt=cmap[key]||0;
-      if(addRev||addCnt){
-        r.rev+=addRev;
-        r.paid+=addCnt;
-        r.conv=r.mk?Math.round(r.paid/r.mk*1000)/10:r.conv;
-        r.rpm=r.mk?Math.round(r.rev/r.mk):r.rpm;
-        r.avg=r.paid?Math.round(r.rev/r.paid):r.avg;
-      }
-    });
-    // Total row includes МВП too — the company's revenue is the sum of both
-    for(var k in rmap){totRen+=rmap[k];totRenCount+=(cmap[k]||0);}
-    if(totRen){
-      t.rev+=totRen; t.paid+=totRenCount;
-      t.conv=t.mk?Math.round(t.paid/t.mk*1000)/10:t.conv;
-      t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;
-      t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
-    }
-  } else {
-    mvpRows=[]; // toggle off → hide МВП block entirely
-  }
-  sorted.sort((a,b)=>b.rev-a.rev);
-  var visibleSorted = filter ? sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase())) : sorted;
-  var visibleMvp   = filter ? mvpRows.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase())) : mvpRows;
-  var tbody=document.getElementById('tbody');
-  var avCls=['c1','c2','c3','c4','c5','c6'];
-  var html='';
-  visibleSorted.forEach((r,i)=>{
-    var conv=r.mk?(r.conv||0).toFixed(1):'—';
-    var cn=parseFloat(conv);
-    var convPill=conv!=='—'?`<span class="pill ${cn>=40?'g':cn>=30?'y':'r'}" style="font-size:9.5px">${conv}%</span>`:'<span class="pill">—</span>';
-    var badgeHtml='';
-    if(i===0&&r.mk>0) badgeHtml='<span class="mgr-badge top" style="font-size:9px">👑 Топ</span>';
-    else if(cn>=50) badgeHtml='<span class="mgr-badge up" style="font-size:9px">↑ Сильный</span>';
-    else if(r.mk===0) badgeHtml='<span class="mgr-badge risk" style="font-size:9px">⚠ 0 МК</span>';
-    var ac=avCls[i%avCls.length];
-    html+=`<tr onclick="openMgr('${r.name}')">
-      <td class="tn"><div class="av-chip emoji ${ac}">${mgrEmoji(r.name)}</div>${esc(r.name)}${badgeHtml?'&nbsp;'+badgeHtml:''}</td>
-      <td>${r.mk}</td><td>${r.paid}</td>
-      <td>${convPill}</td>
-      <td style="color:${r.rev>100000?'var(--g)':'var(--sub)'};white-space:nowrap">${fmt(r.rev)} ₽</td>
-      <td style="color:var(--b);white-space:nowrap">${r.avg?fmt(r.avg)+' ₽':'—'}</td>
-      <td style="color:var(--b);white-space:nowrap" title="Фактическая выручка на одно проведённое МК">${r.rpm?fmt(r.rpm)+' ₽':'—'}</td></tr>`;
-  });
-  // ── Отдельная секция для МВП (визуально не соревнуется с сейлами) ──
-  if(visibleMvp.length){
-    html+=`<tr class="mvp-divider"><td colspan="7" style="padding:14px 6px 4px;font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em;border-bottom:none">🔄 Внутренние продажи · продления</td></tr>`;
-    visibleMvp.forEach(function(r){
-      var avg = r.paid?Math.round(r.rev/r.paid):0;
-      html+=`<tr class="mvp-row" style="background:rgba(96,165,250,0.04)">
-        <td class="tn"><div class="av-chip emoji" style="background:none">🔄</div>${esc(r.name)}&nbsp;<span class="mgr-badge up" style="font-size:9px" title="Менеджер внутренних продаж">МВП</span></td>
-        <td>—</td><td>${r.paid}</td>
-        <td><span class="pill b" style="font-size:9.5px" title="Только продления, не считается конверсия">продления</span></td>
-        <td style="color:var(--g);white-space:nowrap">${fmt(r.rev)} ₽</td>
-        <td style="color:var(--b);white-space:nowrap" title="Средний чек продления">${avg?fmt(avg)+' ₽':'—'}</td>
-        <td style="color:var(--sub);white-space:nowrap" title="У продлений нет МК в этой таблице">—</td></tr>`;
-    });
-  }
-
-  // ── Итого = сейлы + МВП (полная выручка воронки отдела) ──
-  html+=`<tr class="total"><td>Итого</td><td class="gc">${t.mk}</td><td class="gc">${t.paid}</td><td class="gc">${t.conv}%</td><td class="gc" style="white-space:nowrap">${fmt(t.rev)} ₽</td><td class="bc" style="white-space:nowrap">${t.avg?fmt(t.avg)+' ₽':'—'}</td><td class="bc" style="white-space:nowrap" title="Фактическая выручка на одно проведённое МК">${t.rpm?fmt(t.rpm)+' ₽':'—'}</td></tr>`;
-  tbody.innerHTML=html;
-}
-
-function filterTeam(v){renderTeamTable(visibleMain(),v);}
 
 function scheduledDate() {
   if(curSlotMode==='custom')return OpsControl.dateKey(curSlotCustom);
@@ -2860,90 +2313,7 @@ function setSlotDate(mode) {
   renderSlots();
 }
 
-function renderProg(t) {
-  var bars=[
-    {l:'МК',v:pct(t.mk,targets.mk),cls:pct(t.mk,targets.mk)>=80?'g':'y',c:pct(t.mk,targets.mk)>=80?'var(--g)':'var(--y)'},
-    {l:'Выручка',v:pct(t.rev,targets.rev),cls:pct(t.rev,targets.rev)<40?'r':'y',c:pct(t.rev,targets.rev)<40?'var(--r)':'var(--y)'},
-    {l:'Конверсия',v:Math.min(100,pct(t.conv,targets.conv)),cls:'g',c:'var(--g)'},
-    {l:'Ср. чек',v:pct(t.avg,targets.avg),cls:'g',c:'var(--g)'},
-  ];
-  document.getElementById('prog').innerHTML=bars.map(b=>
-    `<div class="pr"><span class="pl">${b.l}</span><div class="pt2"><div class="pf ${b.cls}" style="width:${b.v}%"></div></div><span class="pp" style="color:${b.c}">${b.v}%</span></div>`
-  ).join('');
-}
-
-// ═══════════════════════════════════════
-// CHARTS
-// ═══════════════════════════════════════
 function dc(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
-
-function renderRevChart(data) {
-  dc('rev');var c=gc(),now=new Date(),labels=[],values=[];
-  if(curPer==='week'){
-    for(var i=6;i>=0;i--){
-      var d=new Date(now);d.setDate(d.getDate()-i);
-      labels.push(d.toLocaleDateString('ru',{day:'2-digit',month:'2-digit'}));
-      var ds=d.toISOString().split('T')[0];
-      values.push(data.filter(r=>{
-        var pd=parseDate(r.date);
-        return pd&&pd.toISOString().split('T')[0]===ds;
-      }).reduce((s,r)=>s+r.rev,0));
-    }
-  } else {
-    labels=['Нд 1','Нд 2','Нд 3','Нд 4'];values=[0,0,0,0];
-    data.forEach(r=>{
-      var d=parseDate(r.date);if(!d)return;
-      var diff=Math.floor((now-d)/(7*86400000));
-      if(diff>=0&&diff<4)values[3-diff]+=r.rev;
-    });
-  }
-  charts.rev=new Chart(document.getElementById('revC'),{type:'bar',data:{labels,datasets:[{data:values,backgroundColor:values.map((_,i)=>i===values.length-1?'#f5c842':'rgba(245,200,66,0.3)'),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>fmt(v.raw)+' ₽'}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9},callback:v=>Math.round(v/1000)+'к'},grid:{color:c.grid}}}}});
-}
-
-function renderTeamChart(data) {
-  dc('team');var c=gc(),mgrs={};
-  data.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=0;mgrs[r.manager]+=r.rev;});
-  var sorted=Object.entries(mgrs).sort((a,b)=>b[1]-a[1]);
-  var bgs=['#f5c842','#3ecf8e','#60a5fa','#f05252','#a78bfa','#fb923c'];
-  charts.team=new Chart(document.getElementById('teamC'),{type:'bar',data:{labels:sorted.map(([n])=>n.split(' ')[0]),datasets:[{data:sorted.map(([,v])=>v),backgroundColor:sorted.map((_,i)=>bgs[i%bgs.length]+'99'),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>fmt(v.raw)+' ₽'}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9},callback:v=>Math.round(v/1000)+'к'},grid:{color:c.grid}}}}});
-}
-
-function setPer(p,btn){curPer=p;document.querySelectorAll('.pbtn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');renderRevChart(visible());}
-
-// ═══════════════════════════════════════
-// ANALYTICS
-// ═══════════════════════════════════════
-function setDfPer(mode,btn) {
-  dfMode=mode;
-  document.querySelectorAll('#page-analytics .dfbtn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('custom-dates').style.display=mode==='custom'?'flex':'none';
-  if(mode!=='custom'){renderAnalytics();}
-}
-
-function applyCustom() {
-  var f=document.getElementById('df-from').value,t=document.getElementById('df-to').value;
-  if(!f||!t)return;
-  dfFrom=new Date(f);dfFrom.setHours(0,0,0,0);
-  dfTo=new Date(t);dfTo.setHours(23,59,59,999);
-  renderAnalytics();
-}
-
-function setMainDfPer(mode,btn) {
-  mainDfMode=mode;
-  document.querySelectorAll('#page-main .dfbtn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('main-custom-dates').style.display=mode==='custom'?'flex':'none';
-  if(mode!=='custom'){renderMain();}
-}
-
-function applyMainCustom() {
-  var f=document.getElementById('main-df-from').value,t=document.getElementById('main-df-to').value;
-  if(!f||!t)return;
-  mainDfFrom=new Date(f);mainDfFrom.setHours(0,0,0,0);
-  mainDfTo=new Date(t);mainDfTo.setHours(23,59,59,999);
-  renderMain();
-}
 
 function switchAnalyticsTab(tab, btn) {
   document.querySelectorAll('#page-analytics .nav-tabs .tab').forEach(b=>b.classList.remove('active'));
@@ -2951,353 +2321,6 @@ function switchAnalyticsTab(tab, btn) {
   document.getElementById('analytics-mk').style.display = tab==='mk' ? '' : 'none';
   document.getElementById('analytics-cancels').style.display = tab==='cancels' ? '' : 'none';
   if(tab==='cancels') renderCancels();
-}
-
-function visibleAnalytics() {
-  var data=visible();
-  if(analyticsMgr) data=data.filter(r=>r.manager===analyticsMgr);
-  return data;
-}
-
-function setAnalyticsMgr(mgr, btn) {
-  analyticsMgr = mgr;
-  document.querySelectorAll('#analytics-mgr-filter .dfbtn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  renderAnalytics();
-  renderCancels();
-}
-
-function buildAnalyticsMgrFilter() {
-  var wrap = document.getElementById('analytics-mgr-filter');
-  if(!wrap) return;
-  // Rebuild — keep "Все" button, replace rest
-  wrap.innerHTML='<span style="font-size:11px;color:var(--muted);font-weight:600">Менеджер:</span>'
-    +'<button class="dfbtn'+(analyticsMgr===''?' active':'')+'" onclick="setAnalyticsMgr(\'\',this)">Все</button>'
-    +managers.map(m=>'<button class="dfbtn'+(analyticsMgr===m?' active':'')+'" onclick="setAnalyticsMgr(\''+m.replace(/'/g,"\\'")
-    +'\',this)">'+m.split(' ').slice(0,1).join(' ')+'</button>').join('');
-}
-
-function visibleCancels() {
-  var data=cancelsList;
-  if(analyticsMgr) data=data.filter(r=>r.manager===analyticsMgr);
-  if(personalMgr) data=data.filter(r=>r.manager===personalMgr);
-  // Safe date extraction from timestamp ("dd.MM.yyyy HH:mm:ss")
-  function tsDate(r){
-    var s=(r.ts||'').toString();
-    if(!s) return null;
-    return parseDate(s.split(' ')[0] || s.split('T')[0]);
-  }
-  var from,to;
-  if(dfMode==='week'){
-    var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
-    var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-    from=mon;to=sun;
-  } else if(dfMode==='custom'&&dfFrom&&dfTo){
-    from=dfFrom;to=dfTo;
-  } else {
-    // DEFAULT: current month — matches what visible()/visibleMain() do.
-    // Without this, dfMode='all' returned ALL history (245+ records).
-    var b=curMonthBounds();from=b.from;to=b.to;
-  }
-  return data.filter(function(r){
-    var d=tsDate(r);
-    return d && d>=from && d<=to;
-  });
-}
-
-function renderCancels() {
-  var c=gc();
-  var data=visibleCancels();
-  var mkData=visible();
-
-  // ── KPI: Доходимость ──
-  var totalBooked=mkData.length+data.length;
-  var arrived=mkData.length;
-  var cancelled=data.length;
-  var pct=totalBooked>0?Math.round(arrived/totalBooked*100):0;
-  var pctColor=pct>=70?'var(--g)':pct>=50?'var(--y)':'var(--r)';
-  document.getElementById('cancels-kpi').innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px">
-      <div class="panel" style="text-align:center;padding:14px 10px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Всего записей</div>
-        <div style="font-size:26px;font-weight:700;color:var(--text);font-family:var(--display)">${totalBooked}</div>
-      </div>
-      <div class="panel" style="text-align:center;padding:14px 10px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Пришли (МК)</div>
-        <div style="font-size:26px;font-weight:700;color:var(--g);font-family:var(--display)">${arrived}</div>
-      </div>
-      <div class="panel" style="text-align:center;padding:14px 10px">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Отменили</div>
-        <div style="font-size:26px;font-weight:700;color:var(--r);font-family:var(--display)">${cancelled}</div>
-      </div>
-      <div class="panel" style="text-align:center;padding:14px 10px;border:1px solid ${pctColor}44">
-        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">% доходимости</div>
-        <div style="font-size:26px;font-weight:700;color:${pctColor};font-family:var(--display)">${pct}%</div>
-      </div>
-    </div>`;
-
-  // ── График доходимости по дням ──
-  dc('arrivalDay');
-  var dayMap={};
-  mkData.forEach(r=>{if(r.date){if(!dayMap[r.date])dayMap[r.date]={mk:0,cancel:0};dayMap[r.date].mk++;}});
-  data.forEach(r=>{
-    var ds=normDate((r.ts||'').split(' ')[0]||(r.ts||'').split('T')[0]);
-    if(ds){if(!dayMap[ds])dayMap[ds]={mk:0,cancel:0};dayMap[ds].cancel++;}
-  });
-  var dayKeys=Object.keys(dayMap).sort().slice(-14);
-  if(document.getElementById('arrivalDayC')&&dayKeys.length)
-    charts.arrivalDay=new Chart(document.getElementById('arrivalDayC'),{type:'bar',data:{labels:dayKeys,datasets:[
-      {label:'Пришли',data:dayKeys.map(d=>dayMap[d].mk),backgroundColor:'#3ecf8e88',borderRadius:4,borderSkipped:false,stack:'s'},
-      {label:'Отмены',data:dayKeys.map(d=>dayMap[d].cancel),backgroundColor:'#f0525266',borderRadius:4,borderSkipped:false,stack:'s'},
-      {label:'% доходимости',data:dayKeys.map(d=>{var t=dayMap[d].mk+dayMap[d].cancel;return t?Math.round(dayMap[d].mk/t*100):null;}),type:'line',borderColor:'#f5c842',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#f5c842',yAxisID:'y2',tension:0.3,stack:undefined}
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.tick,font:{size:9},boxWidth:10}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid},stacked:true},y2:{position:'right',ticks:{color:'#f5c842',font:{size:9},callback:v=>v+'%'},grid:{display:false},min:0,max:100}}}});
-
-  // Причины отмен
-  dc('cancelReason');
-  var rm={};data.forEach(r=>{if(r.reason)rm[r.reason]=(rm[r.reason]||0)+1;});
-  var rs=Object.entries(rm).sort((a,b)=>b[1]-a[1]);
-  if(document.getElementById('cancelReasonC')&&rs.length)
-    charts.cancelReason=new Chart(document.getElementById('cancelReasonC'),{type:'bar',data:{labels:rs.map(([k])=>k),datasets:[{data:rs.map(([,v])=>v),backgroundColor:'#f0525288',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}});
-
-  // Первичная / Повторная
-  dc('cancelFirst');
-  var fm={};data.forEach(r=>{var k=r.is_first||'Не указано';fm[k]=(fm[k]||0)+1;});
-  var fk=Object.keys(fm);
-  if(document.getElementById('cancelFirstC')&&fk.length)
-    charts.cancelFirst=new Chart(document.getElementById('cancelFirstC'),{type:'doughnut',data:{labels:fk,datasets:[{data:fk.map(k=>fm[k]),backgroundColor:['#f5c842','#60a5fa','#f05252'],borderColor:'#111',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:c.tick,font:{size:11},boxWidth:12}}}}});
-
-  // Способ связи
-  dc('cancelContact');
-  var cm={};data.forEach(r=>{if(r.contact)r.contact.split(',').forEach(s=>{var k=s.trim();if(k)cm[k]=(cm[k]||0)+1;});});
-  var ck=Object.keys(cm);
-  if(document.getElementById('cancelContactC')&&ck.length)
-    charts.cancelContact=new Chart(document.getElementById('cancelContactC'),{type:'bar',data:{labels:ck,datasets:[{data:ck.map(k=>cm[k]),backgroundColor:'#60a5fa88',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
-
-  // Возраст
-  dc('cancelAge');
-  var am={};data.forEach(r=>{var a=parseInt(r.age);if(!isNaN(a)&&a>0)am[a]=(am[a]||0)+1;});
-  var ak=Object.keys(am).map(Number).sort((a,b)=>a-b);
-  if(document.getElementById('cancelAgeC')&&ak.length)
-    charts.cancelAge=new Chart(document.getElementById('cancelAgeC'),{type:'bar',data:{labels:ak.map(a=>a+' лет'),datasets:[{data:ak.map(a=>am[a]),backgroundColor:'#a78bfa88',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
-
-  // По менеджерам
-  dc('cancelMgr');
-  var mm={};data.forEach(r=>{if(r.manager)mm[r.manager]=(mm[r.manager]||0)+1;});
-  var mk2=Object.entries(mm).sort((a,b)=>b[1]-a[1]);
-  if(document.getElementById('cancelMgrC')&&mk2.length)
-    charts.cancelMgr=new Chart(document.getElementById('cancelMgrC'),{type:'bar',data:{labels:mk2.map(([k])=>k),datasets:[{data:mk2.map(([,v])=>v),backgroundColor:'#fb923c88',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
-
-  // Таблица
-  var sorted=[...data].sort((a,b)=>b.ts.localeCompare(a.ts)).slice(0,100);
-  document.getElementById('cancels-table').innerHTML=sorted.length
-    ?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>МиМК</th><th>Причина</th><th>Первичная?</th><th>Возраст</th><th>Связь</th><th>Комментарий</th><th>CRM</th></tr></thead><tbody>${sorted.map(r=>`<tr><td class="tn">${esc(r.manager||'—')}</td><td style="font-size:11px">${esc(r.reason||'—')}</td><td style="color:${r.is_first==='Нет'?'var(--r)':'var(--muted)'}">${esc(r.is_first||'—')}</td><td style="font-family:var(--mono)">${esc(r.age||'—')}</td><td style="font-size:11px">${esc(r.contact||'—')}</td><td>${r.comment?agrBtn(r.comment):'—'}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`
-    :'<div class="empty"><div class="empty-ic">✅</div><div>Отмен нет</div></div>';
-}
-
-function renderAnalytics() {
-  var data=visibleAnalytics(),c=gc();
-
-  // ── 1. Воронка ──
-  var fSlots=allSlots.filter(s=>{
-    var d=parseDate(s.date);if(!d)return false;
-    if(dfMode==='week'){var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);return d>=mon&&d<=sun;}
-    if(dfMode==='custom'&&dfFrom&&dfTo)return d>=dfFrom&&d<=dfTo;
-    var now=new Date();return d.getMonth()===now.getMonth()&&d.getFullYear()===now.getFullYear();
-  });
-  var fTotal=fSlots.length||data.length,fMk=data.length,fPaid=data.filter(r=>r.paid).length;
-  var fSteps=[
-    {label:'Слоты (занято)',val:fTotal,color:'#60a5fa'},
-    {label:'МК проведено',val:fMk,color:'#f5c842'},
-    {label:'Оплатили',val:fPaid,color:'#3ecf8e'}
-  ];
-  document.getElementById('funnel-chart').innerHTML=fSteps.map((s,i)=>{
-    var pct=fTotal>0?Math.round(s.val/fTotal*100):0;
-    var prev=i>0&&fSteps[i-1].val>0?Math.round(s.val/fSteps[i-1].val*100):null;
-    var w=fTotal>0?Math.max(14,Math.round(s.val/fTotal*100)):0;
-    return`<div class="funnel-row">
-      <div class="funnel-lbl">${s.label}</div>
-      <div class="funnel-track">
-        <div class="funnel-fill" style="width:${w}%">
-          <div class="funnel-fill-inner" style="background:${s.color}"></div>
-          <span class="funnel-num" style="color:${s.color}">${s.val}</span>
-        </div>
-      </div>
-      <div class="funnel-meta">${pct}% всех${prev!==null?`<br><span style="color:${s.color}">${prev}% шаг</span>`:''}
-      </div>
-    </div>`;
-  }).join('');
-
-  // ── 2. Конверсия по времени МК ──
-  dc('timeSlot');
-  var buckets={
-    'Утро 10–12':{hours:[10,11,12],mk:0,paid:0},
-    'День 13–16':{hours:[13,14,15,16],mk:0,paid:0},
-    'Вечер 17–21':{hours:[17,18,19,20,21],mk:0,paid:0}
-  };
-  data.forEach(r=>{
-    var h=r.time?parseInt(r.time.split(':')[0]):NaN;
-    if(isNaN(h))return;
-    for(var k in buckets){if(buckets[k].hours.includes(h)){buckets[k].mk++;if(r.paid)buckets[k].paid++;}}
-  });
-  var bk=Object.keys(buckets),bColors=['#60a5fa','#f5c842','#3ecf8e'];
-  if(document.getElementById('timeSlotC'))
-    charts.timeSlot=new Chart(document.getElementById('timeSlotC'),{type:'bar',data:{labels:bk,datasets:[
-      {label:'МК',data:bk.map(k=>buckets[k].mk),backgroundColor:bColors.map(c=>c+'55'),borderRadius:4,borderSkipped:false,yAxisID:'y'},
-      {label:'Оплат',data:bk.map(k=>buckets[k].paid),backgroundColor:bColors.map(c=>c+'99'),borderRadius:4,borderSkipped:false,yAxisID:'y'},
-      {label:'Конв. %',data:bk.map(k=>buckets[k].mk?Math.round(buckets[k].paid/buckets[k].mk*100):0),type:'line',borderColor:'#a78bfa',backgroundColor:'transparent',borderWidth:2,pointRadius:4,pointBackgroundColor:'#a78bfa',yAxisID:'y2',tension:0.3}
-    ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.tick,font:{size:9},boxWidth:10}}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y2:{position:'right',ticks:{color:'#a78bfa',font:{size:9},callback:v=>v+'%'},grid:{display:false},min:0,max:100}}}});
-
-  // ── 3. Дней до оплаты ──
-  dc('payDelay');
-  var delays=[];
-  data.forEach(r=>{
-    if(!r.paid||!r.date||!r.paydate)return;
-    var d1=parseDate(r.date),d2=parseDate(r.paydate);
-    if(!d1||!d2)return;
-    var diff=Math.round((d2-d1)/(86400000));
-    if(diff>=0&&diff<=30)delays.push(diff);
-  });
-  var delayCounts={};delays.forEach(d=>{var k=d===0?'0 (на МК)':d<=3?'1–3':d<=7?'4–7':d<=14?'8–14':'15–30';delayCounts[k]=(delayCounts[k]||0)+1;});
-  var delayK=['0 (на МК)','1–3','4–7','8–14','15–30'];
-  if(document.getElementById('payDelayC'))
-    charts.payDelay=new Chart(document.getElementById('payDelayC'),{type:'bar',data:{labels:delayK,datasets:[{data:delayK.map(k=>delayCounts[k]||0),backgroundColor:delayK.map((_,i)=>['#3ecf8e','#3ecf8e99','#f5c84299','#f5c84266','#f0525266'][i]),borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>`${v.raw} оплат`}}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
-
-
-  // Objections
-  dc('obj');
-  var om={};data.forEach(r=>{if(r.objection)om[r.objection]=(om[r.objection]||0)+1;});
-  var os=Object.entries(om).sort((a,b)=>b[1]-a[1]);
-  if(document.getElementById('objC')&&os.length)
-    charts.obj=new Chart(document.getElementById('objC'),{type:'bar',data:{labels:os.map(([k])=>k),datasets:[{data:os.map(([,v])=>v),backgroundColor:'#f5c84288',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}});
-
-  // Practices
-  dc('pract');
-  var pm={};data.forEach(r=>{if(r.practice)pm[r.practice]=(pm[r.practice]||0)+1;});
-  var pk=Object.keys(pm);
-  if(document.getElementById('practC')&&pk.length)
-    charts.pract=new Chart(document.getElementById('practC'),{type:'doughnut',data:{labels:pk,datasets:[{data:pk.map(k=>pm[k]),backgroundColor:['#f5c842','#3ecf8e','#60a5fa'],borderColor:'#111',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:c.tick,font:{size:10},boxWidth:12}}}}});
-
-  // Packs
-  dc('pack');
-  var packK=['1 месяц','3 месяца','6 месяцев','12 месяцев'],packD={};
-  data.forEach(r=>{if(r.pack)packD[r.pack]=(packD[r.pack]||0)+1;});
-  if(document.getElementById('packC'))
-    charts.pack=new Chart(document.getElementById('packC'),{type:'bar',data:{labels:packK,datasets:[{data:packK.map(k=>packD[k]||0),backgroundColor:['#f5c84233','#f5c84266','#f5c84299','#f5c842'],borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}}}}});
-
-  // Age distribution
-  dc('age');
-  var ageMap={};
-  data.forEach(r=>{var a=parseInt(r.age);if(!isNaN(a)&&a>0){if(!ageMap[a])ageMap[a]={mk:0,paid:0};ageMap[a].mk++;if(r.paid)ageMap[a].paid++;}});
-  var ageKeys=Object.keys(ageMap).map(Number).sort((a,b)=>a-b);
-  if(document.getElementById('ageC')&&ageKeys.length)
-    charts.age=new Chart(document.getElementById('ageC'),{type:'bar',data:{labels:ageKeys.map(a=>a+' лет'),datasets:[{label:'МК',data:ageKeys.map(a=>ageMap[a].mk),backgroundColor:'#60a5fa66',borderRadius:4,borderSkipped:false,yAxisID:'y'},{label:'Оплат',data:ageKeys.map(a=>ageMap[a].paid),backgroundColor:'#3ecf8e99',borderRadius:4,borderSkipped:false,yAxisID:'y'},{label:'Конверсия %',data:ageKeys.map(a=>ageMap[a].mk?Math.round(ageMap[a].paid/ageMap[a].mk*100):0),type:'line',borderColor:'#f5c842',backgroundColor:'transparent',borderWidth:2,pointRadius:3,pointBackgroundColor:'#f5c842',yAxisID:'y2',tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:c.tick,font:{size:9},boxWidth:10}}},scales:{x:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y2:{position:'right',ticks:{color:'#f5c842',font:{size:9},callback:v=>v+'%'},grid:{display:false},min:0,max:100}}}});
-
-  // Paytype
-  dc('paytype');
-  var ptMap={};data.forEach(r=>{if(r.paid&&r.paytype){var k=r.paytype||'Другое';ptMap[k]=(ptMap[k]||0)+1;}});
-  var ptK=Object.keys(ptMap);
-  if(document.getElementById('paytypeC')&&ptK.length)
-    charts.paytype=new Chart(document.getElementById('paytypeC'),{type:'doughnut',data:{labels:ptK,datasets:[{data:ptK.map(k=>ptMap[k]),backgroundColor:['#f5c842','#3ecf8e','#60a5fa','#a78bfa','#fb923c'],borderColor:'#111',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:c.tick,font:{size:10},boxWidth:12}}}}});
-
-  // Revenue by day
-  dc('revday');
-  var rdMap={};
-  data.forEach(r=>{var d=r.date||'';if(!d||!r.rev)return;rdMap[d]=(rdMap[d]||0)+r.rev;});
-  var rde=Object.entries(rdMap).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
-  if(document.getElementById('revdayC')&&rde.length)
-    charts.revday=new Chart(document.getElementById('revdayC'),{type:'bar',data:{labels:rde.map(([d])=>d),datasets:[{data:rde.map(([,v])=>v),backgroundColor:'#f5c84266',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>fmt(v.raw)+' ₽'}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9},callback:v=>fmt(v)},grid:{color:c.grid}}}}});
-
-  // Conv by day
-  dc('conv');
-  var dc2={};
-  data.forEach(r=>{var d=r.date||'';if(!d)return;if(!dc2[d])dc2[d]={mk:0,paid:0};dc2[d].mk++;if(r.paid)dc2[d].paid++;});
-  var de=Object.entries(dc2).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14);
-  if(document.getElementById('convC')&&de.length)
-    charts.conv=new Chart(document.getElementById('convC'),{type:'line',data:{labels:de.map(([d])=>d),datasets:[{data:de.map(([,v])=>v.mk?Math.round(v.paid/v.mk*100):0),borderColor:'#3ecf8e',backgroundColor:'rgba(62,207,142,0.1)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#3ecf8e',fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>v.raw+'%'}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9},callback:v=>v+'%'},grid:{color:c.grid},min:0,max:100}}}});
-
-  // All lessons table
-  var recent=[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,100);
-  document.getElementById('all-table').innerHTML=recent.length?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Дата</th><th>Менеджер</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>${recent.map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${esc(r.date)}</td><td class="tn">${esc(r.manager)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty" style="padding:36px 20px"><div class="empty-ic">📊</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Нет данных за период</div><div style="font-size:11.5px;color:var(--muted);max-width:320px;margin:0 auto;line-height:1.5">Поменяй фильтр периода выше или попроси команду заполнить Отчёт о МК.</div></div>';
-}
-
-// ═══════════════════════════════════════
-// MANAGERS
-// ═══════════════════════════════════════
-function weekConv(name, weeksAgo) {
-  var now=new Date();
-  var mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1-weeksAgo*7);mon.setHours(0,0,0,0);
-  var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-  var rows=lessons.filter(r=>r.manager===name);
-  var week=rows.filter(r=>{var d=parseDate(r.date);return d&&d>=mon&&d<=sun;});
-  return week.length?Math.round(week.filter(r=>r.paid).length/week.length*100):null;
-}
-
-function renderManagers() {
-  var data=visible(),mgrs={};
-  data.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
-  managers.forEach(m=>{var k=Object.keys(mgrs).find(k=>k.includes(m.split(' ')[0]))||m;if(!mgrs[k])mgrs[k]=[];});
-  var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,rows,...t};}).sort((a,b)=>b.rev-a.rev);
-  var bgs=['#f5c842','#3ecf8e','#60a5fa','#f05252','#a78bfa','#fb923c'];
-  var avCls=['c1','c2','c3','c4','c5','c6'];
-  document.getElementById('mgr-cards').innerHTML=sorted.map((m,i)=>{
-    var conv=m.mk?(m.paid/m.mk*100).toFixed(1):'0';
-    var cn=parseFloat(conv);
-    var ac=avCls[i%avCls.length];
-    var thisW=weekConv(m.name,0),lastW=weekConv(m.name,1);
-    var badge='';
-    if(i===0&&m.mk>0) badge='<span class="mgr-badge top">👑 Топ</span>';
-    else if(thisW!==null&&lastW!==null&&thisW-lastW>5) badge='<span class="mgr-badge up">↑ Растёт</span>';
-    else if(thisW!==null&&lastW!==null&&thisW-lastW<-10) badge='<span class="mgr-badge down">↓ Просадка</span>';
-    else if(m.mk===0) badge='<span class="mgr-badge risk">⚠ Риск</span>';
-    var trendTxt='';
-    if(thisW!==null&&lastW!==null){var d=thisW-lastW;trendTxt=`<span style="color:${d>0?'var(--g)':d<0?'var(--r)':'var(--muted)'}">${d>0?'↑':'↓'}${Math.abs(d)}%</span> нед`;}
-    return`<div class="mgr-card" onclick="openMgr('${m.name}')">
-      <div class="mgr-card-head">
-        <div class="mgr-card-avatar emoji ${ac}">${mgrEmoji(m.name)}</div>
-        <div style="flex:1;min-width:0">
-          <div class="mgr-card-name">${m.name}</div>
-          <div class="mgr-card-sub">${m.mk} МК · ${conv}% конв. ${trendTxt}</div>
-        </div>
-        ${badge}
-      </div>
-      <div class="mgr-card-stats">
-        <div class="mgr-stat"><div class="mgr-stat-lbl">Выручка</div><div class="mgr-stat-val" style="color:${m.rev>0?'var(--y)':'var(--muted)'}">${fmt(m.rev)} ₽</div></div>
-        <div class="mgr-stat"><div class="mgr-stat-lbl">Оплат</div><div class="mgr-stat-val" style="color:var(--g)">${m.paid}</div></div>
-      </div></div>`;
-  }).join('');
-}
-
-function openMgr(name) {
-  var data=visible().filter(r=>r.manager===name),t=calcTotals(data);
-  var mav=document.getElementById('mav');
-  mav.textContent=mgrEmoji(name);
-  mav.style.fontFamily="'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',var(--display)";
-  document.getElementById('mname').textContent=name;
-  document.getElementById('msub').textContent=t.mk+' МК · '+t.conv+'% конв. · '+fmt(t.rev)+' ₽';
-  document.getElementById('mstats').innerHTML=[
-    {l:'МК',v:t.mk,c:'var(--text)'},{l:'Оплат',v:t.paid,c:'var(--g)'},{l:'Выручка',v:fmt(t.rev)+' ₽',c:'var(--y)'},{l:'Конверсия',v:t.conv+'%',c:'var(--g)'},
-    {l:'Ср. чек',v:fmt(t.avg)+' ₽',c:'var(--b)'},{l:'₽/МК',v:fmt(t.rpm),c:'var(--b)'},
-    {l:'Ср. возраст',v:(()=>{var a=data.map(r=>parseInt(r.age)).filter(a=>!isNaN(a)&&a>0);return a.length?Math.round(a.reduce((s,v)=>s+v,0)/a.length):'—';})(),c:'var(--sub)'},
-    {l:'Практики',v:(()=>{var p={};data.forEach(r=>{if(r.practice)p[r.practice]=(p[r.practice]||0)+1;});return Object.entries(p).sort((a,b)=>b[1]-a[1]).map(([k])=>k).join(', ')||'—';})(),c:'var(--sub)'},
-  ].map(s=>`<div class="kpi"><div class="kl">${s.l}</div><div class="kv" style="color:${s.c};font-size:16px">${s.v}</div></div>`).join('');
-
-  var c=gc(),now=new Date();
-  dc('mw');dc('mo');
-  var wl=['Нд 1','Нд 2','Нд 3','Нд 4'],wv=[0,0,0,0];
-  data.forEach(r=>{var d=parseDate(r.date);if(!d)return;var diff=Math.floor((now-d)/(7*86400000));if(diff>=0&&diff<4)wv[3-diff]+=r.rev;});
-  charts.mw=new Chart(document.getElementById('mwC'),{type:'line',data:{labels:wl,datasets:[{data:wv,borderColor:'#f5c842',backgroundColor:'rgba(245,200,66,0.1)',borderWidth:2,pointRadius:4,pointBackgroundColor:'#f5c842',fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>fmt(v.raw)+' ₽'}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9},callback:v=>Math.round(v/1000)+'к'},grid:{color:c.grid}}}}});
-  var om={};data.forEach(r=>{if(r.objection)om[r.objection]=(om[r.objection]||0)+1;});
-  var os=Object.entries(om).sort((a,b)=>b[1]-a[1]);
-  if(os.length)charts.mo=new Chart(document.getElementById('moC'),{type:'bar',data:{labels:os.map(([k])=>k),datasets:[{data:os.map(([,v])=>v),backgroundColor:'#f5c84288',borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{color:c.grid}},y:{ticks:{color:c.tick,font:{size:10}},grid:{display:false}}}}});
-
-  document.getElementById('mlessons').innerHTML=[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).length?
-    `<div style="overflow-x:auto"><table class="tt" style="min-width:560px"><thead><tr><th>Дата</th><th>Время</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>Договорённости</th><th>CRM</th></tr></thead><tbody>
-    ${[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${esc(r.date)}</td><td style="font-family:var(--mono);font-size:10px">${esc(r.time)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td style="text-align:center">${agrBtn(r.agreement)}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}
-    </tbody></table></div>`:'<div class="empty"><div class="empty-ic">📋</div><div>Нет уроков</div></div>';
-
-  document.getElementById('mgr-list').style.display='none';
-  document.getElementById('mgr-detail').style.display='block';
-  showPage('managers');
 }
 
 function backMgr(){document.getElementById('mgr-list').style.display='block';document.getElementById('mgr-detail').style.display='none';}
@@ -3419,6 +2442,11 @@ function showCopyToast(name, empty) {
 var selectedHmDay = null;
 
 function renderSchedule() {
+  if(!analyticsReady(['schedule'])){
+    document.getElementById('hm-summary').innerHTML='<div class="analytics-note">Источник расписания недоступен. Обновите данные; сохранённое расписание не изменено.</div>';
+    document.getElementById('hm-table').innerHTML='';document.getElementById('hm-total-banner').innerHTML='';return;
+  }
+  var scheduleManagers=personalMgr?[personalMgr]:managers;
   var days=get14Days(hmWeek);
   var now=new Date();
   var todayStr=fmtDate(now);
@@ -3427,7 +2455,7 @@ function renderSchedule() {
   var visibleDates=new Set(days.map(dateStr));
   var grandTotal=0;
   var emptyMgrs=[];
-  var summaryHtml=managers.map(m=>{
+  var summaryHtml=scheduleManagers.map(m=>{
     var total=0;
     if(scheduleData[m])Object.entries(scheduleData[m]).forEach(([ds,dSlots])=>{
       if(visibleDates.has(ds))total+=Object.keys(dSlots).length;
@@ -3436,7 +2464,7 @@ function renderSchedule() {
     if(total===0)emptyMgrs.push(m);
     var warnStyle=total===0?'background:var(--r-bg);border-color:var(--r-bd)':'';
     var valColor=total===0?'color:var(--r)':'';
-    return`<div class="hms-card" style="${warnStyle}"><div class="hms-name">💼 ${m}</div><div class="hms-val" style="${valColor}">${total}</div><div class="hms-sub">${total===0?'⚠ не заполнил':'слотов на нед '+(hmWeek+1)}</div></div>`;
+    return`<div class="hms-card" style="${warnStyle}"><div class="hms-name">💼 ${m}</div><div class="hms-val" style="${valColor}">${total}</div><div class="hms-sub">${total===0?'нет открытых часов':'слотов на нед '+(hmWeek+1)}</div></div>`;
   }).join('');
   document.getElementById('hm-summary').innerHTML=summaryHtml;
 
@@ -3445,12 +2473,12 @@ function renderSchedule() {
   if(bannerEl){
     bannerEl.innerHTML=`<div style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,rgba(245,200,66,0.1),rgba(62,207,142,0.06));border:1px solid var(--y-bd);border-radius:var(--r10);padding:14px 18px">
       <div style="flex:1">
-        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Итого слотов на неделю ${hmWeek+1} — все менеджеры</div>
+        <div style="font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">Итого слотов на неделю ${hmWeek+1} — выбранные менеджеры</div>
         <div style="display:flex;align-items:baseline;gap:8px">
           <span style="font-size:32px;font-weight:700;font-family:var(--mono);color:var(--y)">${grandTotal}</span>
-          <span style="font-size:13px;color:var(--sub);font-weight:500">ч открытых МК</span>
+          <span style="font-size:13px;color:var(--sub);font-weight:500">ч доступности</span>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">${managers.length} менеджеров · потенциал ≈ <span style="color:var(--g);font-weight:600">${fmt(Math.round(grandTotal*0.45*35000))} ₽</span></div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">${scheduleManagers.length} менеджеров · доступность не равна числу записей</div>
       </div>
       <div style="font-size:42px;opacity:.15">🕐</div>
     </div>`;
@@ -3485,7 +2513,7 @@ function renderSchedule() {
   });
   html+='</tr></thead><tbody>';
 
-  managers.forEach(function(m){
+  scheduleManagers.forEach(function(m){
     html+=`<tr class="hm-row"><td class="mgr-td">💼 ${m}<button class="copy-slots-btn" onclick="copyManagerSlots('${m}')" title="Скопировать слоты">📋</button></td>`;
     days.forEach(function(d){
       var ds=dateStr(d);
@@ -3507,7 +2535,7 @@ function renderSchedule() {
 
   // Show empty state if no schedule data at all
   var totalSlots=0;
-  managers.forEach(function(m){
+  scheduleManagers.forEach(function(m){
     if(scheduleData[m])Object.values(scheduleData[m]).forEach(function(d){totalSlots+=Object.keys(d).length;});
   });
   if(totalSlots===0){
@@ -3784,221 +2812,150 @@ function updateSelCount(){
   var dm=document.getElementById('sel-count-mobile');if(dm)dm.textContent=count;
 }
 
-async function submitSchedule(){
-  if(!currentEditMgr){alert('Сначала выбери менеджера!');return;}
-  var slots_arr=[];
-  Object.entries(selectedSlots).forEach(function(entry){
-    var ds=entry[0],hrs=entry[1];
-    Object.keys(hrs).forEach(function(h){
-      slots_arr.push({date:ds,time:(parseInt(h)<10?'0':'')+h+':00'});
+async function submitSchedule(action){
+  if(window.__submittingSchedule)return;
+  var pendingKey='eks-schedule-pending-write';
+  var resultEl=document.getElementById('submit-result');
+  var btn=document.getElementById('submit-btn'),btnM=document.getElementById('submit-btn-mobile');
+  function status(message,confirmed){
+    if(!resultEl)return;
+    resultEl.style.display='block';
+    resultEl.innerHTML='<div style="background:var(--'+(confirmed?'g':'y')+'-bg);border:1px solid var(--'+(confirmed?'g':'y')+'-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--'+(confirmed?'g':'y')+');margin-top:10px;line-height:1.5">'+message+'</div>';
+  }
+  function gridSlots(grid){
+    var slots=[];
+    Object.entries(grid||{}).forEach(function(entry){
+      Object.keys(entry[1]||{}).filter(function(h){return entry[1][h];}).forEach(function(h){
+        slots.push({date:entry[0],time:String(h).padStart(2,'0')+':00'});
+      });
     });
-  });
-
-  // ⚠ Block empty submission — Apps Script clears all existing slots,
-  // so submitting [] would WIPE the manager's schedule. Confirm explicitly.
-  if(slots_arr.length===0){
-    if(!confirm('У тебя не выбран ни один слот. Это сотрёт ВСЁ твоё расписание. Уверен?')){
+    return slots;
+  }
+  function sameSlots(left,right){
+    function keys(slots){return slots.map(function(s){return s.date+'|'+s.time;}).sort().join('\n');}
+    return keys(left)===keys(right);
+  }
+  function complete(pending){
+    // The verifier has already committed the freshly read, exact manager schedule.
+    // Keep any draft that changed while the request was in flight.
+    if(pending.kind==='submit'){
+      try{
+        var key='eks-slots-backup-'+pending.manager;
+        var currentDraft=currentEditMgr===pending.manager?gridSlots(selectedSlots):null;
+        var savedDraft=JSON.parse(localStorage.getItem(key)||'null');
+        if(currentDraft&&!sameSlots(currentDraft,pending.slots)){
+          localStorage.setItem(key,JSON.stringify({ts:new Date().toISOString(),manager:pending.manager,slots:currentDraft}));
+        }else if(savedDraft&&Array.isArray(savedDraft.slots)&&sameSlots(savedDraft.slots,pending.slots)){
+          localStorage.removeItem(key);
+        }
+      }catch(e){console.warn('Не удалось обновить локальный черновик',e);}
+    }
+    localStorage.removeItem(pendingKey);
+    window.__pendingScheduleWrite=null;
+    var logged=typeof auditLogGet==='function'&&auditLogGet().some(function(entry){return entry.operationId===pending.id;});
+    if(!logged){
+      if(pending.kind==='undo')auditLogPush({type:'schedule_undo',operationId:pending.id,manager:pending.manager,restoredCount:pending.slots.length});
+      else auditLogPush({type:'schedule_submit',operationId:pending.id,manager:pending.manager,slotCount:pending.slots.length,prev:pending.prev});
+    }
+    if(pending.kind==='undo'){
+      __pendingUndo=null;
+      hideUndoToast();
+      status('↺ Отмена подтверждена: расписание <b>'+esc(pending.manager)+'</b> восстановлено. Слотов: <b>'+pending.slots.length+'</b>.',true);
+    }else{
+      showUndoToast(pending.manager,pending.prev,pending.slots.length);
+      status('✓ Сохранение подтверждено: <b>'+esc(pending.manager)+'</b>, слотов: <b>'+pending.slots.length+'</b>.',true);
+    }
+  }
+  function notConfirmed(pending){
+    if(pending.kind==='submit'&&currentEditMgr===pending.manager){
+      try{
+        localStorage.setItem('eks-slots-backup-'+pending.manager,JSON.stringify({ts:new Date().toISOString(),manager:pending.manager,slots:gridSlots(selectedSlots)}));
+      }catch(e){console.warn('Не удалось обновить локальный черновик',e);}
+    }
+    status('Не удалось подтвердить '+(pending.kind==='undo'?'отмену':'сохранение')+' расписания <b>'+esc(pending.manager)+'</b>. Черновик и предыдущие данные сохранены. Нажми «Проверить сохранение», чтобы повторно прочитать таблицу. Новая запись не отправится, пока эта попытка не подтверждена.',false);
+  }
+  window.__submittingSchedule=true;
+  if(btn){btn.disabled=true;btn.textContent='Проверка…';}
+  if(btnM){btnM.disabled=true;btnM.textContent='Проверка…';}
+  try{
+    // Let a refresh that started before the click finish before taking the backup.
+    if(typeof dashboardLoadPromise!=='undefined'&&dashboardLoadPromise)await dashboardLoadPromise;
+    var pending=window.__pendingScheduleWrite||JSON.parse(localStorage.getItem(pendingKey)||'null');
+    if(pending){
+      if(!pending.manager||!Array.isArray(pending.slots)||!pending.prev||!['submit','undo'].includes(pending.kind))throw new Error('Не удалось прочитать предыдущую попытку. Локальные данные сохранены; повторная отправка остановлена.');
+      window.__pendingScheduleWrite=pending;
+      status('Проверяю предыдущую попытку для <b>'+esc(pending.manager)+'</b>…',false);
+      if(await verifyScheduleSubmit(pending.manager,pending.slots))complete(pending);
+      else notConfirmed(pending);
       return;
     }
-  }
-
-  // 🛡 Full-sheet backup: snapshot ALL managers' schedules in case Apps Script
-  // wipes more than it should. Has happened before — losing this protects others.
-  try{
-    var fullBackup={ts:new Date().toISOString(),data:{}};
-    Object.keys(scheduleData).forEach(function(m){
-      fullBackup.data[m]={};
-      Object.keys(scheduleData[m]).forEach(function(ds){
-        fullBackup.data[m][ds]=Object.keys(scheduleData[m][ds]).map(function(h){return parseInt(h);});
-      });
-    });
-    localStorage.setItem('eks-sched-full-backup', JSON.stringify(fullBackup));
-  }catch(e){}
-
-  // Backup to localStorage so the user doesn't lose work if submit fails
-  try{
-    localStorage.setItem('eks-slots-backup-'+currentEditMgr, JSON.stringify({
-      ts:new Date().toISOString(), manager:currentEditMgr, slots:slots_arr
-    }));
-  }catch(e){}
-
-  // Snapshot row count BEFORE submit so we can detect mass-wipe
-  var rowsBefore=0;
-  Object.keys(scheduleData).forEach(function(m){
-    Object.keys(scheduleData[m]||{}).forEach(function(ds){
-      rowsBefore+=Object.keys(scheduleData[m][ds]||{}).length;
-    });
-  });
-  window.__schedRowsBefore=rowsBefore;
-  window.__schedMgrsBefore=Object.keys(scheduleData).filter(function(m){return Object.keys(scheduleData[m]||{}).length;}).length;
-
-  var btn=document.getElementById('submit-btn');
-  var btnM=document.getElementById('submit-btn-mobile');
-  if(btn){btn.textContent='Отправка...';btn.disabled=true;}
-  if(btnM){btnM.textContent='Отправка...';btnM.disabled=true;}
-
-  var resultEl=document.getElementById('submit-result');
-  resultEl.style.display='none';
-
-  var managerToSubmit=currentEditMgr;
-  var sentCount=slots_arr.length;
-  window.__submittingSchedule=true;
-
-  // Snapshot scheduleData[manager] BEFORE submit so verify-fail can rollback.
-  var preSubmitMgrSnapshot={};
-  if(scheduleData[managerToSubmit]){
-    Object.keys(scheduleData[managerToSubmit]).forEach(function(ds){
-      preSubmitMgrSnapshot[ds]={};
-      Object.keys(scheduleData[managerToSubmit][ds]).forEach(function(h){
-        preSubmitMgrSnapshot[ds][parseInt(h)]=true;
-      });
-    });
-  }
-
-  try{
-    // Apps Script requires no-cors — we can't read response, but data arrives.
-    // Errors here only catch network failures, NOT Apps Script errors.
-    await fetch(WEB_APP_URL,{
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({manager:managerToSubmit,slots:slots_arr}),
-    });
-
-    // Update local scheduleData immediately (optimistic)
-    if(!scheduleData[managerToSubmit])scheduleData[managerToSubmit]={};
-    Object.keys(scheduleData[managerToSubmit]).forEach(function(k){delete scheduleData[managerToSubmit][k];});
-    Object.entries(selectedSlots).forEach(function(entry){
-      var ds=entry[0],hrs=entry[1];
-      scheduleData[managerToSubmit][ds]={};
-      Object.keys(hrs).forEach(function(h){scheduleData[managerToSubmit][ds][parseInt(h)]=true;});
-    });
-
-    // Show "проверяем..." state
-    resultEl.style.display='block';
-    resultEl.innerHTML='<div style="background:var(--y-bg);border:1px solid var(--y-bd);border-radius:10px;padding:12px 16px;font-size:12px;color:var(--y);margin-top:10px">⏳ Отправлено '+sentCount+' слотов. Проверяю в Google Таблице…</div>';
-    renderSchedule();
-    // Scroll status into view so user sees the verification
-    if(resultEl.scrollIntoView) resultEl.scrollIntoView({behavior:'smooth',block:'center'});
-
-    // VERIFY: re-fetch schedule sheet and check the slots actually landed.
-    // Apps Script takes a few seconds to commit; wait a bit before checking.
-    await new Promise(function(r){setTimeout(r,3500);});
-    var verifyOk=await verifyScheduleSubmit(managerToSubmit, slots_arr);
-
-    if(verifyOk){
-      // Log to audit + show undo toast
-      auditLogPush({type:'schedule_submit',manager:managerToSubmit,slotCount:sentCount,prev:preSubmitMgrSnapshot});
-      showUndoToast(managerToSubmit, preSubmitMgrSnapshot, sentCount);
-      resultEl.innerHTML='<div style="background:var(--g-bg);border:1px solid var(--g-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--g);margin-top:10px;font-weight:600">✅ Готово! Сохранено <strong>'+sentCount+' слотов</strong> в Google Таблице.</div>';
-      // Clear backup since save succeeded
-      try{localStorage.removeItem('eks-slots-backup-'+managerToSubmit);}catch(e){}
-    } else {
-      // ROLLBACK: verify failed (and it wasn't a mass-wipe — that branch handles its own UI).
-      // Restore the pre-submit snapshot so optimistic UI doesn't lie about saved state.
-      if(scheduleData[managerToSubmit]){
-        scheduleData[managerToSubmit]={};
-        Object.keys(preSubmitMgrSnapshot).forEach(function(ds){
-          scheduleData[managerToSubmit][ds]={};
-          Object.keys(preSubmitMgrSnapshot[ds]).forEach(function(h){
-            scheduleData[managerToSubmit][ds][parseInt(h)]=true;
-          });
-        });
-        renderSchedule();
-      }
-      // Don't overwrite mass-wipe banner if it already populated resultEl
-      if(resultEl.innerHTML.indexOf('КРИТИЧЕСКАЯ')===-1){
-        resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--r);margin-top:10px;line-height:1.5"><div style="font-weight:700;margin-bottom:4px">⚠ Не удалось подтвердить сохранение</div>Слоты отправлены, но в Google Таблице их пока нет. Возможные причины:<ul style="margin:6px 0 0 18px;padding:0;font-size:12px"><li>Apps Script отвалился или превысил квоту</li><li>Сеть подвела (проверь wi-fi/моб. интернет)</li><li>Сервер ещё пишет — попробуй обновить страницу через 30 сек</li></ul><div style="margin-top:8px;font-size:12px;color:var(--sub)">Твоё расписание сохранено локально в браузере на всякий случай.</div></div>';
-      }
+    var kind=action&&action.kind==='undo'?'undo':'submit';
+    var manager=kind==='undo'?action.manager:currentEditMgr;
+    if(!manager){alert('Сначала выбери менеджера!');return;}
+    var slots=kind==='undo'?gridSlots(action.prev):gridSlots(selectedSlots);
+    if(kind==='submit'&&!slots.length&&!confirm('У тебя не выбран ни один слот. Это сотрёт ВСЁ твоё расписание. Уверен?'))return;
+    // A fresh preflight read preserves the complete manager scope for Undo.
+    // A failed fetch may return cached rows, so its explicit source state is required.
+    var rows=await fetchCSV('schedule');
+    var sourceState=typeof opsSourceStates!=='undefined'&&opsSourceStates.schedule?opsSourceStates.schedule.state:'unavailable';
+    var check=ScheduleVerification.verify({manager:manager,expected:slots,rows:rows,sourceState:sourceState});
+    if(check.reason==='unavailable'||check.reason==='invalid-source')throw new Error('Не удалось прочитать актуальное расписание. Изменения не отправлены, черновик сохранён на экране.');
+    if(check.reason==='invalid-expected')throw new Error('В черновике есть некорректные даты или часы. Изменения не отправлены.');
+    if(check.ok){
+      scheduleData=check.schedule;
+      renderSchedule();
+      status('Таблица проверена: расписание <b>'+esc(manager)+'</b> уже совпадает с выбранными слотами. Слотов: <b>'+slots.length+'</b>.',true);
+      return;
     }
-
+    pending={id:Date.now().toString(36)+'-'+Math.random().toString(36).slice(2),kind:kind,manager:manager,slots:slots,prev:check.schedule[manager]||{},ts:new Date().toISOString()};
+    var fullBackup={ts:pending.ts,data:{}};
+    Object.keys(check.schedule).forEach(function(m){
+      fullBackup.data[m]={};
+      Object.keys(check.schedule[m]).forEach(function(ds){fullBackup.data[m][ds]=Object.keys(check.schedule[m][ds]).map(Number);});
+    });
+    // Persist the intent before POST: after reload a retry only reads this attempt.
+    // If durable storage is unavailable, fail before sending any replacement.
+    localStorage.setItem('eks-sched-full-backup',JSON.stringify(fullBackup));
+    if(kind==='submit')localStorage.setItem('eks-slots-backup-'+manager,JSON.stringify({ts:pending.ts,manager:manager,slots:slots}));
+    localStorage.setItem(pendingKey,JSON.stringify(pending));
+    window.__pendingScheduleWrite=pending;
+    if(__pendingUndo&&__pendingUndo.timer)clearTimeout(__pendingUndo.timer);
+    if(kind==='submit'){__pendingUndo=null;hideUndoToast();}
+    status((kind==='undo'?'Отправляю отмену':'Отправляю расписание')+' для <b>'+esc(manager)+'</b>. Затем проверю таблицу…',false);
+    try{
+      // An opaque response, or even a network error, cannot establish the write outcome.
+      await fetch(WEB_APP_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({manager:manager,slots:slots})});
+    }catch(e){console.warn('Результат отправки расписания неизвестен',e);}
+    status('Проверяю результат в Google Таблице…',false);
+    await new Promise(function(resolve){setTimeout(resolve,3500);});
+    if(await verifyScheduleSubmit(manager,slots))complete(pending);
+    else notConfirmed(pending);
   }catch(e){
-    resultEl.style.display='block';
-    resultEl.innerHTML='<div style="background:var(--r-bg);border:1px solid var(--r-bd);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--r);margin-top:10px">❌ Сетевая ошибка: '+esc(e.message)+'<br><span style="font-size:11px;color:var(--sub)">Расписание сохранено локально, попробуй ещё раз.</span></div>';
-  } finally {
+    console.warn('Schedule write stopped',e);
+    status(esc(e.message||'Не удалось проверить расписание. Локальные данные сохранены.'),false);
+  }finally{
     window.__submittingSchedule=false;
+    var unresolved=window.__pendingScheduleWrite;
+    if(btn){btn.disabled=false;btn.textContent=unresolved?'Проверить сохранение':'Отправить расписание →';}
+    if(btnM){btnM.disabled=false;btnM.textContent=unresolved?'Проверить сохранение':'Отправить →';}
   }
-
-  if(btn){btn.textContent='Отправить расписание →';btn.disabled=false;}
-  if(btnM){btnM.textContent='Отправить →';btnM.disabled=false;}
 }
 
-// Re-fetch the Расписание sheet and verify expected slots are present.
-async function verifyScheduleSubmit(mgrName, expectedSlots){
+// Re-fetch the complete manager schedule and require an exact, fresh match.
+async function verifyScheduleSubmit(mgrName,expectedSlots){
   try{
     var rows=await fetchCSV('schedule');
-    if(!rows||rows.length<2) return false;
-    // Build set of "mgr|date|hour" actually present in sheet
-    var actual=new Set();
-    var newScheduleData={};
-    for(var i=1;i<rows.length;i++){
-      var r=rows[i]; if(!r||r.length<3)continue;
-      var nm=(r[0]||'').toString().trim();
-      var ds=normDate((r[1]||'').toString().trim());
-      var tm=(r[2]||'').toString().trim();
-      var hr=parseInt(tm.split(':')[0]);
-      if(!nm||!ds||isNaN(hr))continue;
-      actual.add(nm+'|'+ds+'|'+hr);
-      if(!newScheduleData[nm])newScheduleData[nm]={};
-      if(!newScheduleData[nm][ds])newScheduleData[nm][ds]={};
-      newScheduleData[nm][ds][hr]=true;
-    }
-
-    // 🛡 Detect mass-wipe: if Apps Script ate other managers' data
-    var rowsAfter=actual.size;
-    var rowsBefore=window.__schedRowsBefore||0;
-    var mgrsAfter=Object.keys(newScheduleData).filter(function(m){return Object.keys(newScheduleData[m]||{}).length;}).length;
-    var mgrsBefore=window.__schedMgrsBefore||0;
-    var lostMgrs=[];
-    Object.keys(scheduleData).forEach(function(m){
-      if(m===mgrName) return; // submitter's data legitimately replaced
-      var hadRows=Object.keys(scheduleData[m]||{}).length>0;
-      var hasRows=Object.keys(newScheduleData[m]||{}).length>0;
-      if(hadRows && !hasRows) lostMgrs.push(m);
-    });
-
-    if(lostMgrs.length>0){
-      // ⚠ MASS WIPE detected — show prominent warning, DO NOT overwrite local state
-      console.error('[SCHED MASS WIPE]', {rowsBefore,rowsAfter,mgrsBefore,mgrsAfter,lostMgrs});
-      var resultEl=document.getElementById('submit-result');
-      if(resultEl){
-        resultEl.style.display='block';
-        resultEl.innerHTML='<div style="background:var(--r-bg);border:2px solid var(--r);border-radius:10px;padding:14px 16px;font-size:13px;color:var(--r);margin-top:10px;line-height:1.5">'
-          +'<div style="font-weight:700;font-size:14px;margin-bottom:6px">🚨 КРИТИЧЕСКАЯ ОШИБКА APPS SCRIPT</div>'
-          +'Apps Script стёр расписание других менеджеров: <b>'+lostMgrs.join(', ')+'</b>. '
-          +'Твои слоты сохранились, но чужие пропали.'
-          +'<div style="margin:10px 0 6px;font-weight:600;color:var(--text)">Что делать СРОЧНО:</div>'
-          +'<ol style="margin:0 0 0 18px;padding:0;font-size:12px;color:var(--text)">'
-          +'<li>Открой Google Таблицу → <b>Файл → История версий → Просмотреть историю версий</b></li>'
-          +'<li>Выбери последнюю версию ПЕРЕД сегодняшним сабмитом</li>'
-          +'<li>Нажми «Восстановить эту версию»</li>'
-          +'<li>Потом перевыставь свои слоты заново</li>'
-          +'</ol>'
-          +'<div style="margin-top:10px;font-size:11px;color:var(--sub)">Локальный бэкап на '+rowsBefore+' слотов сохранён в браузере (eks-sched-full-backup).</div>'
-          +'</div>';
-        if(resultEl.scrollIntoView)resultEl.scrollIntoView({behavior:'smooth',block:'center'});
-      }
-      // Keep the old scheduleData so ROP can still see who had what before
-      return false;
-    }
-
-    // Normal case: commit new state
-    scheduleData=newScheduleData;
+    var sourceState=typeof opsSourceStates!=='undefined'&&opsSourceStates.schedule?opsSourceStates.schedule.state:'unavailable';
+    var result=ScheduleVerification.verify({manager:mgrName,expected:expectedSlots,rows:rows,sourceState:sourceState});
+    window.__lastScheduleVerification=result;
+    if(!result.ok)return false;
+    // Commit only after every submitted slot, extra row, and duplicate was checked.
+    // Other managers may legitimately change between the two reads.
+    scheduleData=result.schedule;
     renderSchedule();
-    // If we submitted at least one slot, check at least 80% landed
-    if(expectedSlots.length===0){
-      var anyForMgr=false;
-      actual.forEach(function(k){if(k.indexOf(mgrName+'|')===0)anyForMgr=true;});
-      return !anyForMgr;
-    }
-    var hit=0;
-    for(var j=0;j<expectedSlots.length;j++){
-      var s=expectedSlots[j];
-      var hr=parseInt(s.time.split(':')[0]);
-      if(actual.has(mgrName+'|'+s.date+'|'+hr)) hit++;
-    }
-    return hit>=Math.ceil(expectedSlots.length*0.8);
+    return true;
   }catch(e){
+    window.__lastScheduleVerification={ok:false,reason:'unavailable'};
     console.warn('verifyScheduleSubmit failed:',e);
     return false;
   }
@@ -4007,209 +2964,6 @@ async function verifyScheduleSubmit(mgrName, expectedSlots){
 // ═══════════════════════════════════════
 // RETENTION
 // ═══════════════════════════════════════
-function renderRetention() {
-  var now = new Date();
-  var curMk = now.getFullYear() * 12 + now.getMonth();
-  var mnames = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
-
-  // First-time paid: all lessons with paid=true (renewals already excluded from lessons)
-  var firstPays = lessons.filter(function(l){return l.paid;});
-
-  // ── Build cohort map ──
-  // cohortMk → { size, renewals:{offset→count}, rev }
-  var cohortMap = {};
-  var firstPayByCrm = {}; // crmId → earliest cohortMk
-  firstPays.forEach(function(l){
-    var d = parseDate(normDate(l.paydate || l.date));
-    if(!d) return;
-    var mk = d.getFullYear()*12 + d.getMonth();
-    if(!cohortMap[mk]) cohortMap[mk] = {mk:mk, size:0, renewalMap:{}, rev:0};
-    cohortMap[mk].size++;
-    cohortMap[mk].rev += l.rev;
-    if(l.crmId && (firstPayByCrm[l.crmId]===undefined || firstPayByCrm[l.crmId]>mk))
-      firstPayByCrm[l.crmId] = mk;
-  });
-
-  // Place renewals into cohorts via crmId match
-  renewals.forEach(function(r){
-    var d = parseDate(normDate(r.paydate || r.ts));
-    if(!d) return;
-    var renMk = d.getFullYear()*12 + d.getMonth();
-    if(r.crmId && firstPayByCrm[r.crmId]!==undefined){
-      var cohMk = firstPayByCrm[r.crmId];
-      var offset = renMk - cohMk;
-      if(offset>=1 && offset<=6 && cohortMap[cohMk]){
-        cohortMap[cohMk].renewalMap[offset] = (cohortMap[cohMk].renewalMap[offset]||0)+1;
-      }
-    }
-  });
-
-  // ── KPIs ──
-  var totalRen = renewals.length;
-  var renRev = renewals.reduce(function(s,r){return s+r.rev;},0);
-  var avgRen = totalRen ? Math.round(renRev/totalRen) : 0;
-
-  // Churn: completed cohort months (mk < current month)
-  var completedC = Object.values(cohortMap).filter(function(c){return c.mk<curMk && c.size>0;});
-  var retainedM1 = completedC.reduce(function(s,c){return s+(c.renewalMap[1]||0);},0);
-  var cohortTotal = completedC.reduce(function(s,c){return s+c.size;},0);
-  var retRateM1 = cohortTotal ? Math.round(retainedM1/cohortTotal*100) : 0;
-  var churnRate = 100 - retRateM1;
-
-  // LTV
-  var firstRev = firstPays.reduce(function(s,l){return s+l.rev;},0);
-  var uniq = firstPays.length || 1;
-  var ltv = Math.round((firstRev+renRev)/uniq);
-
-  // ── Render KPIs ──
-  var el;
-  el=document.getElementById('ret-k-count'); if(el) el.textContent=totalRen;
-  el=document.getElementById('ret-k-count-s'); if(el) el.textContent='из '+firstPays.length+' первичных оплат';
-  el=document.getElementById('ret-k-rev'); if(el) el.textContent=fmt(renRev)+' ₽';
-  el=document.getElementById('ret-k-rev-s'); if(el) el.textContent='ср. чек '+fmt(avgRen)+' ₽';
-  var churnEl=document.getElementById('ret-k-churn');
-  if(churnEl){
-    churnEl.textContent=cohortTotal>0 ? churnRate+'%' : '—';
-    var cl=churnRate<50?'gc':churnRate<70?'yc':'rc';
-    churnEl.className='kv '+cl;
-    var card=document.getElementById('ret-k-churn-card');
-    if(card) card.className='kpi '+(churnRate<50?'ok':churnRate<70?'warn':'bad');
-  }
-  el=document.getElementById('ret-k-churn-s'); if(el) el.textContent='retention M+1: '+retRateM1+'%'+(cohortTotal===0?' (нет данных)':'');
-  el=document.getElementById('ret-k-ltv'); if(el) el.textContent=fmt(ltv)+' ₽';
-  el=document.getElementById('ret-k-ltv-s'); if(el) el.textContent='ср. на клиента всего';
-
-  // ── Monthly chart ──
-  var months6=[]; for(var i=5;i>=0;i--) months6.push(curMk-i);
-  var firstPerMk={}, renPerMk={};
-  firstPays.forEach(function(l){
-    var d=parseDate(normDate(l.paydate||l.date)); if(!d) return;
-    var mk=d.getFullYear()*12+d.getMonth(); firstPerMk[mk]=(firstPerMk[mk]||0)+1;
-  });
-  renewals.forEach(function(r){
-    var d=parseDate(normDate(r.paydate||r.ts)); if(!d) return;
-    var mk=d.getFullYear()*12+d.getMonth(); renPerMk[mk]=(renPerMk[mk]||0)+1;
-  });
-  dc('retMonthC');
-  var cEl=document.getElementById('retMonthC');
-  if(cEl) charts.retMonth=new Chart(cEl,{type:'bar',data:{
-    labels:months6.map(function(m){return mnames[m%12];}),
-    datasets:[
-      {label:'Первичные',data:months6.map(function(m){return firstPerMk[m]||0;}),backgroundColor:'rgba(96,165,250,0.65)',borderColor:'#60a5fa',borderWidth:1,borderRadius:4},
-      {label:'Продления',data:months6.map(function(m){return renPerMk[m]||0;}),backgroundColor:'rgba(62,207,142,0.65)',borderColor:'#3ecf8e',borderWidth:1,borderRadius:4}
-    ]
-  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:'#a0a0a0',font:{size:10},boxWidth:10}}},scales:{
-    x:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#606060',font:{size:10}}},
-    y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#606060',font:{size:10}}}
-  }}});
-
-  // ── Manager breakdown ──
-  var mgrFirst={}, mgrRen={};
-  firstPays.forEach(function(l){if(l.manager) mgrFirst[l.manager]=(mgrFirst[l.manager]||0)+1;});
-  renewals.forEach(function(r){if(r.manager) mgrRen[r.manager]=(mgrRen[r.manager]||0)+1;});
-  var allM=[...new Set([...Object.keys(mgrFirst),...Object.keys(mgrRen)])];
-  allM.sort(function(a,b){return (mgrRen[b]||0)-(mgrRen[a]||0);});
-  var mgrEl=document.getElementById('ret-mgr-table');
-  if(mgrEl){
-    if(!allM.length){
-      mgrEl.innerHTML='<div class="empty"><div class="empty-ic">📊</div><div>Нет данных</div></div>';
-    } else {
-      var rows=allM.map(function(m){
-        var fp=mgrFirst[m]||0, rn=mgrRen[m]||0;
-        var rt=fp>0?Math.round(rn/fp*100):0;
-        var cl=rt>=30?'gc':rt>=15?'yc':fp>0?'rc':'mc';
-        return '<tr><td style="font-weight:500;color:var(--text)">'+m.split(' ')[0]+'</td><td>'+fp+'</td><td>'+rn+'</td><td class="'+cl+'" style="font-weight:600">'+(fp>0?rt+'%':'—')+'</td></tr>';
-      }).join('');
-      mgrEl.innerHTML='<table class="tt"><thead><tr><th>Менеджер</th><th style="text-align:right">Первичных</th><th style="text-align:right">Продлений</th><th style="text-align:right">Retention</th></tr></thead><tbody>'+rows+'</tbody></table>';
-    }
-  }
-
-  // ── Cohort retention matrix (6 months) ──
-  var cohEl=document.getElementById('ret-cohort');
-  if(cohEl){
-    var cohMonths=months6.filter(function(m){return cohortMap[m]&&cohortMap[m].size>0;});
-    if(!cohMonths.length){
-      cohEl.innerHTML='<div class="empty" style="padding:36px 20px"><div class="empty-ic">📊</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Нет данных для когортного анализа</div><div style="font-size:11.5px;color:var(--muted);max-width:320px;margin:0 auto;line-height:1.5">Минимум 1 первичная оплата + 1 продление в любом месяце. Появится, когда команда закроет первые сделки и клиенты продлятся.</div></div>';
-    } else {
-      // Color-graded heatmap cells: 0% → red, 100% → green
-      function cohColor(p){
-        if(p>=60) return {bg:'rgba(62,207,142,0.40)', fg:'#0a4f30'};
-        if(p>=40) return {bg:'rgba(62,207,142,0.22)', fg:'var(--g)'};
-        if(p>=25) return {bg:'rgba(245,200,66,0.30)', fg:'var(--y-3)'};
-        if(p>=10) return {bg:'rgba(245,158,60,0.25)', fg:'var(--o)'};
-        if(p>0)  return {bg:'rgba(240,82,82,0.20)',  fg:'var(--r)'};
-        return {bg:'var(--bg3)', fg:'var(--muted)'};
-      }
-      // Header: cohort | size | M+1..M+6 | LTV
-      var thead='<tr>'
-        +'<th style="text-align:left">Когорта</th>'
-        +'<th style="text-align:right">Клиентов</th>'
-        +[1,2,3,4,5,6].map(function(o){return '<th style="text-align:center">M+'+o+'</th>';}).join('')
-        +'<th style="text-align:right">LTV</th>'
-        +'</tr>';
-      // Body: per-cohort row
-      var colTotals=[0,0,0,0,0,0], colSizes=[0,0,0,0,0,0];
-      var tbody=cohMonths.map(function(mk){
-        var c=cohortMap[mk];
-        var lbl=mnames[mk%12]+' '+Math.floor(mk/12);
-        // Cumulative LTV: avg first revenue + sum of renewal revenues / size
-        var firstRev=c.size?Math.round(c.rev/c.size):0;
-        var renewRev=0;
-        for(var o=1;o<=6;o++){
-          var cnt=c.renewalMap[o]||0;
-          if(mk+o<=curMk){ colTotals[o-1]+=cnt; colSizes[o-1]+=c.size; }
-          // approximate renewal value using average paydate-month avg; simpler: use fixed ~17811 baseline if rev unknown
-        }
-        var cells=[1,2,3,4,5,6].map(function(off){
-          if(mk+off>curMk) return '<td style="text-align:center;color:var(--dim);font-size:10px">—</td>';
-          var cnt=c.renewalMap[off]||0;
-          var p=c.size>0?Math.round(cnt/c.size*100):0;
-          var col=cohColor(p);
-          return '<td style="text-align:center;padding:4px"><span style="background:'+col.bg+';color:'+col.fg+';border-radius:5px;padding:4px 9px;font-size:10px;font-family:var(--mono);font-weight:700;display:inline-block;min-width:54px">'+p+'%<br><span style="font-size:9px;font-weight:500;opacity:.85">'+cnt+'/'+c.size+'</span></span></td>';
-        }).join('');
-        return '<tr><td style="font-weight:600;color:var(--text);white-space:nowrap">'+esc(lbl)+'</td><td style="text-align:right;font-family:var(--mono);color:var(--sub)">'+c.size+'</td>'+cells+'<td style="text-align:right;font-family:var(--mono);color:var(--y);font-weight:600">'+fmt(firstRev)+' ₽</td></tr>';
-      }).join('');
-      // Footer with column averages
-      var totalRow='<tr style="border-top:2px solid var(--y-bd)"><td style="font-weight:700;color:var(--y)">Среднее</td><td style="text-align:right;font-family:var(--mono);color:var(--text);font-weight:600">'+cohMonths.reduce(function(s,m){return s+cohortMap[m].size;},0)+'</td>';
-      for(var i=0;i<6;i++){
-        if(colSizes[i]>0){
-          var p=Math.round(colTotals[i]/colSizes[i]*100);
-          var col=cohColor(p);
-          totalRow+='<td style="text-align:center;padding:4px"><span style="background:'+col.bg+';color:'+col.fg+';border-radius:5px;padding:4px 9px;font-size:10px;font-family:var(--mono);font-weight:700">'+p+'%</span></td>';
-        } else {
-          totalRow+='<td style="text-align:center;color:var(--dim)">—</td>';
-        }
-      }
-      totalRow+='<td style="text-align:right;color:var(--muted)">—</td></tr>';
-      cohEl.innerHTML='<div style="overflow-x:auto"><table class="tt" style="min-width:680px"><thead>'+thead+'</thead><tbody>'+tbody+totalRow+'</tbody></table></div>'
-        +'<div style="margin-top:10px;font-size:10.5px;color:var(--muted);line-height:1.6">'
-        +'<b>Чтение матрицы:</b> ряд = месяц первой оплаты, колонка = через сколько месяцев продлились. '
-        +'Цвет = доля когорты, которая продлилась в этот месяц. <span style="color:var(--g)">Зелёный</span> ≥40% — здоровая когорта; '
-        +'<span style="color:var(--r)">красный</span> &lt;10% — проблема с продуктом или onboarding.'
-        +'</div>';
-    }
-  }
-
-  // ── Renewals log ──
-  var logEl=document.getElementById('ret-log');
-  if(logEl){
-    if(!renewals.length){
-      logEl.innerHTML='<div class="empty" style="padding:36px 20px"><div class="empty-ic">🔄</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Продлений пока нет</div><div style="font-size:11.5px;line-height:1.5;color:var(--muted);max-width:320px;margin:0 auto">Когда клиент продлит подписку — заполни Отчёт об оплате с типом «Продление». Появится здесь.</div><a href="https://docs.google.com/forms/d/1s0R4F1cMXrg02Ypi4uGvSZXJmDbN5T9qDGZbrPXmHaY/viewform" target="_blank" rel="noopener" style="display:inline-block;margin-top:14px;background:var(--y);color:#000;font-size:12px;font-weight:700;padding:8px 18px;border-radius:8px;text-decoration:none">+ Добавить продление</a></div>';
-    } else {
-      var sorted=[...renewals].sort(function(a,b){
-        var da=parseDate(normDate(a.paydate||a.ts)), db=parseDate(normDate(b.paydate||b.ts));
-        return (db||0)-(da||0);
-      });
-      var rows=sorted.map(function(r){
-        var d=normDate(r.paydate||r.ts)||'—';
-        var crmCell=r.crm?'<a href="'+r.crm+'" target="_blank" style="color:var(--b);font-family:var(--mono);font-size:10px;text-decoration:none" title="'+r.crm+'">#'+r.crmId+'↗</a>':'<span style="color:var(--muted)">—</span>';
-        return '<tr><td>'+d+'</td><td style="color:var(--text);font-weight:500">'+(r.manager||'—').split(' ')[0]+'</td><td>'+(r.pack||'—')+'</td><td>'+crmCell+'</td><td class="yc" style="text-align:right">'+fmt(r.rev)+' ₽</td></tr>';
-      }).join('');
-      logEl.innerHTML='<table class="tt"><thead><tr><th>Дата</th><th>Менеджер</th><th>Пакет</th><th>AMO</th><th style="text-align:right">Сумма</th></tr></thead><tbody>'+rows+'</tbody></table>';
-    }
-  }
-}
-
 // ═══════════════════════════════════════
 // NAVIGATION
 // ═══════════════════════════════════════
@@ -4390,47 +3144,21 @@ function hideUndoToast(){
   if(toast) toast.classList.remove('visible');
 }
 async function performUndo(){
-  if(!__pendingUndo) return hideUndoToast();
-  var u=__pendingUndo; __pendingUndo=null; clearTimeout(u.timer);
-  hideUndoToast();
-  // Convert the snapshot back to a slots_arr and re-submit
-  var slots_arr=[];
-  Object.keys(u.prev||{}).forEach(function(ds){
-    Object.keys(u.prev[ds]||{}).forEach(function(h){
-      var hr=parseInt(h);
-      slots_arr.push({date:ds, time:(hr<10?'0':'')+hr+':00'});
-    });
-  });
-  try{
-    await fetch(WEB_APP_URL,{
-      method:'POST', mode:'no-cors',
-      headers:{'Content-Type':'text/plain'},
-      body:JSON.stringify({manager:u.manager, slots:slots_arr})
-    });
-    auditLogPush({type:'schedule_undo', manager:u.manager, restoredCount:slots_arr.length});
-    // Local rollback
-    if(scheduleData){
-      scheduleData[u.manager]={};
-      Object.keys(u.prev||{}).forEach(function(ds){
-        scheduleData[u.manager][ds]={};
-        Object.keys(u.prev[ds]||{}).forEach(function(h){
-          scheduleData[u.manager][ds][parseInt(h)]=true;
-        });
-      });
-      if(typeof renderSchedule==='function') renderSchedule();
-    }
-    // Brief confirmation
-    var toast=document.getElementById('undo-toast');
-    var txt=document.getElementById('undo-toast-text');
-    if(toast&&txt){
-      txt.innerHTML='↺ Откатил расписание <b>'+esc(u.manager)+'</b>';
-      toast.classList.add('visible');
-      setTimeout(hideUndoToast, 2500);
-    }
-  }catch(e){
-    alert('Не удалось откатить: '+e.message);
+  if(window.__submittingSchedule)return;
+  // An uncertain write must be resolved before any new POST, including Undo.
+  var unresolved=window.__pendingScheduleWrite;
+  if(!unresolved){
+    try{unresolved=JSON.parse(localStorage.getItem('eks-schedule-pending-write')||'null');}
+    catch(e){return submitSchedule();}
   }
+  if(unresolved)return submitSchedule();
+  if(!__pendingUndo)return hideUndoToast();
+  var undo=__pendingUndo;
+  clearTimeout(undo.timer);
+  // Keep the Undo target until its replacement has been verified.
+  await submitSchedule({kind:'undo',manager:undo.manager,prev:undo.prev});
 }
+
 window.showUndoToast=showUndoToast;
 window.performUndo=performUndo;
 window.hideUndoToast=hideUndoToast;
@@ -5022,49 +3750,6 @@ async function sendQuestion(e) {
   input.focus();
 }
 
-function shareReport() {
-  var data = visibleMain(), t = calcTotals(data);
-  var now = new Date();
-  var months = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-  var month = months[now.getMonth()] + ' ' + now.getFullYear();
-  var rp = targets.rev > 0 ? Math.round(t.rev / targets.rev * 100) : 0;
-  var mp = targets.mk > 0 ? Math.round(t.mk / targets.mk * 100) : 0;
-
-  var mgrs = {};
-  data.forEach(function(r){ if (!mgrs[r.manager]) mgrs[r.manager] = []; mgrs[r.manager].push(r); });
-  var sorted = Object.entries(mgrs)
-    .map(function(e){ var tt = calcTotals(e[1]); return { name: e[0], mk: tt.mk, rev: tt.rev, paid: tt.paid }; })
-    .sort(function(a, b){ return b.rev - a.rev; })
-    .slice(0, 5);
-
-  var lines = [
-    '📊 Eduson Kids — ' + month,
-    '',
-    '💰 Выручка: ' + fmt(t.rev) + ' ₽ (' + rp + '% плана)',
-    '🎯 МК: ' + t.mk + ' / ' + targets.mk + ' (' + mp + '%)',
-    '📈 Конверсия: ' + t.conv + '%',
-    '💳 Оплат: ' + t.paid,
-    '',
-    '👥 Команда:',
-  ];
-  sorted.forEach(function(r, i){
-    var badge = i === 0 ? '👑' : '•';
-    lines.push('  ' + badge + ' ' + r.name.split(' ')[0] + ' — ' + r.mk + ' МК · ' + fmt(r.rev) + ' ₽');
-  });
-
-  var text = lines.join('\n');
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function(){ shareToast(); });
-  } else {
-    var ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    shareToast();
-  }
-}
 function shareToast() {
   var t = document.getElementById('copy-toast');
   t.textContent = '✓ Сводка скопирована';
