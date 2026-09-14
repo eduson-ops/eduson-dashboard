@@ -13,7 +13,10 @@ function analyticsQuery(managerOverride) {
 function analyticsSelection(managerOverride) { return SalesAnalytics.select(analyticsModel,analyticsQuery(managerOverride)); }
 function analyticsMetric(value,suffix) {
   if(value==null || !Number.isFinite(Number(value))) return '—';
-  return Number(value).toLocaleString('ru-RU',{maximumFractionDigits:suffix==='%'?1:2})+(suffix||'');
+  return Number(value).toLocaleString('ru-RU',{maximumFractionDigits:(suffix||'').includes('₽')?0:suffix==='%'?1:2})+(suffix||'');
+}
+function analyticsMoneyLabel(context) {
+  return (context.dataset.label||'').replace(/,?\s*₽$/,'')+': '+analyticsMetric(context.parsed.y,' ₽');
 }
 function analyticsDayLabel(day) { return day?day.split('-').reverse().join('.'):'—'; }
 function sourceRowLink(source,row) {
@@ -112,10 +115,28 @@ function analyticsManagers(selection){
 }
 function renderTeamTable(unused,filter){
   var t=analyticsSelection().totals, rows=analyticsManagers(analyticsSelection()), payOk=analyticsReady(['payments']),mkOk=analyticsReady(['form','payments']);
-  function cells(r){return '<td>'+analyticsMetric(mkOk?r.mk:null)+'</td><td>'+analyticsMetric(payOk?r.paid:null)+'</td><td>'+analyticsMetric(payOk&&mkOk?r.conv:null,'%')+'</td><td>'+analyticsMetric(payOk?r.rev:null,' ₽')+'</td><td>'+analyticsMetric(payOk?r.avg:null,' ₽')+'</td><td>'+analyticsMetric(payOk&&mkOk?r.rpm:null,' ₽')+'</td>';}
+  var ready=payOk&&mkOk;
+  // Keep the leader tied to the whole period, not to a search or personal filter.
+  var team=ready?analyticsManagers(SalesAnalytics.select(analyticsModel,Object.assign({},analyticsQuery(),{manager:''}))):[];
+  var leader=team.find(function(row){return row.name!=='__unassigned__'&&!isMvp(row.name)&&row.mk>0&&row.rev>0;});
+  function badge(row){
+    if(!ready||row.name==='__unassigned__'||isMvp(row.name))return '';
+    if(leader&&row.name===leader.name)return '<span class="mgr-badge top" title="Лидер команды по выручке за выбранный период">👑 Топ</span>';
+    if(row.mk===0)return '<span class="mgr-badge risk" title="За выбранный период нет проведённых МК">⚠ 0 МК</span>';
+    if(row.conv!=null&&Number(row.conv.toFixed(1))>=50)return '<span class="mgr-badge up" title="Конверсия за выбранный период от 50%">↑ Сильный</span>';
+    return '';
+  }
+  function cells(r,total){
+    var conv=ready?r.conv:null, shown=conv==null?null:Number(conv.toFixed(1));
+    var convText=analyticsMetric(conv,'%');
+    if(!total)convText='<span class="pill'+(shown==null?'':shown>=40?' g':shown>=30?' y':' r')+'">'+convText+'</span>';
+    function money(value,color){return '<td'+(!total&&value!=null&&color?' class="'+color+'"':'')+'>'+analyticsMetric(value,' ₽')+'</td>';}
+    return '<td>'+analyticsMetric(mkOk?r.mk:null)+'</td><td>'+analyticsMetric(payOk?r.paid:null)+'</td><td>'+convText+'</td>'
+      +money(payOk?r.rev:null,r.rev>100000?'gc':'')+money(payOk?r.avg:null,'bc')+money(ready?r.rpm:null,'bc');
+  }
   var filtered=rows.filter(function(row){return !filter||(row.name==='__unassigned__'?'Не указан':row.name).toLowerCase().includes(filter.toLowerCase());});
   var body=document.getElementById('tbody');
-  body.innerHTML=filtered.map(function(row){return '<tr data-manager="'+esc(row.name)+'"><td class="tn"><button class="manager-open" data-manager="'+esc(row.name)+'">'+mgrEmoji(row.name)+' '+esc(row.name==='__unassigned__'?'Не указан':row.name)+'</button></td>'+cells(row)+'</tr>';}).join('')+(rows.length?'<tr class="total"><td>Итого по выбранному периоду</td>'+cells(t)+'</tr>':'<tr><td colspan="7">'+(payOk&&mkOk?'За период нет уроков и оплат.':'Данные недоступны — проверьте источники.')+'</td></tr>');
+  body.innerHTML=filtered.map(function(row){return '<tr data-manager="'+esc(row.name)+'"><td class="tn"><button class="manager-open" data-manager="'+esc(row.name)+'">'+mgrEmoji(row.name)+' '+esc(row.name==='__unassigned__'?'Не указан':row.name)+'</button>'+badge(row)+'</td>'+cells(row)+'</tr>';}).join('')+(rows.length?'<tr class="total"><td>Итого по выбранному периоду</td>'+cells(t,true)+'</tr>':'<tr><td colspan="7">'+(payOk&&mkOk?'За период нет уроков и оплат.':'Данные недоступны — проверьте источники.')+'</td></tr>');
   body.querySelectorAll('.manager-open').forEach(function(button){button.addEventListener('click',function(){openMgr(button.dataset.manager);});});
 }
 function filterTeam(value){renderTeamTable(null,value);}
@@ -138,12 +159,12 @@ function renderProg(){
 function renderRevChart(){
   dc('rev');if(!analyticsReady(['payments']))return;
   var rows=SalesAnalytics.daily(analyticsModel,analyticsQuery()), c=gc();
-  charts.rev=new Chart(document.getElementById('revC'),{type:'bar',data:{labels:rows.map(function(row){return analyticsDayLabel(row.day);}),datasets:[{label:'Выручка',data:rows.map(function(row){return row.rev;}),backgroundColor:'#f5c84299',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick},grid:{display:false}},y:{ticks:{color:c.tick},grid:{color:c.grid}}}}});
+  charts.rev=new Chart(document.getElementById('revC'),{type:'bar',data:{labels:rows.map(function(row){return analyticsDayLabel(row.day);}),datasets:[{label:'Выручка',data:rows.map(function(row){return row.rev;}),backgroundColor:'#f5c84299',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:analyticsMoneyLabel}}},scales:{x:{ticks:{color:c.tick},grid:{display:false}},y:{ticks:{color:c.tick,callback:function(value){return analyticsMetric(value,' ₽');}},grid:{color:c.grid}}}}});
 }
 function renderTeamChart(){
   dc('team');if(!analyticsReady(['payments']))return;
   var rows=analyticsManagers(analyticsSelection()),c=gc();
-  charts.team=new Chart(document.getElementById('teamC'),{type:'bar',data:{labels:rows.map(function(row){return row.name==='__unassigned__'?'Не указан':row.name;}),datasets:[{label:'Выручка',data:rows.map(function(row){return row.rev;}),backgroundColor:'#60a5fa99',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:c.tick},grid:{display:false}},y:{ticks:{color:c.tick},grid:{color:c.grid}}}}});
+  charts.team=new Chart(document.getElementById('teamC'),{type:'bar',data:{labels:rows.map(function(row){return row.name==='__unassigned__'?'Не указан':row.name;}),datasets:[{label:'Выручка',data:rows.map(function(row){return row.rev;}),backgroundColor:'#60a5fa99',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:analyticsMoneyLabel}}},scales:{x:{ticks:{color:c.tick},grid:{display:false}},y:{ticks:{color:c.tick,callback:function(value){return analyticsMetric(value,' ₽');}},grid:{color:c.grid}}}}});
 }
 function renderKpiSparks(){
   var rows=SalesAnalytics.daily(analyticsModel,analyticsQuery());

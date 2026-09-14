@@ -60,6 +60,7 @@ function dashboard(raw) {
   inline('function loadAll(', '// OPERATIONAL CONTROL');
   inline('function recordOpsSource(', 'function opsMessage(');
   inline('function sparkPath(', '// МВП');
+  inline('function isMvp(', 'function scheduledDate(');
   inline('function dc(', 'function switchAnalyticsTab(');
   inline('function backMgr(', 'function agrBtn(');
   inline('function closePersonaPicker(', 'function renderPersonaList(');
@@ -81,7 +82,7 @@ function dashboard(raw) {
   }
   return {runtime,run,ids,clipboard,requests,failures,waits,storage,period,raw};
 }
-const money = value => value.toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';
+const money = value => value.toLocaleString('ru-RU',{maximumFractionDigits:0})+' ₽';
 const chart = (app,key) => app.run('charts')[key]?.config.data;
 const chartSum = (app,key) => chart(app,key).datasets.reduce((sum,series)=>sum+series.data.reduce((s,n)=>s+(n ?? 0),0),0);
 
@@ -239,4 +240,45 @@ test('renewal switch updates the same financial scope in every view and share ou
     assert.ok(app.clipboard.at(-1).includes(enabled?'С продлениями':'Без продлений'));
   }
   assert.equal(app.storage.get('eks-cr'),'1');
+});
+
+test('ranking restores status colors without making a searched manager the team leader',async()=>{
+  const names=['Иванов А.','Петров Б.','Сидоров В.'];
+  const reports=names.flatMap((name,n)=>Array.from({length:10},(_,i)=>lesson(name,'14.09.2026',String(1000+n*100+i))));
+  const payments=names.flatMap((name,n)=>Array.from({length:[8,3,2][n]},(_,i)=>payment(n===0?'25000.25':'100.25',name,'15.09.2026','Первичная',String(1000+n*100+i))));
+  const app=dashboard(data({form:reports,payments,managers:names.map(name=>[name,'да'])}));
+  await app.runtime.loadAll();app.period();
+  const row=name=>app.ids.get('tbody').innerHTML.match(new RegExp('<tr data-manager="'+name+'">[\\s\\S]*?</tr>'))[0];
+  assert.match(row(names[0]),/mgr-badge top/);
+  assert.match(row(names[0]),/pill g/);
+  assert.match(row(names[0]),/class="gc"/);
+  assert.match(row(names[0]),/class="bc"/);
+  assert.match(row(names[1]),/pill y/);
+  assert.match(row(names[2]),/pill r/);
+  app.runtime.filterTeam('Петров');
+  assert.doesNotMatch(app.ids.get('tbody').innerHTML,/mgr-badge top/);
+  app.runtime.setAnalyticsMgr('Петров Б.');
+  assert.doesNotMatch(app.ids.get('tbody').innerHTML,/mgr-badge top/);
+  app.runtime.setAnalyticsMgr('');
+  app.failures.set('payments',503);await app.runtime.loadAll();
+  assert.doesNotMatch(app.ids.get('tbody').innerHTML,/mgr-badge|pill [gyr]|class="[gb]c"/);
+});
+
+test('rubles are rounded only for display across cards, registers, summary and chart tooltips',async()=>{
+  const app=dashboard(data({form:[lesson()],payments:[payment('125.50')]}));
+  await app.runtime.loadAll();app.period();
+  assert.equal(app.run('analyticsSelection().totals.rev'),125.5);
+  assert.equal(app.run('analyticsModel.payments[0].amountMinor'),12550);
+  assert.equal(app.ids.get('kv-rev').textContent,'126 ₽');
+  assert.equal(app.runtime.avMoney(37938.11),'37 938 ₽');
+  assert.equal(app.runtime.analyticsMetric(null,' ₽'),'—');
+  assert.equal(app.runtime.analyticsMetric(-125.5,' ₽'),'-126 ₽');
+  assert.equal(app.runtime.analyticsMetric(66.666,'%'),'66,7%');
+  assert.match(app.runtime.avPaymentRegister(app.run('analyticsSelection().payments')),/126 ₽/);
+  app.runtime.shareReport();await Promise.resolve();
+  assert.match(app.clipboard[0],/Выручка: 126 ₽/);
+  for(const key of ['rev','team','revday']){
+    const callback=app.run('charts')[key].config.options.plugins.tooltip.callbacks.label;
+    assert.match(callback({dataset:{label:'Выручка, ₽'},parsed:{x:0,y:125.5}}),/126 ₽/);
+  }
 });
