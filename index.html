@@ -464,6 +464,42 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .sched-empty-btn{display:inline-block;margin-top:14px;background:var(--y);color:#000;font-size:12px;font-weight:700;padding:8px 20px;border-radius:var(--r6);border:none;cursor:pointer;font-family:var(--sans)}
 
 /* ── GUIDE PAGE ── */
+.guide-practices{margin-bottom:28px}
+.guide-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.guide-section-title{font:600 15px var(--sans);color:var(--text)}
+.guide-section-hint{font-size:12px;color:var(--sub)}
+.practice-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.practice-card{display:flex;flex-direction:column;min-width:0;padding:22px 24px 12px;border:1px solid var(--border-s);border-radius:var(--r14);background:var(--bg2);box-shadow:var(--shadow);transition:border-color var(--dur) var(--ease),transform var(--dur) var(--ease)}
+.practice-card:hover{border-color:var(--y);transform:translateY(-2px)}
+.practice-card-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}
+.practice-card-icons{display:flex;align-items:center;gap:6px;font-size:26px;line-height:1}
+.practice-card-kind{font-size:11px;font-weight:600;color:var(--sub);padding:5px 9px;border:1px solid var(--border);border-radius:var(--r6);background:var(--bg3)}
+.practice-card h3{font:600 clamp(17px,2vw,23px)/1.35 var(--display);letter-spacing:-.4px;color:var(--text);margin-bottom:8px}
+.practice-card p{font-size:13px;line-height:1.65;color:var(--sub);max-width:46ch;margin-bottom:22px}
+.practice-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:auto}
+.practice-open{display:inline-flex;align-items:center;justify-content:space-between;gap:20px;min-height:42px;flex:1;padding:10px 14px;border:1px solid var(--y-bd);border-radius:var(--r6);background:var(--y-bg);color:var(--text);font-size:13px;font-weight:600;text-decoration:none;transition:background var(--dur) var(--ease),border-color var(--dur) var(--ease)}
+.practice-open:hover{background:var(--y-glow);border-color:var(--y)}
+.practice-copy{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:42px;padding:10px 12px;background:transparent;border:1px solid var(--border-s);border-radius:var(--r6);font:500 12px var(--sans);color:var(--sub);cursor:pointer;transition:background var(--dur) var(--ease),color var(--dur) var(--ease)}
+.practice-copy svg{width:15px;height:15px;flex:none}
+.practice-copy:hover{background:var(--bg4);color:var(--text)}
+.practice-copy:active,.practice-open:active{transform:translateY(1px)}
+#page-guide :is(a,button,input):focus-visible{outline:2px solid var(--y);outline-offset:4px}
+.practice-status{min-height:22px;margin-top:8px;font-size:11px;line-height:1.4;color:var(--sub)}
+.practice-url{width:100%;margin-top:10px;padding:10px;border:1px solid var(--border-s);border-radius:var(--r6);background:var(--bg3);color:var(--text);font:12px var(--mono)}
+.guide-library{padding-top:22px;border-top:1px solid var(--border-s)}
+#page-guide .guide-tab{color:var(--sub);min-height:36px}
+#page-guide .guide-tab.active{color:#17130a}
+#page-guide .guide-card-sub{color:var(--sub);font-size:12px}
+#page-guide .guide-pill{min-height:34px}
+@media(max-width:700px){
+  .practice-grid{grid-template-columns:1fr}
+  .practice-card{padding:18px 18px 10px}
+  .practice-card h3{font-size:19px}
+  .practice-card p{margin-bottom:16px}
+  .guide-section-head{gap:5px}
+  #page-guide .guide-tab{padding:8px 12px}
+}
+@media(prefers-reduced-motion:reduce){.practice-card,.practice-open,.practice-copy{transition:none}.practice-card:hover{transform:none}}
 .guide-tabs{display:flex;gap:6px;margin-bottom:18px;flex-wrap:wrap}
 .guide-tab{font-size:12px;font-weight:600;padding:6px 18px;border-radius:var(--r6);border:1px solid var(--border-s);background:var(--bg3);color:var(--muted);cursor:pointer;font-family:var(--sans);transition:all var(--dur) var(--ease)}
 .guide-tab.active{background:var(--y);color:#000;border-color:var(--y)}
@@ -1595,15 +1631,62 @@ window.updatePersonaFooter=updatePersonaFooter;
 <!-- ══ СПРАВКА ══ -->
 <div class="page" id="page-guide">
   <div class="page-hdr">
-    <div class="page-eyebrow">База знаний</div>
-    <div class="page-title">Справочник</div>
-    <div class="page-sub">Курсы, ссылки, цены и отчёты — всё под рукой</div>
+    <div class="page-eyebrow">Методисту</div>
+    <div class="page-title">Справка</div>
+    <div class="page-sub">Практики для занятия, материалы курсов и формы отчётов</div>
   </div>
 
-  <div class="guide-tabs">
-    <button class="guide-tab active" onclick="showGuideTab('courses',this)">Курсы</button>
-    <button class="guide-tab" onclick="showGuideTab('reports',this)">Отчёты</button>
-    <button class="guide-tab" onclick="showGuideTab('prices',this)">Цены</button>
+  <section class="guide-practices" aria-labelledby="guide-practices-title">
+    <div class="guide-section-head">
+      <h2 class="guide-section-title" id="guide-practices-title">Открыть практику</h2>
+      <span class="guide-section-hint">Откроется в новой вкладке. Ссылку можно отправить семье.</span>
+    </div>
+    <div class="practice-grid">
+      <article class="practice-card" aria-labelledby="practice-core-title">
+        <div class="practice-card-top">
+          <span class="practice-card-icons" aria-hidden="true">🧩 🐢</span>
+          <span class="practice-card-kind">Общая платформа</span>
+        </div>
+        <h3 id="practice-core-title">Scratch + Python</h3>
+        <p>Блоки Scratch и задания на Python. Выберите направление внутри практики.</p>
+        <div class="practice-actions">
+          <a class="practice-open" href="https://practice.eduson-kids.ru/" target="_blank" rel="noopener noreferrer">Открыть практики <span aria-hidden="true">↗</span></a>
+          <button type="button" class="practice-copy" onclick="copyPracticeLink(this)" aria-label="Скопировать ссылку на практики Scratch и Python">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+            Ссылка
+          </button>
+        </div>
+        <input class="practice-url" aria-label="Ссылка на практики Scratch и Python" readonly hidden>
+        <div class="practice-status" role="status" aria-live="polite"></div>
+      </article>
+      <article class="practice-card" aria-labelledby="practice-vibe-title">
+        <div class="practice-card-top">
+          <span class="practice-card-icons" aria-hidden="true">🤖</span>
+          <span class="practice-card-kind">Отдельная практика</span>
+        </div>
+        <h3 id="practice-vibe-title">Vibe Coding</h3>
+        <p>Практика в формате стажировки: ребёнок создаёт свой проект с помощью ИИ.</p>
+        <div class="practice-actions">
+          <a class="practice-open" href="http://5.53.125.176:8088/" target="_blank" rel="noopener noreferrer">Открыть Vibe Coding <span aria-hidden="true">↗</span></a>
+          <button type="button" class="practice-copy" onclick="copyPracticeLink(this)" aria-label="Скопировать ссылку на практику Vibe Coding">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></svg>
+            Ссылка
+          </button>
+        </div>
+        <input class="practice-url" aria-label="Ссылка на практику Vibe Coding" readonly hidden>
+        <div class="practice-status" role="status" aria-live="polite"></div>
+      </article>
+    </div>
+  </section>
+
+  <div class="guide-library">
+  <div class="guide-section-head">
+    <h2 class="guide-section-title">Материалы и документы</h2>
+  </div>
+  <div class="guide-tabs" role="group" aria-label="Разделы справки">
+    <button class="guide-tab active" onclick="showGuideTab('courses',this)" aria-pressed="true" aria-controls="gtab-courses">Презентации и программы</button>
+    <button class="guide-tab" onclick="showGuideTab('reports',this)" aria-pressed="false" aria-controls="gtab-reports">Отчёты</button>
+    <button class="guide-tab" onclick="showGuideTab('prices',this)" aria-pressed="false" aria-controls="gtab-prices">Цены</button>
   </div>
 
   <!-- TAB: КУРСЫ -->
@@ -1614,10 +1697,9 @@ window.updatePersonaFooter=updatePersonaFooter;
       <div class="guide-card" style="border-color:var(--b-bd)">
         <div class="guide-card-icon" style="background:var(--b-bg);color:var(--b)">🐍</div>
         <div class="guide-card-title">Python + AI</div>
-        <div class="guide-card-sub">11–14 лет · Zoom · группы 5–6 чел. · 12 мес · 48 уроков · 12 проектов</div>
+        <div class="guide-card-sub">Презентация курса и подробная программа обучения</div>
         <div class="guide-pills">
           <a href="https://eduson.academy/kids-python-ai-lesson#popup-close" target="_blank" class="guide-pill" style="background:var(--b-bg);color:var(--b);border-color:var(--b-bd)">🌐 Лендинг ↗</a>
-          <a href="https://eduson-ops.github.io/EdusonKidsPython/turtle/" target="_blank" class="guide-pill" style="background:var(--b-bg);color:var(--b);border-color:var(--b-bd)">🐢 Черепашка ↗</a>
           <a href="https://disk.360.yandex.com/i/fbzK_8cNUYpCyQ" target="_blank" class="guide-pill" style="background:var(--b-bg);color:var(--b);border-color:var(--b-bd)">📄 План курса ↗</a>
         </div>
       </div>
@@ -1626,11 +1708,9 @@ window.updatePersonaFooter=updatePersonaFooter;
       <div class="guide-card" style="border-color:var(--y-bd)">
         <div class="guide-card-icon" style="background:var(--y-bg);color:var(--y)">🐧</div>
         <div class="guide-card-title">Scratch + AI</div>
-        <div class="guide-card-sub">7–10 лет · Zoom · группы 4–6 чел. · 12 мес · 48 уроков · 12 проектов</div>
+        <div class="guide-card-sub">Презентация курса и подробная программа обучения</div>
         <div class="guide-pills">
           <a href="https://eduson.academy/kids-scratch-ai-free-lesson#popup-close" target="_blank" class="guide-pill" style="background:var(--y-bg);color:var(--y);border-color:var(--y-bd)">🌐 Лендинг ↗</a>
-          <a href="https://scratch.mit.edu/projects/1271032659/" target="_blank" class="guide-pill" style="background:var(--y-bg);color:var(--y);border-color:var(--y-bd)">🐧 Пингвин ↗</a>
-          <a href="https://scratch.mit.edu/projects/1271031407/" target="_blank" class="guide-pill" style="background:var(--y-bg);color:var(--y);border-color:var(--y-bd)">📷 Камера ↗</a>
           <a href="https://disk.360.yandex.com/i/d14TKSYisL-aiw" target="_blank" class="guide-pill" style="background:var(--y-bg);color:var(--y);border-color:var(--y-bd)">📄 План курса ↗</a>
         </div>
       </div>
@@ -1690,8 +1770,8 @@ window.updatePersonaFooter=updatePersonaFooter;
     </div>
   </div>
 
-</div>
-
+  </div><!-- .guide-library -->
+</div><!-- #page-guide -->
 </div><!-- .content -->
 </div><!-- .main-col -->
 </div><!-- .app-layout -->
@@ -3058,8 +3138,30 @@ function showGuideTab(tab,btn){
   ['courses','reports','prices'].forEach(t=>{
     document.getElementById('gtab-'+t).style.display=t===tab?'block':'none';
   });
-  document.querySelectorAll('#page-guide .guide-tab').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('#page-guide .guide-tab').forEach(b=>{
+    b.classList.remove('active');
+    b.setAttribute('aria-pressed','false');
+  });
   btn.classList.add('active');
+  btn.setAttribute('aria-pressed','true');
+}
+
+async function copyPracticeLink(btn){
+  var card=btn.closest('.practice-card');
+  var url=card.querySelector('.practice-open').href;
+  var status=card.querySelector('.practice-status');
+  var field=card.querySelector('.practice-url');
+  try{
+    await navigator.clipboard.writeText(url);
+    field.hidden=true;
+    status.textContent='Ссылка скопирована';
+  }catch(e){
+    field.value=url;
+    field.hidden=false;
+    field.focus();
+    field.select();
+    status.textContent='Скопируйте выделенную ссылку вручную';
+  }
 }
 
 // ═══════════════════════════════════════
