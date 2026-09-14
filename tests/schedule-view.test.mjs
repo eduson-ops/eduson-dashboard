@@ -46,7 +46,7 @@ test('standalone source changes refresh shared diagnostics without requiring a m
 test('twenty employees stay available; MVP is excluded; search and zero-hour filter affect both views but not totals',()=>{
  const {ctx,els,scheduleData}=app();const before=JSON.stringify(scheduleData);
  ctx.renderSchedule();
- assert.equal((els.get('hm-summary').innerHTML.match(/class="so-row/g)||[]).length,20);
+ assert.equal((els.get('hm-summary').innerHTML.match(/class="so-card/g)||[]).length,20);
  assert.doesNotMatch(els.get('hm-summary').innerHTML,/МВП/);
  assert.doesNotMatch(els.get('hm-table').innerHTML,/МВП/);
  const total=els.get('hm-total-banner').innerHTML;
@@ -54,11 +54,11 @@ test('twenty employees stay available; MVP is excluded; search and zero-hour fil
  assert.equal((els.get('hm-table').innerHTML.match(/class="hm-row"/g)||[]).length,1);
  assert.equal(els.get('hm-total-banner').innerHTML,total);
  ctx.setHmSearch('');ctx.toggleHmEmpty();
- assert.equal((els.get('hm-summary').innerHTML.match(/class="so-row/g)||[]).length,10);
+ assert.equal((els.get('hm-summary').innerHTML.match(/class="so-card/g)||[]).length,10);
  assert.equal((els.get('hm-table').innerHTML.match(/class="hm-row"/g)||[]).length,10);
  assert.equal(JSON.stringify(scheduleData),before);
  ctx.personalMgr='Менеджер 01';ctx.hmEmptyOnly=false;ctx.renderSchedule();
- assert.equal((els.get('hm-summary').innerHTML.match(/class="so-row/g)||[]).length,1);
+ assert.equal((els.get('hm-summary').innerHTML.match(/class="so-card/g)||[]).length,1);
 });
 test('unavailable schedule shows no zero-hour classification or stale heatmap',()=>{
  const {ctx,els}=app();ctx.renderSchedule();ctx.analyticsReady=()=>false;ctx.renderSchedule();

@@ -17,9 +17,9 @@ const filter = (...args) => {
   assert.equal(typeof api.filter, 'function', 'schedule overview filtering exists');
   return plain(api.filter(...args));
 };
-const rowsHtml = (...args) => {
-  assert.equal(typeof api.rowsHtml, 'function', 'schedule overview rows renderer exists');
-  return api.rowsHtml(...args);
+const cardsHtml = (...args) => {
+  assert.equal(typeof api.cardsHtml, 'function', 'schedule overview cards renderer exists');
+  return api.cardsHtml(...args);
 };
 
 test('keeps all 22 managers in source order without a card or row limit', () => {
@@ -35,7 +35,7 @@ test('keeps all 22 managers in source order without a card or row limit', () => 
   assert.deepEqual(result.rows[19], {
     name: 'Менеджер 20', total: 3, days: [2, 0, 1, 0, 0, 0, 0], activeDays: 2, dayCount: 7,
   });
-  assert.equal((rowsHtml(result.rows).match(/<tr\b/g) || []).length, 22);
+  assert.equal((cardsHtml(result.rows).match(/<li\b/g) || []).length, 22);
 });
 
 test('excludes MVP roles and removes repeated names while preserving people order', () => {
@@ -99,33 +99,33 @@ test('building and filtering do not mutate managers, schedules, dates or full ro
   assert.deepEqual(result.rows, beforeRows);
 });
 
-test('renders three semantic table cells with hours and visible-day counts', () => {
+test('renders list cards with a numeric hour value and visible-day counts', () => {
   const result = build(['Анна'], { Анна: { [week[0]]: { 9: true, 10: true } } }, week);
-  const html = rowsHtml(result.rows);
-  assert.match(html, /^<tr class="so-row">/);
-  assert.equal((html.match(/<td\b/g) || []).length, 3);
-  assert.match(html, />Анна<\/td>/);
-  assert.match(html, />2 ч<\/td>/);
-  assert.match(html, />1 из 7 дней<\/td>/);
-  assert.ok(!html.includes('<table'));
+  const html = cardsHtml(result.rows);
+  assert.match(html, /^<li class="so-card">/);
+  assert.match(html, /class="so-name" title="Анна">Анна<\//);
+  assert.match(html, /class="so-value"><strong class="so-hours">2<\/strong><span>ч<\/span>/);
+  assert.match(html, /class="so-days">1 из 7 дней<\//);
+  assert.ok(!/<(?:table|tr|td|ul|button|a)\b/.test(html));
   const shorter = build(['Анна'], { Анна: { [week[0]]: { 9: true } } }, week.slice(0, 3));
-  assert.match(rowsHtml(shorter.rows), />1 из 3 дней<\/td>/);
+  assert.match(cardsHtml(shorter.rows), /class="so-days">1 из 3 дней<\//);
 });
 
-test('zero hours have a text status and an empty row class', () => {
-  const html = rowsHtml(build(['Борис'], {}, week).rows);
-  assert.match(html, /^<tr class="so-row so-empty">/);
-  assert.match(html, />Нет часов<\/td>/);
-  assert.match(html, />0 из 7 дней<\/td>/);
+test('zero hours remain numeric with a text status and an empty card class', () => {
+  const html = cardsHtml(build(['Борис'], {}, week).rows);
+  assert.match(html, /^<li class="so-card so-empty">/);
+  assert.match(html, /class="so-value"><strong class="so-hours">0<\/strong><span>ч<\/span>/);
+  assert.match(html, /class="so-days">Нет открытых часов<\//);
 });
 
 test('escapes manager names and empty-state messages instead of injecting HTML', () => {
   const name = '<img src=x onerror="alert(1)"> & \'Имя\'';
-  const html = rowsHtml(build([name], {}, week).rows);
+  const html = cardsHtml(build([name], {}, week).rows);
   assert.ok(!html.includes('<img'));
-  assert.ok(html.includes('&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &#39;Имя&#39;'));
-  assert.equal(rowsHtml([], '<b>Нет & "имён"</b>'),
-    '<tr><td colspan="3" class="so-no-results">&lt;b&gt;Нет &amp; &quot;имён&quot;&lt;/b&gt;</td></tr>');
+  const escaped = '&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &#39;Имя&#39;';
+  assert.ok(html.includes(`title="${escaped}">${escaped}</`));
+  assert.equal(cardsHtml([], '<b>Нет & "имён"</b>'),
+    '<li class="so-no-results">&lt;b&gt;Нет &amp; &quot;имён&quot;&lt;/b&gt;</li>');
 });
 
 test('exports the same API to browser globals and CommonJS', () => {
@@ -133,5 +133,5 @@ test('exports the same API to browser globals and CommonJS', () => {
   const commonJs = vm.createContext({ module: { exports: {} } });
   vm.runInContext(fs.readFileSync(moduleUrl, 'utf8'), commonJs);
   assert.equal(commonJs.module.exports, commonJs.ScheduleOverview);
-  assert.deepEqual(Object.keys(commonJs.module.exports).sort(), ['build', 'filter', 'rowsHtml']);
+  assert.deepEqual(Object.keys(commonJs.module.exports).sort(), ['build', 'cardsHtml', 'filter']);
 });
