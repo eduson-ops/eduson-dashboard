@@ -117,26 +117,32 @@ function weekConv(name,weeksAgo) {
   var q=Object.assign({},analyticsQuery(name),{from:from,to:d.toISOString().slice(0,10)});
   return SalesAnalytics.select(analyticsModel,q).totals.conv;
 }
+function managersQuery(managerOverride) {
+  return Object.assign({},analyticsQuery(managerOverride),SalesAnalytics.period('month'));
+}
+function managersSelection(managerOverride) {
+  return SalesAnalytics.select(analyticsModel,managersQuery(managerOverride));
+}
 function renderManagers() {
-  var q=analyticsQuery(), selection=analyticsSelection(), lessonReady=analyticsReady(['form','payments']), payReady=analyticsReady(['payments']), names=new Set();
+  var q=managersQuery(), selection=managersSelection(), lessonReady=analyticsReady(['form','payments']), payReady=analyticsReady(['payments']), names=new Set();
   if(lessonReady)selection.lessons.forEach(function(r){names.add(r.manager||'__unassigned__');});
   if(payReady)selection.payments.forEach(function(r){names.add(r.manager||'__unassigned__');});
   if(analyticsReady(['cancels']))selection.cancels.forEach(function(r){names.add(r.manager||'__unassigned__');});
   if(q.manager)names.add(q.manager);
   else (analyticsModel.managers||[]).forEach(function(m){if(m.active)names.add(m.name);});
-  var rows=Array.from(names).map(function(name){return {name:name,t:analyticsSelection(name).totals};}).sort(function(a,b){return payReady?(b.t.rev||0)-(a.t.rev||0):a.name.localeCompare(b.name,'ru');});
+  var rows=Array.from(names).map(function(name){return {name:name,t:managersSelection(name).totals};}).sort(function(a,b){return payReady?(b.t.rev||0)-(a.t.rev||0):a.name.localeCompare(b.name,'ru');});
   var header=document.querySelector('#mgr-page-hdr .page-eyebrow'),sub=document.querySelector('#mgr-page-hdr .page-sub');
-  if(header)header.textContent=avPeriod(q);if(sub)sub.textContent='Деньги относятся к менеджеру оплаты, МК — к менеджеру занятия. '+(q.includeRenewals?'Продления включены. ':'Продления исключены. ')+(payReady?avPaymentCaveat(selection.payments):'Источник оплат не загружен. ')+(!lessonReady?'Источник МК не загружен.':'');
+  if(header)header.textContent='Текущий месяц · '+avPeriod(q);if(sub)sub.textContent='Деньги относятся к менеджеру оплаты, МК — к менеджеру занятия. '+(q.includeRenewals?'Продления включены. ':'Продления исключены. ')+(payReady?avPaymentCaveat(selection.payments):'Источник оплат не загружен. ')+(!lessonReady?'Источник МК не загружен.':'');
   avHtml('mgr-cards',rows.length?rows.map(function(r){var name=r.name==='__unassigned__'?'Не указан':r.name;return '<button type="button" class="mgr-card" data-av-manager="'+esc(r.name)+'" style="text-align:left;color:var(--text);font:inherit;cursor:pointer"><div class="mgr-card-head"><div class="mgr-card-avatar emoji">'+esc(mgrEmoji(name))+'</div><div><div class="mgr-card-name">'+esc(name)+'</div><div class="mgr-card-sub">'+avNumber(lessonReady?r.t.mk:null)+' МК · '+avNumber(payReady?r.t.paid:null)+' оплат</div></div></div><div class="mgr-card-stats"><div class="mgr-stat"><div class="mgr-stat-lbl">Выручка</div><div class="mgr-stat-val">'+avMoney(payReady?r.t.rev:null)+'</div></div><div class="mgr-stat"><div class="mgr-stat-lbl">Оплаты / МК</div><div class="mgr-stat-val">'+avNumber(lessonReady&&payReady?r.t.conv:null,'%')+'</div></div></div></button>';}).join(''):avNote('Нет событий за выбранный период.'));
   document.querySelectorAll('[data-av-manager]').forEach(function(button){button.addEventListener('click',function(){openMgr(button.dataset.avManager);});});
   if(currentDetailManager)avRenderManagerDetail(currentDetailManager);
 }
 function avRenderManagerDetail(name) {
-  var selection=analyticsSelection(name), t=selection.totals, lessonReady=analyticsReady(['form','payments']), payReady=analyticsReady(['payments']);
-  avText('mname',name==='__unassigned__'?'Не указан':name);avText('mav',mgrEmoji(name));avText('msub',avPeriod(analyticsQuery(name))+' · деньги по дате оплаты, МК по дате занятия');
+  var q=managersQuery(name), selection=SalesAnalytics.select(analyticsModel,q), t=selection.totals, lessonReady=analyticsReady(['form','payments']), payReady=analyticsReady(['payments']);
+  avText('mname',name==='__unassigned__'?'Не указан':name);avText('mav',mgrEmoji(name));avText('msub','Текущий месяц · '+avPeriod(q)+' · деньги по дате оплаты, МК по дате занятия');
   var cards=[['МК по отчётам',avNumber(lessonReady?t.mk:null)],['Оплаты',avNumber(payReady?t.paid:null)],['Выручка',avMoney(payReady?t.rev:null)],['Оплаты / МК',avNumber(lessonReady&&payReady?t.conv:null,'%')],['Средний платёж',avMoney(payReady?t.avg:null)],['Выручка / МК',avMoney(lessonReady&&payReady?t.rpm:null)],['Первичная выручка',avMoney(payReady?t.primaryRev:null)],['Выручка продлений',avMoney(payReady?t.renewalRev:null)]];
   avHtml('mstats',cards.map(function(item){return '<div class="kpi"><div class="kl">'+esc(item[0])+'</div><div class="kv" style="font-size:17px">'+esc(item[1])+'</div></div>';}).join(''));
-  var daily=SalesAnalytics.daily(analyticsModel,analyticsQuery(name));avTitle('mwC','Выручка по дате оплаты');avBars('mw','mwC',daily.map(function(r){return [avDate(r.day),r.rev];}),payReady,'Выручка, ₽');
+  var daily=SalesAnalytics.daily(analyticsModel,q);avTitle('mwC','Выручка по дате оплаты');avBars('mw','mwC',daily.map(function(r){return [avDate(r.day),r.rev];}),payReady,'Выручка, ₽');
   avBars('mo','moC',avCount(selection.lessons,'objection'),lessonReady,'МК');
   avTitle('mlessons','Журналы менеджера');avHtml('mlessons',avRegisters(selection,lessonReady,payReady));
 }
