@@ -181,7 +181,7 @@ test('same-width changed source columns are rejected instead of relabelling paym
   assert.equal(app.run('analyticsModel.payments[0].rev'),100);
 });
 
-test('period and personal mode drive main cards, analytics charts, detail and copied report together',async()=>{
+test('personal mode preserves the chosen report period while manager detail shows the month',async()=>{
   const app=dashboard(data({form:[lesson(),lesson('Иванов А.','16.09.2026','102'),lesson('Петров Б.')],payments:[payment('100'),payment('200','Иванов А.','16.09.2026','Первичная','102'),payment('900','Петров Б.')]}));
   await app.runtime.loadAll();app.period('2026-09-14','2026-09-15','');
   app.runtime.setAnalyticsMgr('Петров Б.');app.runtime.openMgr('Петров Б.');
@@ -195,13 +195,36 @@ test('period and personal mode drive main cards, analytics charts, detail and co
   assert.equal(chartSum(app,'revday'),100);
   assert.equal(chartSum(app,'retMonth'),100);
   assert.deepEqual(plain(app.runtime.visibleMain()),plain(app.runtime.visibleAnalytics()));
-  app.runtime.openMgr('Иванов А.');assert.equal(chartSum(app,'mw'),100);
+  app.runtime.openMgr('Иванов А.');assert.equal(chartSum(app,'mw'),300);
+  assert.match(app.ids.get('msub').textContent,/01\.09\.2026 — 30\.09\.2026/);
   app.runtime.shareReport();await Promise.resolve();
   assert.match(app.clipboard[0],/14\.09\.2026 — 15\.09\.2026/);
   assert.match(app.clipboard[0],/Иванов А\./);
   assert.match(app.clipboard[0],/Выручка: 100 ₽/);
   assert.match(app.clipboard[0],/Проведено МК: 1/);
   assert.doesNotMatch(app.clipboard[0],/Петров|900|200 ₽/);
+});
+
+test('manager cards and detail show this month even when today has no activity',async()=>{
+  const app=dashboard(data({
+    form:[lesson('Иванов А.','05.09.2026','101'),lesson('Иванов А.','31.08.2026','201')],
+    payments:[payment('100','Иванов А.','05.09.2026','Первичная','101'),payment('900','Иванов А.','31.08.2026','Первичная','201')]
+  }));
+  await app.runtime.loadAll();
+  assert.equal(app.ids.get('kv-rev').textContent,money(0),'main stays on today');
+  assert.match(app.ids.get('mgr-cards').innerHTML,/1 МК · 1 оплат/);
+  assert.ok(app.ids.get('mgr-cards').innerHTML.includes(money(100)));
+  assert.ok(!app.ids.get('mgr-cards').innerHTML.includes(money(900)));
+  assert.match(app.runtime.document.querySelector('#mgr-page-hdr .page-eyebrow').textContent,/Текущий месяц · 01\.09\.2026 — 30\.09\.2026/);
+  app.runtime.openMgr('Иванов А.');
+  assert.equal(chartSum(app,'mw'),100);
+  assert.match(app.ids.get('msub').textContent,/01\.09\.2026 — 30\.09\.2026/);
+  assert.match(app.ids.get('mlessons').innerHTML,/05\.09\.2026/);
+  assert.doesNotMatch(app.ids.get('mlessons').innerHTML,/31\.08\.2026/);
+  app.period('2026-08-01','2026-08-31');
+  assert.equal(app.ids.get('kv-rev').textContent,money(900),'report filters still work');
+  assert.equal(chartSum(app,'mw'),100,'manager detail remains on the current month');
+  assert.ok(app.ids.get('mgr-cards').innerHTML.includes(money(100)));
 });
 
 test('invalid custom dates keep the previous selection and show a corrective message',async()=>{
