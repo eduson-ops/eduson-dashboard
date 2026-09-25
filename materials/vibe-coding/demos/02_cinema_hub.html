@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<title>CinemaX — кинотека | Eduson Kids</title>
+
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    color: #f5f5f5;
+    font-family: 'Inter', -apple-system, sans-serif;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  ::-webkit-scrollbar { height: 8px; width: 8px; }
+  ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #E50914; }
+
+  /* ===== NAV ===== */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    padding: 18px 50px; display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(180deg, rgba(10,10,15,0.95) 0%, rgba(10,10,15,0) 100%);
+    transition: background 0.3s;
+  }
+  nav.solid { background: rgba(10,10,15,0.98); backdrop-filter: blur(20px); }
+  .logo {
+    font-size: 26px; font-weight: 900; letter-spacing: -0.5px;
+    color: #E50914;
+  }
+  .logo span { color: #fff; font-weight: 400; }
+  .nav-links { display: flex; gap: 28px; font-size: 14px; font-weight: 500; }
+  .nav-links a { opacity: 0.8; transition: opacity 0.2s; cursor: pointer; }
+  .nav-links a:hover, .nav-links a.active { opacity: 1; }
+  .nav-links a.active { color: #E50914; }
+  .nav-actions { display: flex; gap: 18px; align-items: center; }
+  .search-box {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    padding: 8px 14px 8px 36px; border-radius: 999px;
+    color: #fff; font-size: 13px; width: 220px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ccc' stroke-width='2'><circle cx='11' cy='11' r='8'/><path d='M21 21l-4.35-4.35'/></svg>");
+    background-repeat: no-repeat; background-position: 10px center; background-size: 16px;
+  }
+  .search-box::placeholder { color: rgba(255,255,255,0.5); }
+  .avatar {
+    width: 34px; height: 34px; border-radius: 8px;
+    background: linear-gradient(135deg, #E50914, #831010);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+  }
+
+  /* ===== HERO ===== */
+  .hero {
+    position: relative; height: 85vh; min-height: 560px;
+    overflow: hidden;
+  }
+  .hero-slide {
+    position: absolute; inset: 0;
+    opacity: 0; transition: opacity 1s;
+    display: flex; align-items: flex-end;
+    padding: 0 50px 80px 50px;
+  }
+  .hero-slide { pointer-events:none; }
+  .hero-slide.active { opacity: 1; pointer-events:auto; }
+  .hero-slide::before {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 30%, rgba(10,10,15,0.7) 65%, #0a0a0f 100%),
+                linear-gradient(90deg, rgba(10,10,15,0.9) 0%, rgba(10,10,15,0.4) 50%, transparent 75%);
+    z-index: 1;
+  }
+  .hero-bg {
+    position: absolute; inset: 0; z-index: 0;
+  }
+  .hero-content { position: relative; z-index: 2; max-width: 600px; }
+  .hero-cat {
+    display: inline-block; padding: 4px 12px; background: rgba(229, 9, 20, 0.9);
+    font-size: 11px; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase;
+    border-radius: 4px; margin-bottom: 14px;
+  }
+  .hero h1 {
+    font-size: 68px; font-weight: 900; line-height: 0.95; letter-spacing: -2px;
+    margin-bottom: 14px;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.6);
+  }
+  .hero-meta {
+    display: flex; gap: 14px; margin-bottom: 16px; font-size: 14px; align-items: center;
+  }
+  .hero-meta .rating {
+    background: #E50914; padding: 2px 8px; border-radius: 4px; font-weight: 700;
+  }
+  .hero-meta .year { opacity: 0.8; }
+  .hero-meta .age { border: 1px solid rgba(255,255,255,0.3); padding: 1px 6px; border-radius: 3px; font-size: 12px; }
+  .hero-desc { font-size: 16px; line-height: 1.5; opacity: 0.85; margin-bottom: 28px; max-width: 540px; }
+  .hero-btns { display: flex; gap: 12px; }
+  .btn {
+    padding: 14px 28px; border-radius: 8px; border: 0;
+    font-weight: 700; font-size: 15px; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 10px;
+    transition: transform 0.15s, background 0.15s;
+  }
+  .btn.primary { background: #E50914; color: #fff; }
+  .btn.primary:hover { background: #f40612; transform: scale(1.05); }
+  .btn.secondary { background: rgba(120,120,130,0.5); color: #fff; backdrop-filter: blur(10px); }
+  .btn.secondary:hover { background: rgba(120,120,130,0.7); }
+
+  .hero-dots {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 3;
+    display: flex; gap: 8px;
+  }
+  .hero-dots .dot {
+    width: 28px; height: 3px; background: rgba(255,255,255,0.3);
+    border-radius: 2px; cursor: pointer; transition: all 0.3s;
+  }
+  .hero-dots .dot.active { background: #E50914; width: 40px; }
+
+  /* ===== ROWS ===== */
+  .rows { padding: 30px 0 60px; position: relative; z-index: 5; margin-top: -80px; }
+  .row-section { margin-bottom: 38px; }
+  .row-title {
+    padding: 0 50px 14px;
+    font-size: 22px; font-weight: 700; letter-spacing: -0.5px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .row-title .explore {
+    font-size: 12px; color: #E50914; opacity: 0; transition: opacity 0.3s;
+    cursor: pointer; letter-spacing: 0.05em;
+  }
+  .row-section:hover .row-title .explore { opacity: 1; }
+
+  .scroll-row {
+    display: flex; gap: 10px; padding: 4px 50px 30px;
+    overflow-x: auto; scroll-behavior: smooth;
+    scrollbar-width: thin;
+  }
+  .card {
+    flex: 0 0 auto; width: 240px; height: 340px;
+    border-radius: 8px; overflow: hidden; position: relative;
+    cursor: pointer; transition: transform 0.3s, box-shadow 0.3s;
+    background: #1a1a20;
+  }
+  .card:hover { transform: scale(1.05) translateY(-4px); box-shadow: 0 20px 40px rgba(0,0,0,0.6); z-index: 10; }
+  .card-img {
+    width: 100%; height: 100%;
+    background-size: cover; background-position: center;
+    position: relative;
+  }
+  .card-img::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.9) 100%);
+  }
+  .card-info {
+    position: absolute; bottom: 0; left: 0; right: 0; z-index: 2;
+    padding: 14px 16px;
+  }
+  .card-info h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .card-info .meta {
+    display: flex; gap: 8px; font-size: 11px; align-items: center; opacity: 0.8;
+  }
+  .card-info .meta .stars { color: #fbbf24; }
+  .card-rank {
+    position: absolute; bottom: -14px; left: -6px;
+    font-size: 150px; line-height: 0.8; font-weight: 900;
+    color: #0a0a0f;
+    -webkit-text-stroke: 3px #E50914;
+    z-index: 1;
+    pointer-events: none;
+  }
+  .card-top10 { display: flex; gap: 20px; }
+  .card-top10 .card { width: 180px; }
+
+  /* ===== MODAL ===== */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);
+    display: none; align-items: center; justify-content: center;
+    animation: fadeIn 0.3s;
+  }
+  .modal-backdrop.show { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .modal {
+    background: #15151c; border-radius: 14px;
+    width: 90%; max-width: 880px; max-height: 88vh; overflow: auto;
+    animation: slideUp 0.4s;
+  }
+  @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal-hero {
+    height: 400px; position: relative; overflow: hidden;
+    border-radius: 14px 14px 0 0;
+  }
+  .modal-hero::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(180deg, transparent 40%, #15151c 100%);
+  }
+  .modal-hero-bg { position: absolute; inset: 0; }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px; z-index: 10;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(0,0,0,0.7); border: 0; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; cursor: pointer;
+  }
+  .modal-play {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 84px; height: 84px; border-radius: 50%;
+    background: rgba(229, 9, 20, 0.9); border: 3px solid #fff;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; z-index: 5;
+    transition: transform 0.2s;
+  }
+  .modal-play:hover { transform: translate(-50%, -50%) scale(1.1); }
+  .modal-play::after {
+    content: ''; border-left: 24px solid #fff; border-top: 16px solid transparent; border-bottom: 16px solid transparent;
+    margin-left: 6px;
+  }
+  .modal-body { padding: 30px 40px 40px; }
+  .modal-body h2 { font-size: 36px; font-weight: 900; letter-spacing: -1px; margin-bottom: 14px; }
+  .modal-meta { display: flex; gap: 14px; margin-bottom: 18px; font-size: 14px; align-items: center; }
+  .modal-meta .match { color: #10b981; font-weight: 700; }
+  .modal-meta .age { border: 1px solid rgba(255,255,255,0.3); padding: 2px 7px; border-radius: 3px; font-size: 12px; }
+  .modal-description { line-height: 1.7; margin-bottom: 28px; color: rgba(255,255,255,0.85); }
+  .modal-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px; }
+  .tag { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12);
+    padding: 4px 10px; border-radius: 999px; font-size: 12px; }
+  .modal-row { display: grid; grid-template-columns: auto 1fr; gap: 14px 20px; font-size: 14px; margin-top: 16px; }
+  .modal-row dt { color: rgba(255,255,255,0.55); }
+  .modal-row dd { color: #fff; }
+
+  /* ===== Animations ===== */
+  @keyframes gradShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .gradient-bg {
+    background-size: 200% 200%;
+    animation: gradShift 10s ease infinite;
+  }
+
+  footer {
+    padding: 40px 50px; border-top: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.5); font-size: 12px; text-align: center;
+  }
+  footer a { color: #E50914; }
+
+  @media (max-width: 768px) {
+    nav { padding: 14px 20px; }
+    .nav-links, .search-box { display: none; }
+    .hero { padding: 0 20px 30px; }
+    .hero h1 { font-size: 42px; }
+    .row-title { padding: 0 20px 10px; font-size: 18px; }
+    .scroll-row { padding: 4px 20px 30px; }
+    .card { width: 180px; height: 260px; }
+  }
+</style>
+<style>body,button,input,textarea{font-family:"Segoe UI",system-ui,sans-serif}</style>
+
+<style id="vc-compact-layout">
+html, body { width:100%; min-width:0; }
+nav { position:absolute; padding:10px 20px; gap:14px; }
+nav > div:first-child { gap:18px !important; min-width:0; }
+.logo { font-size:20px; white-space:nowrap; }
+.nav-links { gap:12px; font-size:11px; }
+.nav-actions { gap:8px; }
+.search-box { width:145px; font-size:11px; padding:6px 10px 6px 30px; }
+.avatar { width:26px; height:26px; font-size:11px; flex-shrink:0; }
+.hero { height:clamp(230px,65vh,340px); min-height:0; padding:0; }
+.hero-slide { padding:50px 24px 32px; }
+.hero-content { max-width:560px; }
+.hero h1 { font-size:clamp(27px,5vw,48px); letter-spacing:-1px; margin-bottom:9px; }
+.hero-cat { padding:3px 7px; font-size:8px; margin-bottom:8px; }
+.hero-meta { gap:8px; font-size:11px; margin-bottom:8px; flex-wrap:wrap; }
+.hero-desc { font-size:12px; line-height:1.4; margin-bottom:12px; max-width:500px; }
+.hero-btns { gap:8px; }
+.btn { padding:8px 12px; font-size:11px; gap:6px; }
+.hero-dots { bottom:12px; }
+.rows { margin-top:0; padding:10px 0 20px; }
+.row-section { margin-bottom:14px; }
+.row-title { padding:0 20px 6px; font-size:15px; }
+.scroll-row { padding:4px 20px 12px; gap:8px; }
+.card, .card-top10 .card { width:132px; height:180px; }
+.card-info { padding:10px; }
+.card-info h3 { font-size:12px; }
+.card-info .meta { font-size:9px; gap:4px; flex-wrap:wrap; }
+.card-rank { font-size:100px; bottom:-5px; }
+.modal { max-height:94vh; width:94%; border-radius:10px; }
+.modal-hero { height:clamp(86px,25vh,180px); }
+.modal-body { padding:12px 18px 18px; }
+.modal-body h2 { font-size:26px; margin-bottom:8px; }
+.modal-meta { font-size:11px; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.modal-description { font-size:12px; line-height:1.5; margin-bottom:12px; }
+.modal-play { width:48px; height:48px; }
+.modal-play::after { border-left-width:14px; border-top-width:9px; border-bottom-width:9px; margin-left:4px; }
+.modal-close { width:28px; height:28px; top:8px; right:8px; }
+.modal-row { font-size:11px; }
+footer { padding:18px; font-size:10px; }
+@media(max-width:600px) {
+  nav { padding:8px 14px; }
+  .nav-links, .search-box { display:none; }
+  .hero { height:240px; }
+  .hero-slide { padding:42px 14px 28px; }
+  .hero h1 { font-size:30px; }
+  .hero-desc { font-size:11px; }
+  .row-title { padding-left:14px; font-size:14px; }
+  .scroll-row { padding-left:14px; padding-right:14px; }
+  .card, .card-top10 .card { width:116px; height:152px; }
+}
+@media(max-height:340px) {
+  .hero { height:200px; }
+  .hero h1 { font-size:27px; }
+  .hero-slide { padding-top:42px; padding-bottom:24px; }
+  .hero-cat { display:none; }
+  .hero-desc { font-size:10px; line-height:1.3; margin-bottom:8px; }
+  .hero-meta { margin-bottom:6px; }
+  .btn { padding:6px 10px; }
+  .hero-dots { bottom:8px; }
+}
+</style>
+
+<style id="vc-catalog-controls">
+nav { position:relative; flex-wrap:wrap; background:#0a0a0f; padding:10px 20px; }
+.nav-brand-row { display:flex; gap:16px; align-items:center; min-width:0; }
+.nav-links { display:flex; gap:6px; }
+.nav-links button { border:0; background:transparent; color:#b9b9c2; padding:6px; font:600 11px/1.2 'Segoe UI',sans-serif; cursor:pointer; white-space:nowrap; }
+.nav-links button.active { color:#ff5962; }
+.nav-actions { display:flex; min-width:0; gap:7px; }
+.search-box { display:block; width:180px; min-width:0; }
+.genre-filter { min-width:0; width:126px; max-width:100%; padding:6px 8px; color:#f5f5f5; background:#19191f; border:1px solid #454550; border-radius:8px; font-size:11px; }
+.hero-slide { padding-top:18px; }
+.hero-dots .dot { padding:0; border:0; }
+.hero-dots .dot::after { content:''; display:block; height:20px; transform:translateY(-9px); }
+.card:focus-visible, .hero-dots .dot:focus-visible, .nav-links button:focus-visible { outline:2px solid #fff; outline-offset:3px; }
+.catalog-status { padding:7px 20px; color:#aaaab5; font-size:12px; }
+.catalog-status:empty { display:none; }
+.hero[hidden] { display:none; }
+.catalog-empty { margin:12px 20px 30px; line-height:1.5; font-size:13px; color:#ccc; }
+@media(max-width:760px) {
+  nav { padding:8px 14px; gap:8px; }
+  .nav-brand-row { width:100%; justify-content:space-between; gap:7px !important; }
+  .nav-links { display:flex; gap:2px; }
+  .nav-links button { padding:5px; font-size:10px; }
+  .nav-actions { width:100%; }
+  .search-box { display:block; flex:1; width:0; }
+  .genre-filter { width:115px; }
+  .hero-slide { padding-top:14px; }
+}
+@media(max-height:340px) {
+  .hero { height:166px; }
+  .hero-slide { padding-top:10px; }
+}
+</style>
+<style id="vc-embed-motion">
+html[data-vc-paused] *, html[data-vc-paused] *::before, html[data-vc-paused] *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+button:focus-visible, canvas:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
+</style>
+<script id="vc-embed-control">
+// The sandboxed parent can pause motion. No page content is sent across this boundary.
+window.vcEmbed = (() => {
+  let parentPaused = false;
+  let speed = 1;
+  const subscribers = new Set();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const isPaused = () => parentPaused || document.hidden || reduced.matches;
+  function publish() {
+    document.documentElement.toggleAttribute('data-vc-paused', isPaused());
+    subscribers.forEach(callback => callback(isPaused()));
+  }
+  window.addEventListener('message', event => {
+    if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
+    if (event.data.type === 'vc:pause' && typeof event.data.paused === 'boolean') {
+      parentPaused = event.data.paused;
+      publish();
+    } else if (event.data.type === 'vc:speed' && (event.data.speed === 1 || event.data.speed === 2)) {
+      speed = event.data.speed;
+    }
+  });
+  document.addEventListener('visibilitychange', publish);
+  reduced.addEventListener('change', publish);
+  window.addEventListener('load', () => {
+    publish();
+    window.parent.postMessage({ type: 'vc:ready' }, '*');
+  }, { once: true });
+  publish();
+  return Object.freeze({
+    get paused() { return isPaused(); },
+    get speed() { return speed; },
+    onChange(callback) { subscribers.add(callback); return () => subscribers.delete(callback); }
+  });
+})();
+</script>
+
+</head>
+<body>
+
+<!-- NAV -->
+<nav id="nav">
+  <div class="nav-brand-row">
+    <div class="logo">Cinema<span>X</span></div>
+    <div class="nav-links" role="group" aria-label="Раздел каталога">
+      <button type="button" class="active" data-filter="home" aria-pressed="true">Главная</button>
+      <button type="button" data-filter="all" aria-pressed="false">Фильмы</button>
+      <button type="button" data-filter="new" aria-pressed="false">Новинки</button>
+    </div>
+  </div>
+  <div class="nav-actions">
+    <input class="search-box" id="movie-search" type="search" placeholder="Найти фильм..." aria-label="Поиск по названию, жанру или году" autocomplete="off">
+    <select class="genre-filter" id="genre-filter" aria-label="Фильтр по жанру"><option value="">Все жанры</option></select>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" id="hero">
+  <!-- Slides dynamically injected -->
+</section>
+
+<!-- ROWS -->
+<p class="catalog-status" id="catalog-status" role="status" aria-live="polite"></p>
+<div class="rows" id="rows">
+  <!-- Rows dynamically injected -->
+</div>
+
+<footer>
+  Демонстрационный проект из подборки Eduson Kids<br>
+  CinemaX — демонстрационный фронт сайта кинотеки. Все данные — вымышленные.
+  <br>Пример интерфейса на HTML, CSS и JavaScript.
+</footer>
+
+<!-- MODAL -->
+<div class="modal-backdrop" id="modal">
+  <div class="modal" id="modal-inner" role="dialog" aria-modal="true" aria-label="Карточка фильма" tabindex="-1"></div>
+</div>
+
+<script>
+// ============ DATA ============
+const movies = [
+  { id:1, title:"Нейро-детектив", year:2026, rating:"9.2", age:"16+", duration:"2ч 14мин",
+    match:96, genres:["Фантастика","Триллер","ИИ"], cat:"Хит недели",
+    grad:"linear-gradient(135deg, #1e293b 0%, #7c2d12 40%, #991b1b 100%)",
+    pattern:"M10 10h30v30h-30zM60 40h20v20h-20z",
+    desc:"В мегаполисе 2047 детектив-искин расследует убийства, которые полиция списывает на сбой системы. Но когда последняя жертва оказывается его создателем — игра меняется.",
+    director:"Анна Варфоломеева", cast:"А. Серебряков, М. Пересильд, К. Хабенский" },
+  { id:2, title:"Последний рейс", year:2025, rating:"8.7", age:"12+", duration:"1ч 58мин",
+    match:94, genres:["Драма","Космос","Приключения"], cat:"Новое",
+    grad:"linear-gradient(135deg, #0c0a3e 0%, #1e40af 40%, #3b82f6 100%)",
+    pattern:"",
+    desc:"Колонизационный корабль с 3000 спящих сталкивается с аномалией. Проснулся только один пассажир. И теперь решать — будить остальных или идти дальше в одиночку.",
+    director:"Андрей Тихонов", cast:"Д. Козловский, Ю. Пересильд" },
+  { id:3, title:"Код невесты", year:2026, rating:"8.4", age:"18+", duration:"1ч 42мин",
+    match:88, genres:["Криминал","Драма"], cat:"Тренд",
+    grad:"linear-gradient(135deg, #450a0a 0%, #991b1b 50%, #f59e0b 100%)",
+    pattern:"",
+    desc:"Программистка узнаёт, что алгоритм знакомств, который она писала, используется для отмывания денег. Уйти нельзя — за ней уже пришли.",
+    director:"Оксана Карас", cast:"А. Снигирь, Е. Цыганов" },
+];
+
+const trendingMovies = [
+  { title:"Тёмный код", year:2026, rating:"8.9", grad:"linear-gradient(135deg, #0f172a, #7c3aed)", genres:["Триллер"] },
+  { title:"Марс-1", year:2025, rating:"8.6", grad:"linear-gradient(135deg, #7f1d1d, #ea580c)", genres:["Фантастика"] },
+  { title:"Алгоритм страха", year:2026, rating:"7.9", grad:"linear-gradient(135deg, #064e3b, #10b981)", genres:["Хоррор"] },
+  { title:"Параллель", year:2025, rating:"8.3", grad:"linear-gradient(135deg, #1e1b4b, #6366f1)", genres:["Драма"] },
+  { title:"Цифровой дозор", year:2026, rating:"9.0", grad:"linear-gradient(135deg, #831843, #db2777)", genres:["Боевик"] },
+  { title:"Под стеклом", year:2026, rating:"8.1", grad:"linear-gradient(135deg, #1e293b, #0891b2)", genres:["Драма"] },
+  { title:"Три девятки", year:2025, rating:"7.8", grad:"linear-gradient(135deg, #7c2d12, #fbbf24)", genres:["Криминал"] },
+  { title:"Гало", year:2026, rating:"8.5", grad:"linear-gradient(135deg, #4c1d95, #a78bfa)", genres:["Фантастика"] },
+];
+
+const newMovies = [
+  { title:"Ученик Грозы", year:2026, rating:"8.2", grad:"linear-gradient(135deg, #1e3a8a, #0e7490)", genres:["Фэнтези"] },
+  { title:"Тишина эфира", year:2026, rating:"7.6", grad:"linear-gradient(135deg, #18181b, #71717a)", genres:["Триллер"] },
+  { title:"Подмосковье 2033", year:2026, rating:"8.0", grad:"linear-gradient(135deg, #14532d, #84cc16)", genres:["Фантастика"] },
+  { title:"Диктофон", year:2025, rating:"7.5", grad:"linear-gradient(135deg, #422006, #d97706)", genres:["Детектив"] },
+  { title:"Сквозь лёд", year:2026, rating:"8.4", grad:"linear-gradient(135deg, #0c4a6e, #38bdf8)", genres:["Приключения"] },
+  { title:"Ловушка для глаз", year:2025, rating:"7.9", grad:"linear-gradient(135deg, #3b0764, #c084fc)", genres:["Мистика"] },
+  { title:"Шесть писем", year:2026, rating:"8.7", grad:"linear-gradient(135deg, #450a0a, #ef4444)", genres:["Драма"] },
+];
+
+const recommendedMovies = [
+  { title:"Лилия и рой", year:2025, rating:"9.1", grad:"linear-gradient(135deg, #365314, #bef264)", genres:["Драма"] },
+  { title:"Хакер-невидимка", year:2026, rating:"8.2", grad:"linear-gradient(135deg, #18181b, #ef4444)", genres:["Боевик"] },
+  { title:"Одно событие", year:2026, rating:"7.4", grad:"linear-gradient(135deg, #581c87, #ec4899)", genres:["Драма"] },
+  { title:"Лёгкая плотина", year:2025, rating:"8.8", grad:"linear-gradient(135deg, #0c4a6e, #22d3ee)", genres:["Биография"] },
+  { title:"Голоса в ночи", year:2026, rating:"8.0", grad:"linear-gradient(135deg, #3f1d1d, #92400e)", genres:["Триллер"] },
+  { title:"Август в Сочи", year:2025, rating:"7.7", grad:"linear-gradient(135deg, #831843, #fbbf24)", genres:["Комедия"] },
+];
+
+// ============ RENDER HERO ============
+const hero = document.getElementById('hero');
+movies.forEach((m, idx) => {
+  const slide = document.createElement('div');
+  slide.className = 'hero-slide' + (idx === 0 ? ' active' : '');
+  slide.dataset.id = m.id;
+  slide.innerHTML = `
+    <div class="hero-bg gradient-bg" style="background: ${m.grad}"></div>
+    <div class="hero-content">
+      <div class="hero-cat">${m.cat}</div>
+      <h1>${m.title}</h1>
+      <div class="hero-meta">
+        <span class="rating">★ ${m.rating}</span>
+        <span class="year">${m.year}</span>
+        <span class="age">${m.age}</span>
+        <span class="year">${m.duration}</span>
+      </div>
+      <p class="hero-desc">${m.desc}</p>
+      <div class="hero-btns">
+        <button class="btn primary" onclick="openModal(${m.id})">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Смотреть
+        </button>
+        <button class="btn secondary" onclick="openModal(${m.id})">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+          Подробнее
+        </button>
+      </div>
+    </div>
+  `;
+  hero.appendChild(slide);
+});
+
+// Pagination dots
+const dotsEl = document.createElement('div');
+dotsEl.className = 'hero-dots';
+movies.forEach((_, i) => {
+  const d = document.createElement('button');
+  d.type = 'button';
+  d.setAttribute('aria-label', 'Показать фильм «' + movies[i].title + '»');
+  d.setAttribute('aria-pressed', String(i === 0));
+  d.className = 'dot' + (i === 0 ? ' active' : '');
+  d.onclick = () => goToSlide(i);
+  dotsEl.appendChild(d);
+});
+hero.appendChild(dotsEl);
+
+let slideIdx = 0;
+function goToSlide(i) {
+  slideIdx = i;
+  document.querySelectorAll('.hero-slide').forEach((s, k) => s.classList.toggle('active', k === i));
+  document.querySelectorAll('.hero-dots .dot').forEach((d, k) => {
+    d.classList.toggle('active', k === i);
+    d.setAttribute('aria-pressed', String(k === i));
+  });
+}
+let carouselTimer = null;
+function updateCarousel(paused) {
+  if (carouselTimer !== null) clearInterval(carouselTimer);
+  carouselTimer = paused ? null : setInterval(() => goToSlide((slideIdx + 1) % movies.length), 7000);
+}
+window.vcEmbed.onChange(updateCarousel);
+updateCarousel(window.vcEmbed.paused);
+
+// ============ RENDER ROWS ============
+function createCard(m, idx, showRank = false) {
+  const c = document.createElement('div');
+  c.className = 'card';
+  c.tabIndex = 0;
+  c.setAttribute('role', 'button');
+  c.setAttribute('aria-label', m.title + ' — открыть карточку');
+  c.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openModalByTitle(m.title);
+    }
+  });
+  if (showRank) {
+    c.innerHTML = `
+      <span class="card-rank">${idx + 1}</span>
+      <div class="card-img" style="background-image: ${m.grad}; margin-left: 30px; width: calc(100% - 30px);"></div>
+      <div class="card-info">
+        <h3 style="margin-left: 30px;">${m.title}</h3>
+        <div class="meta" style="margin-left: 30px;">
+          <span class="stars">★ ${m.rating}</span> · <span>${m.year}</span>
+        </div>
+      </div>
+    `;
+  } else {
+    c.innerHTML = `
+      <div class="card-img" style="background-image: ${m.grad};"></div>
+      <div class="card-info">
+        <h3>${m.title}</h3>
+        <div class="meta">
+          <span class="stars">★ ${m.rating}</span>
+          <span>·</span>
+          <span>${m.year}</span>
+          <span>·</span>
+          <span>${m.genres[0]}</span>
+        </div>
+      </div>
+    `;
+  }
+  c.onclick = () => openModalByTitle(m.title);
+  return c;
+}
+
+function addRow(title, items, showRank = false) {
+  const container = document.getElementById('rows');
+  const section = document.createElement('section');
+  section.className = 'row-section';
+  section.innerHTML = `<div class="row-title">${title}<span class="explore">Все →</span></div>`;
+  const row = document.createElement('div');
+  row.className = 'scroll-row' + (showRank ? ' card-top10' : '');
+  items.forEach((m, i) => row.appendChild(createCard(m, i, showRank)));
+  section.appendChild(row);
+  container.appendChild(section);
+}
+
+const catalogMovies = [...new Map([...movies, ...trendingMovies, ...newMovies, ...recommendedMovies].map(movie => [movie.title, movie])).values()];
+let catalogSection = 'home';
+const searchInput = document.getElementById('movie-search');
+const genreFilter = document.getElementById('genre-filter');
+function filterCatalog(items, query, genre) {
+  const normalized = query.trim().toLocaleLowerCase('ru').replace(/ё/g, 'е');
+  return items.filter(movie => {
+    const haystack = [movie.title, movie.year, ...movie.genres].join(' ').toLocaleLowerCase('ru').replace(/ё/g, 'е');
+    return (!genre || movie.genres.includes(genre)) && (!normalized || haystack.includes(normalized));
+  });
+}
+function renderCatalog() {
+  const query = searchInput.value;
+  const genre = genreFilter.value;
+  const home = catalogSection === 'home' && !query.trim() && !genre;
+  hero.hidden = !home;
+  document.getElementById('rows').innerHTML = '';
+  const status = document.getElementById('catalog-status');
+  if (home) {
+    status.textContent = '';
+    addRow('🔥 Топ-10 на этой неделе', trendingMovies.slice(0, 10), true);
+    addRow('🆕 Новинки', newMovies);
+    addRow('🎯 Рекомендуем именно вам', recommendedMovies);
+    addRow('💥 Фантастика и триллеры', [...trendingMovies, ...newMovies].filter(movie => movie.genres.some(genre => ['Фантастика', 'Триллер'].includes(genre))));
+    addRow('🎬 Премьеры месяца', movies.concat(trendingMovies.slice(0, 5)));
+  } else {
+    const source = catalogSection === 'new' ? newMovies : catalogMovies;
+    const matches = filterCatalog(source, query, genre);
+    status.textContent = 'Найдено: ' + matches.length + ' из ' + source.length;
+    if (matches.length) addRow(catalogSection === 'new' ? 'Новинки' : 'Фильмы', matches);
+    else {
+      const empty = document.createElement('p');
+      empty.className = 'catalog-empty';
+      empty.textContent = 'Таких фильмов нет в демо-каталоге. Измените запрос или выберите другой жанр.';
+      document.getElementById('rows').appendChild(empty);
+    }
+  }
+}
+[...new Set(catalogMovies.flatMap(movie => movie.genres))].sort((a, b) => a.localeCompare(b, 'ru')).forEach(genre => {
+  const option = document.createElement('option');
+  option.value = genre;
+  option.textContent = genre;
+  genreFilter.appendChild(option);
+});
+searchInput.addEventListener('input', renderCatalog);
+genreFilter.addEventListener('change', renderCatalog);
+document.querySelectorAll('[data-filter]').forEach(button => button.addEventListener('click', () => {
+  catalogSection = button.dataset.filter;
+  if (catalogSection === 'home') { searchInput.value = ''; genreFilter.value = ''; }
+  document.querySelectorAll('[data-filter]').forEach(item => {
+    item.classList.toggle('active', item === button);
+    item.setAttribute('aria-pressed', String(item === button));
+  });
+  renderCatalog();
+}));
+renderCatalog();
+
+// ============ MODAL ============
+const modal = document.getElementById('modal');
+const modalInner = document.getElementById('modal-inner');
+let modalReturnFocus = null;
+function showModal() {
+  modalReturnFocus = document.activeElement;
+  modal.classList.add('show');
+  const closeButton = modalInner.querySelector('.modal-close');
+  if (closeButton) { closeButton.setAttribute('aria-label', 'Закрыть карточку'); closeButton.focus(); }
+}
+
+function openModal(id) {
+  const m = movies.find(x => x.id === id);
+  if (!m) return;
+  modalInner.innerHTML = `
+    <div class="modal-hero">
+      <div class="modal-hero-bg gradient-bg" style="background: ${m.grad}"></div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div class="modal-play"></div>
+    </div>
+    <div class="modal-body">
+      <h2>${m.title}</h2>
+      <div class="modal-meta">
+        <span class="match">${m.match}% совпадение</span>
+        <span>${m.year}</span>
+        <span class="age">${m.age}</span>
+        <span>${m.duration}</span>
+        <span style="color:#fbbf24;">★ ${m.rating}</span>
+      </div>
+      <p class="modal-description">${m.desc}</p>
+      <div class="modal-tags">
+        ${m.genres.map(g => `<span class="tag">${g}</span>`).join('')}
+      </div>
+      <div class="modal-row">
+        <dt>Режиссёр:</dt><dd>${m.director}</dd>
+        <dt>В главных ролях:</dt><dd>${m.cast}</dd>
+        <dt>Жанры:</dt><dd>${m.genres.join(', ')}</dd>
+        <dt>Язык:</dt><dd>Русский · Оригинал (Eng)</dd>
+      </div>
+    </div>
+  `;
+  showModal();
+}
+function openModalByTitle(title) {
+  const m = movies.find(x => x.title === title);
+  if (m) openModal(m.id);
+  else {
+    // Генерируем fake detailed модалку
+    const fake = trendingMovies.concat(newMovies, recommendedMovies).find(x => x.title === title);
+    if (fake) {
+      modalInner.innerHTML = `
+        <div class="modal-hero">
+          <div class="modal-hero-bg gradient-bg" style="background: ${fake.grad}"></div>
+          <button class="modal-close" onclick="closeModal()">×</button>
+          <div class="modal-play"></div>
+        </div>
+        <div class="modal-body">
+          <h2>${fake.title}</h2>
+          <div class="modal-meta">
+            <span class="match">${80 + Math.floor(Math.random()*18)}% совпадение</span>
+            <span>${fake.year}</span>
+            <span class="age">16+</span>
+            <span>1ч ${30 + Math.floor(Math.random()*40)}мин</span>
+            <span style="color:#fbbf24;">★ ${fake.rating}</span>
+          </div>
+          <p class="modal-description">Это демонстрационная карточка. Название и данные фильма вымышлены.</p>
+          <div class="modal-tags">
+            ${fake.genres.map(g => `<span class="tag">${g}</span>`).join('')}
+          </div>
+        </div>
+      `;
+      showModal();
+    }
+  }
+}
+function closeModal() {
+  modal.classList.remove('show');
+  if (modalReturnFocus && modalReturnFocus.isConnected) modalReturnFocus.focus();
+  modalReturnFocus = null;
+}
+modal.onclick = e => { if (e.target === modal) closeModal(); };
+window.addEventListener('keydown', event => {
+  if (!modal.classList.contains('show')) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    closeModal();
+  } else if (event.key === 'Tab') {
+    event.preventDefault();
+    modalInner.querySelector('.modal-close').focus();
+  }
+});
+
+// ============ NAV SCROLL ============
+window.addEventListener('scroll', () => {
+  document.getElementById('nav').classList.toggle('solid', window.scrollY > 80);
+});
+
+// Horizontal scroll via wheel
+document.querySelectorAll('.scroll-row').forEach(row => {
+  row.addEventListener('wheel', e => {
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      e.preventDefault();
+      row.scrollLeft += e.deltaY;
+    }
+  });
+});
+</script>
+
+<script>window.addEventListener("keydown",function(event){if(event.key==="Escape")window.parent.postMessage({type:"vc:escape"},"*");});</script></body>
+</html>

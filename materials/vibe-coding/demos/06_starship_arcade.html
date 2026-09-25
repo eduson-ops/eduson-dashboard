@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<title>Starship Arcade · Vibe Coding mini-demo</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    height: 100%;
+    background: #05030f;
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    color: #f1f5f9;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 30% 30%, rgba(239,68,68,0.18), transparent),
+      radial-gradient(ellipse 500px 300px at 70% 70%, rgba(251,191,36,0.12), transparent);
+  }
+  .frame {
+    position: relative;
+    padding: 22px 22px 18px;
+    background: linear-gradient(180deg, #0f0818, #05030f);
+    border-radius: 24px;
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 30px 80px rgba(239,68,68,0.25), 0 0 40px rgba(251,191,36,0.12), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+  .frame::before {
+    content: ''; position: absolute; inset: -1px; border-radius: 25px;
+    background: linear-gradient(135deg, #ef4444, #fbbf24, #f472b6);
+    z-index: -1; opacity: 0.3; filter: blur(16px);
+  }
+  .tag {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+    font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase;
+    color: rgba(255,255,255,0.6);
+  }
+  .tag .logo {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-weight: 700; color: #fbbf24;
+  }
+  .tag .logo::before {
+    content: ''; width: 8px; height: 8px; border-radius: 50%;
+    background: #f59e0b; box-shadow: 0 0 8px #f59e0b;
+    animation: pulse 1.2s infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 0.5; } 50% { opacity: 1; } }
+  .score {
+    font-family: 'JetBrains Mono', 'Courier New', monospace;
+    color: #fde047; font-weight: 700; font-size: 14px;
+  }
+  canvas { display: block; border-radius: 12px; background: #02010a; }
+  .caption {
+    margin-top: 12px; font-size: 10px; color: rgba(255,255,255,0.45);
+    letter-spacing: 0.1em; text-transform: uppercase; text-align: center;
+  }
+</style>
+<style>body,button,input,textarea{font-family:"Segoe UI",system-ui,sans-serif}</style>
+
+<style id="vc-compact-layout">
+html, body { width:100%; height:100%; min-width:0; display:block; }
+body { padding:8px; }
+.frame { width:100%; height:100%; padding:10px; display:flex; flex-direction:column; border-radius:16px; overflow:hidden; }
+.frame::before { display:none; }
+.tag { flex:none; margin-bottom:7px; gap:8px; font-size:10px; letter-spacing:.08em; }
+.score { font-size:12px; white-space:nowrap; }
+.game-stage { flex:1; min-height:0; min-width:0; overflow:hidden; }
+canvas { width:100%; height:100%; object-fit:contain; border-radius:8px; touch-action:none; }
+.game-controls { display:flex; align-items:center; justify-content:space-between; gap:6px; padding-top:7px; flex:none; }
+.mode-switch, .touch-controls { display:flex; gap:3px; align-items:center; }
+.game-controls button { font:600 10px/1 'Segoe UI',sans-serif; min-height:28px; padding:6px 7px; border:1px solid #4b4054; border-radius:6px; color:#e2e8f0; background:#201527; cursor:pointer; touch-action:none; user-select:none; }
+.game-controls button[aria-pressed="true"] { background:#fbbf24; border-color:#fbbf24; color:#160d1b; }
+.touch-controls button { width:26px; padding:4px; font-size:14px; }
+.touch-controls .fire { width:34px; font-size:10px; }
+.caption { flex:none; margin-top:6px; font-size:9px; line-height:1.3; text-transform:none; letter-spacing:0; }
+@media(min-width:650px) and (min-height:380px) {
+  body { padding:14px; }
+  .frame { padding:14px; }
+  .tag { font-size:12px; }
+  .score { font-size:14px; }
+  .game-controls { justify-content:center; gap:24px; }
+  .game-controls button { min-height:32px; font-size:12px; }
+  .touch-controls button { width:32px; font-size:16px; }
+  .touch-controls .fire { width:48px; }
+  .caption { font-size:11px; }
+}
+</style>
+
+<style id="vc-embed-motion">
+html[data-vc-paused] *, html[data-vc-paused] *::before, html[data-vc-paused] *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+button:focus-visible, canvas:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .tag .logo::before { animation: none; }
+}
+</style>
+<script id="vc-embed-control">
+// The sandboxed parent can pause motion. No page content is sent across this boundary.
+window.vcEmbed = (() => {
+  let parentPaused = false;
+  let interactionActive = false;
+  let speed = 1;
+  const subscribers = new Set();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const isPaused = () => parentPaused || document.hidden || (reduced.matches && !interactionActive);
+  function publish() {
+    document.documentElement.toggleAttribute('data-vc-paused', isPaused());
+    subscribers.forEach(callback => callback(isPaused()));
+  }
+  window.addEventListener('message', event => {
+    if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
+    if (event.data.type === 'vc:pause' && typeof event.data.paused === 'boolean') {
+      parentPaused = event.data.paused;
+      publish();
+    } else if (event.data.type === 'vc:speed' && (event.data.speed === 1 || event.data.speed === 2)) {
+      speed = event.data.speed;
+    }
+  });
+  document.addEventListener('visibilitychange', publish);
+  reduced.addEventListener('change', publish);
+  window.addEventListener('load', () => {
+    publish();
+    window.parent.postMessage({ type: 'vc:ready' }, '*');
+  }, { once: true });
+  publish();
+  return Object.freeze({
+    get paused() { return isPaused(); },
+    get speed() { return speed; },
+    setInteractionActive(active) {
+      const next = active === true;
+      if (next === interactionActive) return;
+      interactionActive = next;
+      publish();
+    },
+    onChange(callback) { subscribers.add(callback); return () => subscribers.delete(callback); }
+  });
+})();
+</script>
+
+</head>
+<body>
+
+<div class="frame">
+  <div class="tag">
+    <span class="logo">STARSHIP ARCADE</span>
+    <span class="score">score: <span id="score">0</span></span>
+  </div>
+  <div class="game-stage"><canvas id="c" width="480" height="360" tabindex="0" aria-label="Космическая игра. Стрелки или WASD — движение, пробел — огонь."></canvas></div>
+  <div class="game-controls">
+    <div class="mode-switch" role="group" aria-label="Режим игры">
+      <button type="button" data-mode="auto" aria-pressed="true">Авто</button>
+      <button type="button" data-mode="manual" aria-pressed="false">Играть</button>
+    </div>
+    <div class="touch-controls" role="group" aria-label="Управление кораблём">
+      <button type="button" data-key="ArrowLeft" aria-label="Влево">←</button>
+      <button type="button" data-key="ArrowUp" aria-label="Вверх">↑</button>
+      <button type="button" data-key="ArrowDown" aria-label="Вниз">↓</button>
+      <button type="button" data-key="ArrowRight" aria-label="Вправо">→</button>
+      <button type="button" data-key="Space" class="fire" aria-label="Стрелять">Огонь</button>
+    </div>
+  </div>
+  <div class="caption" id="game-help">Автопилот играет сам · нажмите «Играть» или любую стрелку</div>
+</div>
+
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = c.width, H = c.height;
+
+const ship = { x: W/2, y: H - 60, r: 14, cooldown: 0 };
+const bullets = [];
+const asteroids = [];
+const explosions = [];
+const stars = [];
+let score = 0, tick = 0;
+
+const keys = new Set();
+let mode = 'auto';
+const keyMap = { KeyA:'ArrowLeft', KeyD:'ArrowRight', KeyW:'ArrowUp', KeyS:'ArrowDown',
+  ArrowLeft:'ArrowLeft', ArrowRight:'ArrowRight', ArrowUp:'ArrowUp', ArrowDown:'ArrowDown', Space:'Space' };
+function setMode(nextMode) {
+  if (mode !== nextMode) keys.clear();
+  mode = nextMode;
+  window.vcEmbed.setInteractionActive(mode === 'manual');
+  document.querySelectorAll('[data-mode]').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.mode === mode)));
+  document.getElementById('game-help').textContent = mode === 'auto'
+    ? 'Автопилот играет сам · нажмите «Играть» или любую стрелку'
+    : 'Стрелки / WASD — движение · пробел — огонь';
+}
+document.querySelectorAll('[data-mode]').forEach(button => button.addEventListener('click', () => {
+  setMode(button.dataset.mode);
+  c.focus({ preventScroll:true });
+}));
+window.addEventListener('keydown', event => {
+  if (/BUTTON|INPUT|TEXTAREA|SELECT/.test(event.target.tagName) || event.target.isContentEditable) return;
+  const key = keyMap[event.code];
+  if (!key) return;
+  event.preventDefault();
+  setMode('manual');
+  keys.add(key);
+});
+window.addEventListener('keyup', event => {
+  const key = keyMap[event.code];
+  if (!key) return;
+  keys.delete(key);
+  if (!/BUTTON|INPUT|TEXTAREA|SELECT/.test(event.target.tagName) && !event.target.isContentEditable) event.preventDefault();
+});
+window.addEventListener('blur', () => keys.clear());
+document.querySelectorAll('[data-key]').forEach(button => {
+  button.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    setMode('manual');
+    keys.add(button.dataset.key);
+    button.setPointerCapture(event.pointerId);
+    c.focus({ preventScroll:true });
+  });
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => button.addEventListener(type, () => keys.delete(button.dataset.key)));
+});
+function manualControl() {
+  const dx = Number(keys.has('ArrowRight')) - Number(keys.has('ArrowLeft'));
+  const dy = Number(keys.has('ArrowDown')) - Number(keys.has('ArrowUp'));
+  const distance = dx && dy ? 3.2 : 4.5;
+  ship.x += dx * distance;
+  ship.y += dy * distance;
+  if (keys.has('Space') && ship.cooldown <= 0) { shoot(); ship.cooldown = 8; }
+  ship.cooldown--;
+}
+function clampShip() {
+  ship.x = Math.max(ship.r, Math.min(W - ship.r, ship.x));
+  ship.y = Math.max(20, Math.min(H - 28, ship.y));
+}
+setMode('auto');
+
+
+// Background stars
+for (let i = 0; i < 80; i++) {
+  stars.push({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    z: Math.random() * 2 + 0.5,
+    s: Math.random() * 1.5 + 0.3
+  });
+}
+
+function spawnAsteroid() {
+  const r = 10 + Math.random() * 20;
+  asteroids.push({
+    x: Math.random() * (W - r*2) + r,
+    y: -r,
+    vx: (Math.random() - 0.5) * 1,
+    vy: 1 + Math.random() * 1.5,
+    r: r,
+    rot: 0,
+    vrot: (Math.random() - 0.5) * 0.05,
+    hp: Math.ceil(r / 10),
+    hue: 20 + Math.random() * 40
+  });
+}
+
+function shoot() {
+  bullets.push({ x: ship.x - 4, y: ship.y - 14, vy: -8 });
+  bullets.push({ x: ship.x + 4, y: ship.y - 14, vy: -8 });
+}
+
+function explode(x, y, hue, n = 20) {
+  for (let i = 0; i < n; i++) {
+    explosions.push({
+      x, y,
+      vx: (Math.random()-0.5) * 8,
+      vy: (Math.random()-0.5) * 8,
+      life: 25 + Math.random()*15,
+      hue: hue + Math.random()*30,
+      r: 2 + Math.random()*3
+    });
+  }
+}
+
+// AI: движется к ближайшему астероиду слева/справа + стреляет
+function aiControl() {
+  if (asteroids.length === 0) {
+    // Плавно возвращаемся к центру
+    ship.x += (W/2 - ship.x) * 0.02;
+    return;
+  }
+
+  // Находим ближайший астероид по Y
+  let closest = null, minDist = Infinity;
+  for (const a of asteroids) {
+    if (a.y < 0) continue;
+    const d = Math.abs(a.y - ship.y) + Math.abs(a.x - ship.x) * 0.5;
+    if (d < minDist) { minDist = d; closest = a; }
+  }
+  if (closest) {
+    // Прицеливаемся
+    const target = closest.x + closest.vx * 10;
+    const dx = target - ship.x;
+    ship.x += Math.sign(dx) * Math.min(Math.abs(dx) * 0.08, 4);
+    ship.x = Math.max(ship.r, Math.min(W - ship.r, ship.x));
+
+    // Стрельба если вертикально близко
+    if (Math.abs(ship.x - closest.x) < 25 && ship.cooldown <= 0) {
+      shoot();
+      ship.cooldown = 8;
+    }
+  }
+  ship.cooldown--;
+}
+
+function step() {
+  tick++;
+  if (tick % 55 === 0) spawnAsteroid();
+
+  if (mode === 'manual') manualControl(); else aiControl();
+  clampShip();
+
+  // Bullets
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.y += b.vy;
+    if (b.y < -10) { bullets.splice(i, 1); continue; }
+
+    for (let j = asteroids.length - 1; j >= 0; j--) {
+      const a = asteroids[j];
+      const dx = a.x - b.x, dy = a.y - b.y;
+      if (dx*dx + dy*dy < (a.r + 3)**2) {
+        bullets.splice(i, 1);
+        a.hp--;
+        explode(b.x, b.y, a.hue, 4);
+        if (a.hp <= 0) {
+          explode(a.x, a.y, a.hue, 15 + Math.floor(a.r));
+          asteroids.splice(j, 1);
+          score += Math.floor(a.r);
+          document.getElementById('score').textContent = score;
+        }
+        break;
+      }
+    }
+  }
+
+  // Asteroids
+  for (let i = asteroids.length - 1; i >= 0; i--) {
+    const a = asteroids[i];
+    a.x += a.vx; a.y += a.vy; a.rot += a.vrot;
+    if (a.y > H + 30) { asteroids.splice(i, 1); continue; }
+
+    // Collision with ship
+    const dx = a.x - ship.x, dy = a.y - ship.y;
+    if (dx*dx + dy*dy < (a.r + ship.r)**2) {
+      explode(ship.x, ship.y, 60, 40);
+      score = Math.max(0, score - 20);
+      document.getElementById('score').textContent = score;
+      asteroids.splice(i, 1);
+    }
+  }
+
+  // Explosions
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const e = explosions[i];
+    e.x += e.vx; e.y += e.vy;
+    e.vx *= 0.94; e.vy *= 0.94;
+    e.life--;
+    if (e.life <= 0) explosions.splice(i, 1);
+  }
+
+  // Stars (parallax)
+  for (const s of stars) {
+    s.y += s.z * 0.8;
+    if (s.y > H) { s.y = -2; s.x = Math.random() * W; }
+  }
+}
+
+function drawShip() {
+  ctx.save();
+  ctx.translate(ship.x, ship.y);
+
+  // Engine flame
+  const flame = Math.sin(tick / 3) * 3;
+  const g = ctx.createLinearGradient(0, 6, 0, 26 + flame);
+  g.addColorStop(0, 'rgba(251,191,36,0.9)');
+  g.addColorStop(0.5, 'rgba(239,68,68,0.7)');
+  g.addColorStop(1, 'rgba(239,68,68,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.moveTo(-5, 6);
+  ctx.lineTo(5, 6);
+  ctx.lineTo(3, 20 + flame);
+  ctx.lineTo(0, 26 + flame);
+  ctx.lineTo(-3, 20 + flame);
+  ctx.closePath();
+  ctx.fill();
+
+  // Body
+  ctx.fillStyle = '#f1f5f9';
+  ctx.beginPath();
+  ctx.moveTo(0, -16);
+  ctx.lineTo(10, 10);
+  ctx.lineTo(6, 6);
+  ctx.lineTo(-6, 6);
+  ctx.lineTo(-10, 10);
+  ctx.closePath();
+  ctx.fill();
+
+  // Wings
+  ctx.fillStyle = '#ef4444';
+  ctx.beginPath();
+  ctx.moveTo(-10, 10); ctx.lineTo(-14, 4); ctx.lineTo(-6, 2); ctx.lineTo(-6, 10);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(10, 10); ctx.lineTo(14, 4); ctx.lineTo(6, 2); ctx.lineTo(6, 10);
+  ctx.closePath(); ctx.fill();
+
+  // Cockpit
+  ctx.fillStyle = '#22d3ee';
+  ctx.beginPath();
+  ctx.arc(0, -4, 4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#67e8f9';
+  ctx.beginPath();
+  ctx.arc(-1, -5, 1.5, 0, Math.PI*2);
+  ctx.fill();
+
+  // Glow
+  const glowG = ctx.createRadialGradient(0, 0, 0, 0, 0, 24);
+  glowG.addColorStop(0, 'rgba(34,211,238,0.3)');
+  glowG.addColorStop(1, 'rgba(34,211,238,0)');
+  ctx.fillStyle = glowG;
+  ctx.fillRect(-24, -24, 48, 48);
+
+  ctx.restore();
+}
+
+function drawAsteroid(a) {
+  ctx.save();
+  ctx.translate(a.x, a.y);
+  ctx.rotate(a.rot);
+
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, a.r);
+  g.addColorStop(0, `hsla(${a.hue}, 60%, 55%, 1)`);
+  g.addColorStop(1, `hsla(${a.hue}, 70%, 30%, 1)`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  const verts = 8;
+  for (let i = 0; i < verts; i++) {
+    const angle = (i / verts) * Math.PI * 2;
+    const rr = a.r * (0.8 + Math.sin(i * 2.3) * 0.2);
+    const x = Math.cos(angle) * rr;
+    const y = Math.sin(angle) * rr;
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Highlight
+  ctx.fillStyle = `hsla(${a.hue}, 80%, 70%, 0.4)`;
+  ctx.beginPath();
+  ctx.arc(-a.r*0.3, -a.r*0.3, a.r*0.3, 0, Math.PI*2);
+  ctx.fill();
+
+  // Outer glow
+  ctx.globalAlpha = 0.4;
+  ctx.shadowBlur = 10;
+  ctx.shadowColor = `hsl(${a.hue}, 80%, 60%)`;
+  ctx.strokeStyle = `hsl(${a.hue}, 80%, 60%)`;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function render() {
+  ctx.fillStyle = 'rgba(2, 1, 10, 0.4)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Background stars
+  for (const s of stars) {
+    ctx.fillStyle = `rgba(255,255,255,${0.3 + s.z*0.3})`;
+    ctx.fillRect(s.x, s.y, s.s, s.s);
+  }
+
+  // Nebula
+  const neb = ctx.createRadialGradient(W*0.3, H*0.2, 0, W*0.3, H*0.2, 200);
+  neb.addColorStop(0, 'rgba(168,85,247,0.06)');
+  neb.addColorStop(1, 'rgba(168,85,247,0)');
+  ctx.fillStyle = neb;
+  ctx.fillRect(0, 0, W, H);
+
+  // Asteroids
+  for (const a of asteroids) drawAsteroid(a);
+
+  // Bullets
+  for (const b of bullets) {
+    const bg = ctx.createRadialGradient(b.x + 2, b.y, 0, b.x + 2, b.y, 10);
+    bg.addColorStop(0, 'rgba(253,224,71,1)');
+    bg.addColorStop(1, 'rgba(253,224,71,0)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(b.x - 8, b.y - 10, 20, 20);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(b.x + 1, b.y - 4, 2, 8);
+  }
+
+  // Ship
+  drawShip();
+
+  // Explosions
+  for (const e of explosions) {
+    ctx.fillStyle = `hsla(${e.hue}, 100%, 65%, ${e.life/35})`;
+    ctx.fillRect(e.x - e.r/2, e.y - e.r/2, e.r, e.r);
+  }
+}
+
+
+let frameId = null;
+let previousTime = null;
+let elapsed = 0;
+const frameDuration = 1000 / 60;
+function loop(now) {
+  frameId = null;
+  if (window.vcEmbed.paused) { previousTime = null; return; }
+  if (previousTime === null) previousTime = now;
+  elapsed += Math.min(80, now - previousTime) * window.vcEmbed.speed;
+  previousTime = now;
+  while (elapsed >= frameDuration) { step(); elapsed -= frameDuration; }
+  render();
+  frameId = requestAnimationFrame(loop);
+}
+function updatePlayback(paused) {
+  if (paused) {
+    if (frameId !== null) cancelAnimationFrame(frameId);
+    frameId = null;
+    previousTime = null;
+    elapsed = 0;
+    keys.clear();
+  } else if (frameId === null) {
+    previousTime = null;
+    frameId = requestAnimationFrame(loop);
+  }
+}
+// A still frame remains useful when motion is disabled.
+spawnAsteroid(); asteroids[0].y = 90;
+spawnAsteroid(); asteroids[1].y = 170;
+render();
+window.vcEmbed.onChange(updatePlayback);
+updatePlayback(window.vcEmbed.paused);
+
+</script>
+
+<script>window.addEventListener("keydown",function(event){if(event.key==="Escape")window.parent.postMessage({type:"vc:escape"},"*");});</script></body>
+</html>
