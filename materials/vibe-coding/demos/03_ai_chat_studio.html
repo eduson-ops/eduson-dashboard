@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<title>NeuroStudio — AI chat | Eduson Kids</title>
+
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #08080d;
+    --surface: #0f0f17;
+    --surface-2: #17171f;
+    --border: rgba(255,255,255,0.08);
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --accent: #a78bfa;
+    --accent2: #22d3ee;
+    --user-bg: linear-gradient(135deg, #7c3aed, #4c1d95);
+    --ai-bg: #141420;
+  }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Inter', -apple-system, sans-serif;
+    height: 100vh; overflow: hidden;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+  }
+  body::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse 800px 400px at 20% 0%, rgba(124,58,237,0.2), transparent),
+      radial-gradient(ellipse 600px 300px at 80% 100%, rgba(34,211,238,0.15), transparent);
+  }
+
+  /* ============ SIDEBAR ============ */
+  aside {
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 18px 14px; display: flex; flex-direction: column;
+    position: relative; z-index: 1; overflow: hidden;
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px; padding: 4px 8px 16px;
+    border-bottom: 1px solid var(--border); margin-bottom: 14px;
+  }
+  .brand-logo {
+    width: 32px; height: 32px; border-radius: 9px;
+    background: linear-gradient(135deg, #a78bfa, #22d3ee);
+    display: flex; align-items: center; justify-content: center;
+    color: #0f0f17; font-weight: 900; font-size: 18px;
+  }
+  .brand b { font-weight: 800; font-size: 15px; letter-spacing: -0.3px; }
+  .brand span { display: block; font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+
+  .new-chat {
+    background: linear-gradient(135deg, #7c3aed, #22d3ee); color: #fff;
+    border: 0; padding: 10px 14px; border-radius: 10px; font-weight: 600;
+    font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .new-chat:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(124,58,237,0.3); }
+
+  .history-label {
+    font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 18px 8px 8px;
+  }
+  .history { overflow-y: auto; flex: 1; padding-right: 4px; }
+  .history::-webkit-scrollbar { width: 4px; }
+  .history::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+  .chat-item {
+    padding: 9px 10px; border-radius: 8px; margin-bottom: 3px;
+    font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    color: var(--muted); transition: background 0.15s, color 0.15s;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chat-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+  .chat-item.active { background: rgba(124,58,237,0.15); color: var(--text); border: 1px solid rgba(124,58,237,0.3); }
+  .chat-item .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  .sidebar-footer {
+    padding-top: 12px; border-top: 1px solid var(--border);
+  }
+  .user-card {
+    display: flex; align-items: center; gap: 10px; padding: 8px 10px;
+    border-radius: 10px;
+  }
+  .sample-note { padding:6px; font-size:11px; line-height:1.5; color:var(--muted); }
+  .user-avatar {
+    width: 32px; height: 32px; border-radius: 50%;
+    background: linear-gradient(135deg, #fbbf24, #ef4444);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px;
+  }
+  .user-info b { display: block; font-size: 13px; }
+  .user-info span { font-size: 11px; color: var(--muted); }
+
+  /* ============ MAIN ============ */
+  main { display: flex; flex-direction: column; overflow: hidden; position: relative; z-index: 1; }
+
+  .header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 26px; border-bottom: 1px solid var(--border);
+    background: rgba(15,15,23,0.7); backdrop-filter: blur(20px);
+  }
+  .model-switcher {
+    display: flex; align-items: center; gap: 8px; background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 10px; padding: 4px;
+  }
+  .model-btn {
+    padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    background: transparent; border: 0; color: var(--muted); cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    transition: background 0.15s, color 0.15s;
+  }
+  .model-btn.active {
+    background: rgba(124,58,237,0.2); color: var(--accent);
+  }
+  .model-btn .model-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+  }
+  .model-btn[data-m="giga"] .model-dot { background: #22d3ee; }
+  .model-btn[data-m="ygpt"] .model-dot { background: #fbbf24; }
+  .model-btn[data-m="pplx"] .model-dot { background: #a78bfa; }
+
+  .header-actions { display: flex; gap: 10px; }
+  .icon-btn {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--muted); transition: color 0.15s;
+  }
+  .icon-btn:hover { color: var(--text); }
+
+  /* ============ CHAT ============ */
+  .chat-area {
+    flex: 1; overflow-y: auto; padding: 28px 0;
+  }
+  .chat-area::-webkit-scrollbar { width: 6px; }
+  .chat-area::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+
+  .msg {
+    max-width: 780px; margin: 0 auto 14px; padding: 0 32px;
+    display: flex; gap: 14px; animation: msgIn 0.3s ease-out;
+  }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+  .msg-avatar {
+    width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 14px;
+  }
+  .msg.user .msg-avatar {
+    background: linear-gradient(135deg, #fbbf24, #ef4444);
+  }
+  .msg.ai .msg-avatar {
+    background: linear-gradient(135deg, #a78bfa, #22d3ee);
+    color: #0f0f17;
+  }
+  .msg-bubble {
+    padding: 12px 18px; border-radius: 14px;
+    font-size: 15px; line-height: 1.6;
+    flex: 1;
+  }
+  .msg.user .msg-bubble {
+    background: var(--user-bg); color: #fff;
+    border-top-left-radius: 4px;
+  }
+  .msg.ai .msg-bubble {
+    background: var(--ai-bg); border: 1px solid var(--border);
+    border-top-left-radius: 4px;
+  }
+  .msg-bubble code {
+    background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; color: #fde047;
+  }
+  .msg-bubble pre {
+    background: #070710; padding: 14px 16px; border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.6;
+    overflow-x: auto; margin: 10px 0; border: 1px solid rgba(255,255,255,0.05);
+  }
+  .msg-bubble pre code { background: transparent; padding: 0; color: #e2e8f0; }
+  .msg-bubble pre .cm { color: #64748b; font-style: italic; }
+  .msg-bubble pre .kw { color: #c084fc; }
+  .msg-bubble pre .str { color: #fcd34d; }
+  .msg-bubble pre .fn { color: #67e8f9; }
+  .msg-bubble pre .num { color: #fb923c; }
+
+  .msg-actions {
+    display: flex; gap: 4px; margin-top: 6px;
+  }
+  .msg:hover .msg-actions { opacity: 1; }
+  .msg-action {
+    background: transparent; border: 0; padding: 4px 8px; border-radius: 6px;
+    color: var(--muted); cursor: pointer; font-size: 11px;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .msg-action:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+  .msg-action:disabled { opacity:.45; cursor:wait; }
+  .copy-status { color:var(--muted); font-size:10px; line-height:1.4; }
+  .copy-manual { display:block; width:100%; height:110px; margin:6px 0; padding:8px; resize:vertical; color:var(--text); background:var(--surface-2); border:1px solid var(--border); border-radius:6px; font:11px/1.5 monospace; }
+  .copy-manual[hidden] { display:none; }
+
+  /* Image preview */
+  .gen-image {
+    width: 100%; max-width: 512px; height: 288px;
+    border-radius: 12px; margin: 12px 0;
+    background: linear-gradient(135deg, #a78bfa, #22d3ee);
+    display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .gen-image svg { width: 100%; height: 100%; }
+
+  /* Cursor blink */
+  .cursor {
+    display: inline-block; width: 2px; height: 1.2em;
+    background: var(--accent); vertical-align: text-bottom;
+    animation: blink 1s infinite; margin-left: 2px;
+  }
+  @keyframes blink { 0%,49% { opacity: 1; } 50%,100% { opacity: 0; } }
+
+  /* Empty state (hero) */
+  .hero-empty {
+    max-width: 760px; margin: 0 auto; padding: 40px 32px;
+    text-align: center;
+  }
+  .hero-empty h1 {
+    font-size: 42px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.1;
+    background: linear-gradient(135deg, #f1f5f9, #a78bfa 50%, #22d3ee);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .hero-empty p { color: var(--muted); margin-bottom: 36px; font-size: 15px; }
+  .suggestions {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    text-align: left;
+  }
+  .suggestion {
+    background: var(--surface-2); border: 1px solid var(--border);
+    padding: 16px; border-radius: 12px; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .suggestion:hover { border-color: rgba(124,58,237,0.5); background: rgba(124,58,237,0.05); }
+  .suggestion-icon {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: rgba(124,58,237,0.15);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 10px; font-size: 18px;
+  }
+  .suggestion b { font-size: 14px; display: block; margin-bottom: 4px; }
+  .suggestion span { color: var(--muted); font-size: 12px; }
+
+  /* ============ INPUT ============ */
+  .input-area {
+    padding: 14px 26px 22px;
+    border-top: 1px solid var(--border);
+    background: rgba(15,15,23,0.7); backdrop-filter: blur(20px);
+  }
+  .input-wrap {
+    max-width: 780px; margin: 0 auto;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 18px; padding: 10px 10px 10px 18px;
+    display: flex; align-items: flex-end; gap: 10px;
+    transition: border-color 0.2s;
+  }
+  .input-wrap:focus-within { border-color: rgba(124,58,237,0.6); box-shadow: 0 0 0 3px rgba(124,58,237,0.15); }
+  .input-box {
+    flex: 1; background: transparent; border: 0; outline: 0;
+    color: var(--text); font-family: inherit; font-size: 15px;
+    resize: none; max-height: 180px; padding: 8px 0; line-height: 1.5;
+  }
+  .input-actions { display: flex; gap: 6px; align-items: center; }
+  .input-tool {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: transparent; border: 0; color: var(--muted);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .input-tool:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .send-btn {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: linear-gradient(135deg, #a78bfa, #22d3ee);
+    border: 0; cursor: pointer; color: #0f0f17;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.15s, opacity 0.2s;
+  }
+  .send-btn:hover { transform: scale(1.05); }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .input-footer {
+    max-width: 780px; margin: 10px auto 0; text-align: center;
+    font-size: 11px; color: var(--muted);
+  }
+
+  /* Thinking indicator */
+  .thinking { display: flex; gap: 6px; padding: 6px 0; }
+  .thinking .dot-ani {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); opacity: 0.5;
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+  .thinking .dot-ani:nth-child(1) { animation-delay: -0.32s; }
+  .thinking .dot-ani:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+
+  @media (max-width: 800px) {
+    body { grid-template-columns: 1fr; }
+    aside { display: none; }
+    .suggestions { grid-template-columns: 1fr; }
+    .hero-empty h1 { font-size: 30px; }
+  }
+</style>
+<style>body,button,input,textarea{font-family:"Segoe UI",system-ui,sans-serif}</style>
+
+<style id="vc-compact-layout">
+html, body { width:100%; height:100%; min-width:0; }
+body { grid-template-columns:190px minmax(0,1fr); }
+aside { padding:12px 10px; min-width:0; }
+main { min-width:0; min-height:0; }
+.brand { gap:8px; padding:0 2px 12px; margin-bottom:10px; }
+.brand b { font-size:13px; }
+.brand span { font-size:8px; letter-spacing:.03em; }
+.brand-logo { width:26px; height:26px; flex-shrink:0; }
+.new-chat { padding:8px 10px; font-size:11px; }
+.history-label { padding:12px 6px 6px; font-size:9px; }
+.chat-item { padding:7px 6px; font-size:10px; }
+.sidebar-footer { padding-top:8px; }
+.user-info b { font-size:11px; }
+.user-info span { font-size:9px; }
+.header { padding:8px 12px; gap:8px; flex-shrink:0; min-width:0; }
+.model-switcher { gap:2px; padding:3px; min-width:0; }
+.model-btn { padding:6px 8px; font-size:10px; gap:4px; white-space:nowrap; }
+.header-actions { display:none; }
+.chat-area { min-height:0; padding:10px 0; }
+.hero-empty { padding:10px 16px; }
+.hero-empty h1 { font-size:27px; margin-bottom:8px; letter-spacing:-.7px; }
+.hero-empty p { font-size:11px; line-height:1.4; margin-bottom:14px; }
+.suggestions { grid-template-columns:repeat(2,minmax(0,1fr)); gap:7px; }
+.suggestion { padding:10px; border-radius:9px; min-width:0; }
+.suggestion-icon { width:24px; height:24px; font-size:15px; margin-bottom:6px; }
+.suggestion b { font-size:11px; line-height:1.3; }
+.suggestion span { font-size:10px; line-height:1.25; }
+.msg { padding:0 14px; gap:8px; margin-bottom:10px; min-width:0; }
+.msg > div:last-child { min-width:0; max-width:calc(100% - 36px); flex:1; }
+.msg-avatar { width:28px; height:28px; font-size:12px; }
+.msg-bubble { padding:9px 11px; font-size:12px; overflow-wrap:anywhere; }
+.msg-bubble pre { padding:10px; max-width:100%; font-size:11px; }
+.msg-bubble code { font-size:11px; }
+.msg-actions { flex-wrap:wrap; }
+.msg-action { font-size:10px; padding:3px 5px; }
+.gen-image { height:auto; aspect-ratio:16/9; }
+.input-area { padding:8px 12px; flex-shrink:0; }
+.input-wrap { border-radius:12px; padding:5px 6px 5px 10px; gap:6px; }
+.input-box { min-width:0; padding:5px 0; font-size:12px; max-height:70px; }
+.input-tool { display:none; }
+.send-btn { width:30px; height:30px; border-radius:8px; }
+.input-footer { margin-top:5px; font-size:9px; line-height:1.3; }
+@media(max-width:800px) {
+  body { grid-template-columns:minmax(0,1fr); }
+  aside { display:none; }
+  .header { padding:6px 9px; }
+  .model-btn { padding:6px 7px; }
+  .hero-empty h1 { font-size:23px; }
+  .hero-empty { padding:5px 12px; }
+  .suggestion { padding:8px; }
+  .suggestion span { display:none; }
+  .suggestion-icon { margin-bottom:4px; }
+}
+@media(max-height:320px) {
+  .chat-area { padding:5px 0; }
+  .hero-empty { padding-top:3px; }
+  .hero-empty h1 { font-size:21px; }
+  .hero-empty p { margin-bottom:8px; font-size:10px; }
+  .suggestion { padding:7px; }
+  .suggestion-icon { display:none; }
+  .suggestion b { margin-bottom:0; }
+  .suggestion span { display:none; }
+  .input-area { padding:5px 9px; }
+}
+</style>
+
+<style id="vc-embed-motion">
+html[data-vc-paused] *, html[data-vc-paused] *::before, html[data-vc-paused] *::after {
+  animation-play-state: paused !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+button:focus-visible, canvas:focus-visible { outline: 2px solid #67e8f9; outline-offset: 2px; }
+</style>
+<script id="vc-embed-control">
+// The sandboxed parent can pause motion. No page content is sent across this boundary.
+window.vcEmbed = (() => {
+  let parentPaused = false;
+  let speed = 1;
+  const subscribers = new Set();
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const isPaused = () => parentPaused || document.hidden || reduced.matches;
+  function publish() {
+    document.documentElement.toggleAttribute('data-vc-paused', isPaused());
+    subscribers.forEach(callback => callback(isPaused()));
+  }
+  window.addEventListener('message', event => {
+    if (event.source !== window.parent || !event.data || typeof event.data !== 'object') return;
+    if (event.data.type === 'vc:pause' && typeof event.data.paused === 'boolean') {
+      parentPaused = event.data.paused;
+      publish();
+    } else if (event.data.type === 'vc:speed' && (event.data.speed === 1 || event.data.speed === 2)) {
+      speed = event.data.speed;
+    }
+  });
+  document.addEventListener('visibilitychange', publish);
+  reduced.addEventListener('change', publish);
+  window.addEventListener('load', () => {
+    publish();
+    window.parent.postMessage({ type: 'vc:ready' }, '*');
+  }, { once: true });
+  publish();
+  return Object.freeze({
+    get paused() { return isPaused(); },
+    get speed() { return speed; },
+    onChange(callback) { subscribers.add(callback); return () => subscribers.delete(callback); }
+  });
+})();
+</script>
+
+</head>
+<body>
+
+<!-- ============ SIDEBAR ============ -->
+<aside>
+  <div class="brand">
+    <div class="brand-logo">N</div>
+    <div>
+      <b>NeuroStudio</b>
+      <span>демонстрация интерфейса</span>
+    </div>
+  </div>
+
+  <button class="new-chat" onclick="newChat()">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+    Новый чат
+  </button>
+
+  <div class="history-label">В этом демо</div>
+  <div class="history">
+    <p class="sample-note">Объяснение кода<br>Пример иллюстрации<br>Разбор задачи<br>Идеи для проекта</p>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="user-card">
+      <div class="user-avatar">Д</div>
+      <div class="user-info">
+        <b>Демо-профиль</b>
+        <span>Ответы подготовлены заранее</span>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ============ MAIN ============ -->
+<main>
+  <div class="header">
+    <div class="model-switcher" id="model-switcher">
+      <button class="model-btn active" data-m="giga">
+        <span class="model-dot"></span>GigaChat Pro
+      </button>
+      <button class="model-btn" data-m="ygpt">
+        <span class="model-dot"></span>YandexGPT
+      </button>
+      <button class="model-btn" data-m="pplx">
+        <span class="model-dot"></span>Perplexity
+      </button>
+    </div>
+  </div>
+
+  <div class="chat-area" id="chat">
+    <div class="hero-empty" id="hero">
+      <h1>Что нам сделать сегодня?</h1>
+      <p>Выберите пример запроса. В этой демонстрации используются подготовленные ответы.</p>
+      <div class="suggestions">
+        <div class="suggestion" onclick="sendPrompt('Объясни как работает декоратор в Python на простом примере')">
+          <div class="suggestion-icon">🐍</div>
+          <b>Объясни декораторы в Python</b>
+          <span>С примером кода, который реально запустится</span>
+        </div>
+        <div class="suggestion" onclick="sendPrompt('Нарисуй котика-космонавта на Марсе в стиле аниме')">
+          <div class="suggestion-icon">🎨</div>
+          <b>Сгенерируй картинку</b>
+          <span>«Котик-космонавт на Марсе в аниме-стиле»</span>
+        </div>
+        <div class="suggestion" onclick="sendPrompt('Помоги разобрать задачу: найти НОД двух чисел через цикл')">
+          <div class="suggestion-icon">📐</div>
+          <b>Помоги с домашкой</b>
+          <span>«Найти НОД двух чисел через цикл»</span>
+        </div>
+        <div class="suggestion" onclick="sendPrompt('Дай 5 идей для школьного проекта по программированию на Python')">
+          <div class="suggestion-icon">💡</div>
+          <b>Идеи для проекта</b>
+          <span>5 идей для школьного проекта на Python</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="input-wrap">
+      <textarea class="input-box" id="input" placeholder="Напиши сообщение..." rows="1" oninput="autoGrow(this)"></textarea>
+      <div class="input-actions">
+        <button class="send-btn" id="send" onclick="sendMessage()" title="Отправить">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4l17.45-7.48a1 1 0 0 0 0-1.84L3.4 3.6a1 1 0 0 0-1.4 1.17L4 11l8 1-8 1-2 6.23a1 1 0 0 0 1.4 1.17z"/></svg>
+        </button>
+      </div>
+    </div>
+    <p class="input-footer">Ответы подготовлены заранее · без подключения API · <b>GigaChat Pro</b></p>
+  </div>
+</main>
+
+<script>
+const chat = document.getElementById('chat');
+const input = document.getElementById('input');
+const hero = document.getElementById('hero');
+
+// ============ RESPONSES ============
+const responses = {
+  "декоратор|декораторы": {
+    text: "Декоратор в Python — это функция, которая принимает другую функцию и возвращает <b>новую</b> функцию с расширенным поведением. Проще говоря — \"обёртка\".\n\n<b>Простой пример</b>:",
+    code: `<span class="cm"># Декоратор, который замеряет время выполнения</span>
+<span class="kw">import</span> time
+
+<span class="kw">def</span> <span class="fn">timer</span>(func):
+    <span class="kw">def</span> <span class="fn">wrapper</span>(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        <span class="fn">print</span>(<span class="str">f"⏱  {func.__name__}: {time.time() - start:.3f}s"</span>)
+        <span class="kw">return</span> result
+    <span class="kw">return</span> wrapper
+
+<span class="cm"># Использование</span>
+<span class="num">@timer</span>
+<span class="kw">def</span> <span class="fn">slow_sum</span>(n):
+    <span class="kw">return</span> <span class="fn">sum</span>(<span class="fn">range</span>(n))
+
+slow_sum(<span class="num">10_000_000</span>)
+<span class="cm"># ⏱  slow_sum: 0.124s</span>`,
+    after: "Декоратор часто используют для:\n• <code>@staticmethod</code>, <code>@classmethod</code> в ООП\n• авторизации в веб-фреймворках (<code>@login_required</code>)\n• кеширования (<code>@lru_cache</code>)\n• логирования и валидации\n\nХочешь, разберём как написать <b>декоратор с параметрами</b>?"
+  },
+  "картин|котик|космонавт|нейрос|dalle|kandinsky": {
+    text: "Показываю подготовленный пример для запроса:\n<i>«Котик-космонавт на Марсе в стиле аниме»</i>\n\nВ этой демонстрации показана локальная SVG-иллюстрация. Генерация через нейросеть не подключена.",
+    image: true,
+    after: "Это пример того, как иллюстрация может выглядеть в чате.\n\n<b>Несколько советов по промптам для картинок:</b>\n• Добавляй стиль: <code>в стиле аниме</code>, <code>в стиле Ван Гог</code>, <code>пиксель-арт</code>\n• Указывай детали: цвета, освещение, композицию\n• Не бойся экспериментировать — если не зашло, проси «ещё вариант»"
+  },
+  "нод|делитель|евклид": {
+    text: "Давай разберём. <b>НОД</b> (наибольший общий делитель) — самое большое число, на которое оба числа делятся без остатка.\n\nСамый быстрый способ — алгоритм Евклида. Вот его суть:\n\n1. Берём два числа — <code>a</code> и <code>b</code>.\n2. Делим большее на меньшее, смотрим <b>остаток</b>.\n3. Продолжаем делить, пока остаток не станет 0.\n4. Предпоследний остаток — это НОД.\n\n<b>Код:</b>",
+    code: `<span class="kw">def</span> <span class="fn">gcd</span>(a, b):
+    <span class="kw">while</span> b <span class="num">!=</span> <span class="num">0</span>:
+        a, b = b, a <span class="num">%</span> b
+    <span class="kw">return</span> a
+
+<span class="cm"># Проверка</span>
+<span class="fn">print</span>(<span class="fn">gcd</span>(<span class="num">48</span>, <span class="num">18</span>))  <span class="cm"># 6</span>
+<span class="fn">print</span>(<span class="fn">gcd</span>(<span class="num">1071</span>, <span class="num">462</span>))  <span class="cm"># 21</span>`,
+    after: "Как это работает на <code>gcd(48, 18)</code>:\n• 48 ÷ 18 = 2, остаток <b>12</b>\n• 18 ÷ 12 = 1, остаток <b>6</b>\n• 12 ÷ 6 = 2, остаток <b>0</b> → НОД = 6\n\n✅ Домашка решена. Если нужна версия на циклах без <code>while</code> или рекурсивная — скажи."
+  },
+  "идеи|проект|проекты|pygame|игр": {
+    text: "<b>5 примеров</b> школьных проектов на Python. Сложность работы подбирается вместе с преподавателем.",
+    after: `<div style="padding: 0;"><ol style="margin: 12px 0 0 22px; line-height: 1.9;">
+<li><b>Telegram-бот с расписанием уроков</b><br><span style="color:#94a3b8; font-size: 14px;">Присылает расписание, напоминает о домашке. <code>aiogram + sqlite</code>.</span></li>
+<li><b>Генератор мемов с нейросетью</b><br><span style="color:#94a3b8; font-size: 14px;">Берёт твою картинку, добавляет текст через ИИ. <code>PIL + GigaChat</code>.</span></li>
+<li><b>Игра «Змейка» с космической темой</b><br><span style="color:#94a3b8; font-size: 14px;">Классическая змейка, но в декорациях Марса. <code>pygame-zero</code>.</span></li>
+<li><b>Детектор настроения по фото селфи</b><br><span style="color:#94a3b8; font-size: 14px;">Определяет эмоции на фото и подбирает саундтрек. <code>API нейросети</code>.</span></li>
+<li><b>Персональный дневник с AI-коучем</b><br><span style="color:#94a3b8; font-size: 14px;">Записываешь день, AI даёт советы и анализирует тренды. <code>streamlit + YandexGPT</code>.</span></li>
+</ol></div><br>Хочешь, разберём любую из них поподробнее? Скажи номер.`
+  }
+};
+
+function matchResponse(text) {
+  const lower = text.toLowerCase();
+  for (const key in responses) {
+    if (new RegExp(key, 'i').test(lower)) return responses[key];
+  }
+  // Default
+  return {
+    text: "Это демонстрация интерфейса с подготовленными ответами.\n\n<i>[ в этой версии используются примеры ответов. В реальной интеграции сюда поступает ответ от GigaChat / YandexGPT / Perplexity через их API ]</i>\n\nДля подключения нейросети к такому интерфейсу нужно:\n• как получить ключ API у Yandex Cloud / Сбера\n• как отправить запрос через <code>requests</code> или <code>httpx</code>\n• как показать ответ в интерфейсе\n\nХочешь конкретный пример кода подключения к GigaChat API?",
+    after: ""
+  };
+}
+
+// ============ UI HELPERS ============
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 70) + 'px';
+}
+
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+function addMessage(role, htmlContent) {
+  const msg = document.createElement('div');
+  msg.className = 'msg ' + role;
+  msg.innerHTML = `
+    <div class="msg-avatar">${role === 'user' ? 'Д' : 'N'}</div>
+    <div>
+      <div class="msg-bubble">${htmlContent}</div>
+      ${role === 'ai' ? `
+        <div class="msg-actions">
+          <button class="msg-action" type="button" onclick="copyMessage(this)" disabled>📋 Копировать</button>
+        </div>
+        <p class="copy-status" role="status" aria-live="polite"></p>
+        <textarea class="copy-manual" aria-label="Текст ответа для ручного копирования" readonly hidden></textarea>
+      ` : ''}
+    </div>
+  `;
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+  return msg.querySelector('.msg-bubble');
+}
+
+async function copyMessage(button) {
+  const message = button.closest('.msg');
+  const text = message.querySelector('.msg-bubble').innerText;
+  const status = message.querySelector('.copy-status');
+  const manual = message.querySelector('.copy-manual');
+  manual.value = text;
+  manual.hidden = false;
+  manual.focus();
+  manual.select();
+  status.textContent = 'Текст выделен. Нажмите Ctrl+C / ⌘C или выберите «Копировать» в меню выделения.';
+  let timeout;
+  try {
+    if (!navigator.clipboard || !navigator.clipboard.writeText) throw new Error('Clipboard unavailable');
+    await Promise.race([
+      navigator.clipboard.writeText(text),
+      new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error('Clipboard timeout')), 1200); })
+    ]);
+    manual.hidden = true;
+    status.textContent = 'Текст скопирован';
+  } catch {
+    // The already selected text remains available if the sandbox blocks or stalls copying.
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function typeText(el, text, speed = 18) {
+  if (window.vcEmbed.paused) { el.innerHTML = text; return; }
+  let i = 0;
+  return new Promise(resolve => {
+    let interval = null;
+    let unsubscribe = () => {};
+    const finish = () => {
+      if (interval !== null) clearInterval(interval);
+      interval = null;
+      unsubscribe();
+      el.innerHTML = text;
+      resolve();
+    };
+    unsubscribe = window.vcEmbed.onChange(paused => { if (paused) finish(); });
+    interval = setInterval(() => {
+      if (i >= text.length) { finish(); return; }
+      // Reveal complete tags, keeping prepared HTML markup intact.
+      i = Math.min(text.length, i + 3);
+      if (text.lastIndexOf('<', i) > text.lastIndexOf('>', i)) {
+        const end = text.indexOf('>', i);
+        if (end !== -1) i = end + 1;
+      }
+      el.innerHTML = text.slice(0, i) + '<span class="cursor"></span>';
+      chat.scrollTop = chat.scrollHeight;
+    }, speed);
+  });
+}
+
+function generateImageSVG() {
+  // Рандомная красивая картинка — геометрический арт в стиле "космокот"
+  const colors = [['#0f172a', '#7c2d12'], ['#1e1b4b', '#7c3aed'], ['#082f49', '#06b6d4']];
+  const c = colors[Math.floor(Math.random()*colors.length)];
+  return `
+  <svg viewBox="0 0 512 288" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="sky" cx="50%" cy="40%">
+        <stop offset="0%" stop-color="${c[0]}"/>
+        <stop offset="100%" stop-color="${c[1]}"/>
+      </radialGradient>
+      <linearGradient id="mars" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#c2410c"/>
+        <stop offset="100%" stop-color="#7c2d12"/>
+      </linearGradient>
+    </defs>
+    <rect width="512" height="288" fill="url(#sky)"/>
+    <!-- Звёзды -->
+    ${Array(40).fill(0).map(() => {
+      const x = Math.random()*512, y = Math.random()*160, r = Math.random()*1.5 + 0.3;
+      return `<circle cx="${x}" cy="${y}" r="${r}" fill="#fff" opacity="${0.4 + Math.random()*0.5}"/>`;
+    }).join('')}
+    <!-- Большая планета (Земля вдалеке) -->
+    <circle cx="420" cy="60" r="28" fill="#1e40af" opacity="0.8"/>
+    <circle cx="420" cy="60" r="28" fill="url(#sky)" opacity="0.2"/>
+    <!-- Марс - поверхность -->
+    <path d="M0,200 Q128,170 256,185 T512,195 L512,288 L0,288 Z" fill="url(#mars)"/>
+    <!-- Кратеры -->
+    <ellipse cx="120" cy="215" rx="18" ry="5" fill="rgba(0,0,0,0.3)"/>
+    <ellipse cx="380" cy="235" rx="24" ry="7" fill="rgba(0,0,0,0.3)"/>
+    <!-- Кот-космонавт -->
+    <g transform="translate(220, 165)">
+      <!-- Тело -->
+      <ellipse cx="36" cy="48" rx="26" ry="22" fill="#f8fafc"/>
+      <!-- Голова -->
+      <circle cx="36" cy="22" r="20" fill="#f8fafc"/>
+      <!-- Шлем -->
+      <circle cx="36" cy="22" r="22" fill="none" stroke="#c4b5fd" stroke-width="2" opacity="0.7"/>
+      <circle cx="36" cy="22" r="22" fill="rgba(100,180,255,0.15)"/>
+      <!-- Уши -->
+      <polygon points="22,8 18,-2 30,6" fill="#f8fafc"/>
+      <polygon points="50,8 54,-2 42,6" fill="#f8fafc"/>
+      <!-- Глаза -->
+      <ellipse cx="28" cy="22" rx="2" ry="4" fill="#0f172a"/>
+      <ellipse cx="44" cy="22" rx="2" ry="4" fill="#0f172a"/>
+      <!-- Нос -->
+      <polygon points="36,28 33,32 39,32" fill="#f472b6"/>
+      <!-- Усы -->
+      <line x1="26" y1="30" x2="14" y2="28" stroke="#334155" stroke-width="0.8"/>
+      <line x1="26" y1="32" x2="14" y2="33" stroke="#334155" stroke-width="0.8"/>
+      <line x1="46" y1="30" x2="58" y2="28" stroke="#334155" stroke-width="0.8"/>
+      <line x1="46" y1="32" x2="58" y2="33" stroke="#334155" stroke-width="0.8"/>
+      <!-- Лапки -->
+      <ellipse cx="18" cy="64" rx="5" ry="3" fill="#f8fafc"/>
+      <ellipse cx="54" cy="64" rx="5" ry="3" fill="#f8fafc"/>
+      <!-- Флаг на спине -->
+      <line x1="50" y1="40" x2="62" y2="26" stroke="#64748b" stroke-width="1.5"/>
+      <rect x="62" y="20" width="16" height="12" fill="#ef4444"/>
+      <text x="64" y="29" font-size="7" fill="#fff" font-weight="bold">NS</text>
+    </g>
+    <!-- Логотип в углу -->
+    <text x="495" y="280" font-family="sans-serif" font-size="9" fill="rgba(255,255,255,0.4)" text-anchor="end">Подготовленный пример · NeuroStudio</text>
+  </svg>`;
+}
+
+// ============ SEND ============
+async function sendMessage() {
+  const text = input.value.trim();
+  if (!text) return;
+  sendPrompt(text);
+}
+
+async function sendPrompt(text) {
+  if (hero) { hero.style.display = 'none'; }
+  input.value = '';
+  autoGrow(input);
+
+  // User message
+  addMessage('user', text.replace(/</g, '&lt;'));
+
+  // Thinking indicator
+  const aiBubble = addMessage('ai', '<div class="thinking"><span class="dot-ani"></span><span class="dot-ani"></span><span class="dot-ani"></span></div>');
+
+  await new Promise(r => setTimeout(r, window.vcEmbed.paused ? 0 : 500));
+
+  // Get response
+  const resp = matchResponse(text);
+  let fullHtml = resp.text.replace(/\n/g, '<br>');
+
+  // Type the first part
+  await typeText(aiBubble, fullHtml, 10);
+
+  // If image, show image
+  if (resp.image) {
+    aiBubble.innerHTML = fullHtml + '<div class="gen-image">' + generateImageSVG() + '</div>';
+    chat.scrollTop = chat.scrollHeight;
+    await new Promise(r => setTimeout(r, window.vcEmbed.paused ? 0 : 300));
+  }
+
+  // Code block
+  if (resp.code) {
+    aiBubble.innerHTML += `<pre><code>${resp.code}</code></pre>`;
+    chat.scrollTop = chat.scrollHeight;
+    await new Promise(r => setTimeout(r, window.vcEmbed.paused ? 0 : 200));
+  }
+
+  // After-text
+  if (resp.after) {
+    const afterDiv = document.createElement('div');
+    afterDiv.innerHTML = '<br>' + resp.after.replace(/\n/g, '<br>');
+    aiBubble.appendChild(afterDiv);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  chat.scrollTop = chat.scrollHeight;
+  aiBubble.closest('.msg').querySelector('.msg-action').disabled = false;
+}
+
+// ============ MODEL SWITCH ============
+document.getElementById('model-switcher').addEventListener('click', (e) => {
+  const btn = e.target.closest('.model-btn');
+  if (!btn) return;
+  document.querySelectorAll('.model-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  // Update footer
+  const footer = document.querySelector('.input-footer b');
+  const names = { giga: 'GigaChat Pro', ygpt: 'YandexGPT', pplx: 'Perplexity' };
+  footer.textContent = names[btn.dataset.m];
+});
+
+function newChat() {
+  document.querySelectorAll('.msg').forEach(m => m.remove());
+  hero.style.display = 'block';
+}
+</script>
+
+<script>window.addEventListener("keydown",function(event){if(event.key==="Escape")window.parent.postMessage({type:"vc:escape"},"*");});</script></body>
+</html>
