@@ -3988,6 +3988,7 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item,.tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
+  if(location.hash.slice(1)!==id) history.replaceState(null,'','#'+id);
   // Activate matching sidebar button by data-page attribute
   document.querySelectorAll('.sb-item[data-page]').forEach(b=>{if(b.dataset.page===id)b.classList.add('active');});
   // Activate inner-page tabs by text (analytics/schedule sub-tabs)
@@ -3998,6 +3999,9 @@ function showPage(id) {
   if(t)t.innerHTML='EDUSON KIDS · <b>'+pageNames[id]+'</b>';
   if(id!=='managers'){backMgr();}
 }
+
+function openHashPage(){var id=location.hash.replace(/^#/,'');if(id&&document.getElementById('page-'+id))showPage(id);}
+window.addEventListener('hashchange',openHashPage);
 
 // ═══════════════════════════════════════
 // QUOTES
