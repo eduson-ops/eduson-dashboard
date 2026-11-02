@@ -2472,36 +2472,57 @@ function renderMain() {
 }
 
 // МВП (Менеджер внутренних продаж) is a role, not a person. Anyone whose
-// first-word is 'МВП' is treated as renewals-only — never included in the
-// sales-manager ranking, never given a 'Top' badge, and any МК records that
-// accidentally leak to their name are dropped from the primary totals.
+// first-word is 'МВП' is kept in a separate internal-sales block — never
+// included in the sales-manager ranking or given a 'Top' badge.
 // NB: JS \b works only on ASCII word chars, so we can't use it with Cyrillic.
 function isMvp(name){
   var first=(name||'').trim().split(/\s+/)[0]||'';
   return first.toLowerCase()==='мвп';
 }
 
+function aggregateMvpRows(rows, allowMissingPaid){
+  var byKey={};
+  (rows||[]).forEach(function(r){
+    if(!r || !r.manager || !isMvp(r.manager)) return;
+    // Lesson rows must be paid. Renewal rows do not carry a paid flag.
+    if(allowMissingPaid ? r.paid===false : !r.paid) return;
+    var key=r.manager.split(' ')[0];
+    if(!byKey[key]) byKey[key]={name:r.manager,rev:0,paid:0};
+    byKey[key].rev += Number(r.rev)||0;
+    byKey[key].paid += 1;
+  });
+  return Object.keys(byKey).map(function(k){return byKey[k];});
+}
+
+function mergeMvpRows(base, extra){
+  var byKey={};
+  (base||[]).concat(extra||[]).forEach(function(r){
+    var key=r.name.split(' ')[0];
+    if(!byKey[key]) byKey[key]={name:r.name,rev:0,paid:0};
+    byKey[key].rev += r.rev;
+    byKey[key].paid += r.paid;
+  });
+  return Object.keys(byKey).map(function(k){return byKey[k];});
+}
+
 function renderTeamTable(data,filter) {
-  // Strip МВП rows out of the МК data — she should never contribute МК stats,
-  // even if she was accidentally selected as the manager in the МК form.
+  // Keep МВП out of the sales ranking, but show their paid rows separately.
   var primaryData=data.filter(r=>!isMvp(r.manager));
   var mgrs={};
   primaryData.forEach(r=>{if(!mgrs[r.manager])mgrs[r.manager]=[];mgrs[r.manager].push(r);});
   var sorted=Object.entries(mgrs).map(([name,rows])=>{var t=calcTotals(rows);return{name,...t,renewalOnly:false};});
-  var t=calcTotals(primaryData);
   var renRows=visibleRenewalsMain();
+  var mvpBaseRows=aggregateMvpRows(data,false);
+  var mvpRenewalRows=COUNT_RENEWALS?aggregateMvpRows(renRows,true):[];
+  var mvpRows=mergeMvpRows(mvpBaseRows,mvpRenewalRows);
+  var t=calcTotals(primaryData);
+  // Paid МВП rows are part of the department total even though they are
+  // rendered outside the sales-manager ranking.
+  mvpBaseRows.forEach(function(r){t.rev+=r.rev;t.paid+=r.paid;});
+  t.conv=t.mk?Math.round(t.paid/t.mk*1000)/10:t.conv;
+  t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;
+  t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
   var rmap=renRevByMgr(renRows), cmap=renCountByMgr(renRows);
-  // Build МВП row(s) SEPARATELY from the sales ranking
-  var mvpRows=[];
-  var mvpByKey={};
-  renRows.forEach(function(r){
-    if(!r.manager || !isMvp(r.manager)) return;
-    var key=r.manager.split(' ')[0];
-    if(!mvpByKey[key]) mvpByKey[key]={name:r.manager, rev:0, paid:0};
-    mvpByKey[key].rev += r.rev;
-    mvpByKey[key].paid += 1;
-  });
-  Object.keys(mvpByKey).forEach(k=>mvpRows.push(mvpByKey[k]));
 
   if(COUNT_RENEWALS){
     var totRen=0, totRenCount=0;
@@ -2525,8 +2546,6 @@ function renderTeamTable(data,filter) {
       t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;
       t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
     }
-  } else {
-    mvpRows=[]; // toggle off → hide МВП block entirely
   }
   sorted.sort((a,b)=>b.rev-a.rev);
   var visibleSorted = filter ? sorted.filter(r=>r.name.toLowerCase().includes(filter.toLowerCase())) : sorted;

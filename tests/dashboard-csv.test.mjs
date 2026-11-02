@@ -12,10 +12,13 @@ const parseDateStart = html.indexOf('function parseDate(s) {');
 const parseDateEnd = html.indexOf('// Robust AMO CRM', parseDateStart);
 const paymentStart = html.indexOf('function applyPaymentToLesson');
 const paymentEnd = html.indexOf('async function loadAll', paymentStart);
+const mvpStart = html.indexOf('function isMvp');
+const mvpEnd = html.indexOf('function renderTeamTable', mvpStart);
 const context = {};
 const parseCSV = vm.runInNewContext(`${html.slice(csvStart, csvEnd)}\nparseCSV`, context);
 const dateFns = vm.runInNewContext(`${html.slice(dateStart, dateEnd)}\n${html.slice(parseDateStart, parseDateEnd)}\n({normDate, parseDate, recordPeriodDate})`, context);
 const applyPaymentToLesson = vm.runInNewContext(`${html.slice(paymentStart, paymentEnd)}\napplyPaymentToLesson`, context);
+const mvpFns = vm.runInNewContext(`${html.slice(mvpStart, mvpEnd)}\n({isMvp, aggregateMvpRows, mergeMvpRows})`, context);
 
 test('CSV parser keeps multiline quoted fields aligned', () => {
   const csv = '"manager","notes"\n"МВП","первая строка\nвторая, строка"\n"Андрей","ok"';
@@ -49,4 +52,14 @@ test('payment manager overrides an older lesson manager', () => {
   assert.equal(lesson.rev, 63051);
   assert.equal(lesson.paid, true);
   assert.equal(lesson.paydate, '02.11.2026');
+});
+
+test('paid MVP rows stay visible in the separate internal-sales block', () => {
+  const base = mvpFns.aggregateMvpRows([
+    {manager: 'МВП', paid: true, rev: 17811},
+    {manager: 'МВП', paid: false, rev: 17811},
+    {manager: 'Перебейносов А.', paid: true, rev: 63051},
+  ], false);
+  const merged = mvpFns.mergeMvpRows(base, []);
+  assert.deepEqual(JSON.parse(JSON.stringify(merged)), [{name: 'МВП', rev: 17811, paid: 1}]);
 });
