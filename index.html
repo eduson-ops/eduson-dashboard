@@ -4002,6 +4002,7 @@ function showPage(id) {
 
 function openHashPage(){var id=location.hash.replace(/^#/,'');if(id&&document.getElementById('page-'+id))showPage(id);}
 window.addEventListener('hashchange',openHashPage);
+openHashPage();
 
 // ═══════════════════════════════════════
 // QUOTES

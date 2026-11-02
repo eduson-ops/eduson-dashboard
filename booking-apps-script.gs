@@ -17,3 +17,4 @@ function appendDoc_(values) { try { DocumentApp.openById(prop_('DOC_ID')).getBod
 function actor_() { const email = Session.getActiveUser().getEmail(); const map = JSON.parse(prop_('ROLE_MAP_JSON') || '{}'); const entry = map[email] || {}; return { email: email, role: entry.role || '', name: entry.name || '' }; }
 function prop_(key) { return PropertiesService.getScriptProperties().getProperty(key) || ''; }
 function json_(value) { return ContentService.createTextOutput(JSON.stringify(value)).setMimeType(ContentService.MimeType.JSON); }
+function edusonAuthorizeBooking() { return SpreadsheetApp.openById(prop_('SHEET_ID')).getName(); }

@@ -44,14 +44,20 @@ ID | Отметка времени | Дата | Время | Сейл | AmoCRM |
 }
 ```
 
-Разверни Web App с доступом для пользователей домена и включённой авторизацией Google. Скрипт определяет роль по `Session.getActiveUser().getEmail()`. Не используй анонимный deployment: клиентский выбор роли не является защитой.
+Рабочий Web App уже развернут:
+
+`https://script.google.com/macros/s/AKfycbxkOxVAZKD4J5xqWayF1F7_Uglu-ZSeIeHjfVRtTs0tE9LlkbNNWl2t6kAm2cTk7KZFSw/exec`
+
+Доступ требует входа в Google. Скрипт определяет роль по `Session.getActiveUser().getEmail()`. В текущем deployment карта содержит `d3eathwish@gmail.com` как `call_center`; добавь рабочие email второй линии и сейлов в `ROLE_MAP_JSON` перед боевым использованием.
+
+В манифесте Apps Script включены scopes `spreadsheets`, `documents`, `calendar.readonly`, `script.external_request` и `script.scriptapp`. Не используй анонимный deployment: клиентский выбор роли не является защитой.
 
 ## 4. Dashboard
 
 Перед публикацией задай URL Web App до загрузки `booking-ui.js`:
 
 ```html
-<script>window.BOOKING_API_URL='https://script.google.com/macros/s/DEPLOYMENT_ID/exec';</script>
+<script>window.BOOKING_API_URL='https://script.google.com/macros/s/AKfycbxkOxVAZKD4J5xqWayF1F7_Uglu-ZSeIeHjfVRtTs0tE9LlkbNNWl2t6kAm2cTk7KZFSw/exec';</script>
 ```
 
 При локальном тесте оставь значение по умолчанию и подключи same-origin dev endpoint. В production проверь, что deployment возвращает JSON с разрешённым origin или используй same-origin proxy: GitHub Pages не может сам добавить CORS-заголовки к Apps Script.

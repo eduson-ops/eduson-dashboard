@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
   var ROLE_KEY = 'eks-booking-role';
-  var API = global.BOOKING_API_URL || '/booking';
+  var API = global.BOOKING_API_URL || 'https://script.google.com/macros/s/AKfycbxkOxVAZKD4J5xqWayF1F7_Uglu-ZSeIeHjfVRtTs0tE9LlkbNNWl2t6kAm2cTk7KZFSw/exec';
   var esc = function (value) { return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]; }); };
   var roleName = { call_center: 'КЦ · первая линия', confirmation_manager: 'Вторая линия · подтверждение', sales: 'Сейл' };
   var readRole = function () { try { return localStorage.getItem(ROLE_KEY) || 'call_center'; } catch (_) { return 'call_center'; } };
