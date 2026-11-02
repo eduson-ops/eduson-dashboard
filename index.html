@@ -764,8 +764,12 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .booking-list,.booking-queue{display:grid;gap:8px}
 .booking-card{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid var(--border-s);background:var(--bg2);border-radius:var(--r10);font-size:12px}
 .booking-card b{font-family:var(--mono);color:var(--text)}
+.booking-card-head{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%}
+.booking-card-head small{display:block;margin-bottom:3px;color:var(--muted);font:600 9px var(--mono);letter-spacing:.1em;text-transform:uppercase}
+.booking-card-head b{display:block;font-size:13px}
+.booking-card-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;color:var(--sub)}
+.booking-card-meta a{margin-left:auto;color:var(--b);font-size:11px}
 .booking-card span{color:var(--sub)}
-.booking-card a{color:var(--b);margin-left:auto}
 .booking-card-pending{border-color:var(--y-bd)}
 .booking-pill{padding:3px 7px;border-radius:999px;font:700 10px var(--mono)}
 .booking-pill.confirmed{background:var(--g-bg);color:var(--g)}
@@ -774,7 +778,7 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .booking-actions button{min-height:32px;padding:6px 10px}
 .booking-actions button:last-child{background:transparent;color:var(--r);border-color:var(--r-bd)}
 .booking-empty{padding:24px;border:1px dashed var(--border-s);border-radius:var(--r10);color:var(--muted);text-align:center}
-@media(max-width:640px){.booking-form{grid-template-columns:1fr;padding:14px}.booking-toolbar{align-items:stretch;flex-direction:column}.booking-status-line{display:none}.booking-card a{margin-left:0}.booking-picker-head{flex-direction:column}.booking-free-summary{align-self:flex-start}.booking-primary{width:100%;justify-self:stretch}}
+@media(max-width:640px){.booking-form{grid-template-columns:1fr;padding:14px}.booking-toolbar{align-items:stretch;flex-direction:column}.booking-status-line{display:none}.booking-card-meta a{margin-left:0}.booking-picker-head{flex-direction:column}.booking-free-summary{align-self:flex-start}.booking-primary{width:100%;justify-self:stretch}}
 
 /* ── SKIN BADGE IN TOPBAR ── */
 .skin-btn{
