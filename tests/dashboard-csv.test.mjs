@@ -14,7 +14,7 @@ const paymentStart = html.indexOf('function applyPaymentToLesson');
 const paymentEnd = html.indexOf('async function loadAll', paymentStart);
 const context = {};
 const parseCSV = vm.runInNewContext(`${html.slice(csvStart, csvEnd)}\nparseCSV`, context);
-const dateFns = vm.runInNewContext(`${html.slice(dateStart, dateEnd)}\n${html.slice(parseDateStart, parseDateEnd)}\n({normDate, parseDate})`, context);
+const dateFns = vm.runInNewContext(`${html.slice(dateStart, dateEnd)}\n${html.slice(parseDateStart, parseDateEnd)}\n({normDate, parseDate, recordPeriodDate})`, context);
 const applyPaymentToLesson = vm.runInNewContext(`${html.slice(paymentStart, paymentEnd)}\napplyPaymentToLesson`, context);
 
 test('CSV parser keeps multiline quoted fields aligned', () => {
@@ -30,6 +30,15 @@ test('date parser handles ISO and dashboard dates', () => {
   assert.equal(dateFns.normDate('2026-11-02T15:51:38.000Z'), '02.11.2026');
   assert.equal(dateFns.parseDate('2026-11-02T15:51:38.000Z').getFullYear(), 2026);
   assert.equal(dateFns.parseDate('02.11.2026').getMonth(), 10);
+});
+
+test('paid records use payment date for period filters', () => {
+  const paid = {date: '31.10.2026', paid: true, paydate: '01.11.2026'};
+  const unpaid = {date: '31.10.2026', paid: false, paydate: ''};
+  assert.equal(dateFns.recordPeriodDate(paid).getDate(), 1);
+  assert.equal(dateFns.recordPeriodDate(paid).getMonth(), 10);
+  assert.equal(dateFns.recordPeriodDate(unpaid).getDate(), 31);
+  assert.equal(dateFns.recordPeriodDate(unpaid).getMonth(), 9);
 });
 
 test('payment manager overrides an older lesson manager', () => {

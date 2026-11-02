@@ -1942,6 +1942,14 @@ function parseDate(s) {
   return new Date(+p[2],+p[1]-1,+p[0]);
 }
 
+// Paid records belong to the period in which the payment was recorded.
+// Unpaid records belong to the period of the lesson itself.
+function recordPeriodDate(record) {
+  if(!record) return null;
+  var raw=record.paid&&record.paydate ? record.paydate : record.date;
+  return raw ? parseDate(normDate(raw)) : null;
+}
+
 // Robust AMO CRM lead ID extraction — handles ?query, #fragment, with/without /detail/
 function extractCrmId(url) {
   if (!url) return '';
@@ -2272,12 +2280,12 @@ function visible() {
   if(dfMode==='week'){
     var now=new Date(),mon=new Date(now);mon.setDate(now.getDate()-now.getDay()+1);mon.setHours(0,0,0,0);
     var sun=new Date(mon.getTime()+6*86400000);sun.setHours(23,59,59,999);
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=mon&&d<=sun;});
+    data=data.filter(r=>{var d=recordPeriodDate(r);return d&&d>=mon&&d<=sun;});
   } else if(dfMode==='custom'&&dfFrom&&dfTo){
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=dfFrom&&d<=dfTo;});
+    data=data.filter(r=>{var d=recordPeriodDate(r);return d&&d>=dfFrom&&d<=dfTo;});
   } else {
     var b=curMonthBounds();
-    data=data.filter(r=>{var d=parseDate(r.date);return d&&d>=b.from&&d<=b.to;});
+    data=data.filter(r=>{var d=recordPeriodDate(r);return d&&d>=b.from&&d<=b.to;});
   }
   return data;
 }
@@ -3030,8 +3038,8 @@ function renderAnalytics() {
     charts.conv=new Chart(document.getElementById('convC'),{type:'line',data:{labels:de.map(([d])=>d),datasets:[{data:de.map(([,v])=>v.mk?Math.round(v.paid/v.mk*100):0),borderColor:'#3ecf8e',backgroundColor:'rgba(62,207,142,0.1)',borderWidth:2,pointRadius:3,pointBackgroundColor:'#3ecf8e',fill:true,tension:0.3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:v=>v.raw+'%'}}},scales:{x:{ticks:{color:c.tick,font:{size:9}},grid:{display:false}},y:{ticks:{color:c.tick,font:{size:9},callback:v=>v+'%'},grid:{color:c.grid},min:0,max:100}}}});
 
   // All lessons table
-  var recent=[...data].sort((a,b)=>(b.date||'').localeCompare(a.date||'')).slice(0,100);
-  document.getElementById('all-table').innerHTML=recent.length?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Дата</th><th>Менеджер</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>${recent.map(r=>`<tr><td style="font-family:var(--mono);font-size:10px">${esc(r.date)}</td><td class="tn">${esc(r.manager)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty" style="padding:36px 20px"><div class="empty-ic">📊</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Нет данных за период</div><div style="font-size:11.5px;color:var(--muted);max-width:320px;margin:0 auto;line-height:1.5">Поменяй фильтр периода выше или попроси команду заполнить Отчёт о МК.</div></div>';
+  var recent=[...data].sort((a,b)=>(recordPeriodDate(b)||0)-(recordPeriodDate(a)||0)).slice(0,100);
+  document.getElementById('all-table').innerHTML=recent.length?`<div style="overflow-x:auto"><table class="tt" style="min-width:600px"><thead><tr><th>Дата</th><th>Менеджер</th><th>Практика</th><th>Пакет</th><th>Оплата</th><th>Сумма</th><th>Возражение</th><th>CRM</th></tr></thead><tbody>${recent.map(r=>{var periodDate=r.paid&&r.paydate?normDate(r.paydate):r.date;return `<tr><td style="font-family:var(--mono);font-size:10px">${esc(periodDate)}</td><td class="tn">${esc(r.manager)}</td><td>${esc(r.practice)}</td><td>${esc(r.pack)}</td><td style="color:${r.paid?'var(--g)':'var(--r)'}">${r.paid?'✓':'—'}</td><td style="font-family:var(--mono);color:${r.rev?'var(--y)':'var(--muted)'}">${r.rev?fmt(r.rev)+' ₽':'—'}</td><td style="font-size:11px">${esc(r.objection||'—')}</td><td>${safeUrl(r.crm)?`<a href="${safeUrl(r.crm)}" target="_blank" rel="noopener noreferrer" class="crml">→ CRM</a>`:'—'}</td></tr>`}).join('')}</tbody></table></div>`:'<div class="empty" style="padding:36px 20px"><div class="empty-ic">📊</div><div style="font-size:14px;font-weight:600;color:var(--sub);margin-bottom:4px">Нет данных за период</div><div style="font-size:11.5px;color:var(--muted);max-width:320px;margin:0 auto;line-height:1.5">Поменяй фильтр периода выше или попроси команду заполнить Отчёт о МК.</div></div>';
 }
 
 // ═══════════════════════════════════════
