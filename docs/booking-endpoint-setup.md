@@ -48,9 +48,9 @@ ID | Отметка времени | Дата | Время | Сейл | AmoCRM |
 
 `https://script.google.com/macros/s/AKfycbxkOxVAZKD4J5xqWayF1F7_Uglu-ZSeIeHjfVRtTs0tE9LlkbNNWl2t6kAm2cTk7KZFSw/exec`
 
-Доступ требует входа в Google. Скрипт определяет роль по `Session.getActiveUser().getEmail()`. В текущем deployment карта содержит `d3eathwish@gmail.com` как `call_center`; добавь рабочие email второй линии и сейлов в `ROLE_MAP_JSON` перед боевым использованием.
+Endpoint открыт для чтения слотов без входа, чтобы GitHub Pages мог загрузить форму. Скрипт определяет роль по `Session.getActiveUser().getEmail()`, поэтому создание и смена статусов разрешены только пользователям с рабочим Google-аккаунтом из `ROLE_MAP_JSON`. В текущем deployment карта содержит `d3eathwish@gmail.com` как `call_center`; добавь рабочие email второй линии и сейлов в `ROLE_MAP_JSON` перед боевым использованием.
 
-В манифесте Apps Script включены scopes `spreadsheets`, `documents`, `calendar.readonly`, `script.external_request` и `script.scriptapp`. Не используй анонимный deployment: клиентский выбор роли не является защитой.
+В манифесте Apps Script включены scopes `spreadsheets`, `documents`, `calendar.readonly`, `script.external_request` и `script.scriptapp`. Клиентский выбор роли не является защитой: backend всегда сверяет email с `ROLE_MAP_JSON`.
 
 ## 4. Dashboard
 
@@ -60,7 +60,7 @@ ID | Отметка времени | Дата | Время | Сейл | AmoCRM |
 <script>window.BOOKING_API_URL='https://script.google.com/macros/s/AKfycbxkOxVAZKD4J5xqWayF1F7_Uglu-ZSeIeHjfVRtTs0tE9LlkbNNWl2t6kAm2cTk7KZFSw/exec';</script>
 ```
 
-При локальном тесте оставь значение по умолчанию и подключи same-origin dev endpoint. В production проверь, что deployment возвращает JSON с разрешённым origin или используй same-origin proxy: GitHub Pages не может сам добавить CORS-заголовки к Apps Script.
+При локальном тесте оставь значение по умолчанию и подключи same-origin dev endpoint. В production клиент использует JSONP для чтения и скрытую HTML-форму для POST, потому что GitHub Pages не может сам добавить CORS-заголовки к Apps Script.
 
 Для локального smoke-check запусти `node booking-dev-server.mjs`. Сервер принимает массив слотов через `BOOKING_SLOTS_JSON` и обслуживает `/booking`.
 
