@@ -2404,7 +2404,15 @@ function renderMain() {
     if(mTi) mTi.textContent='Сегодня';
     if(mSb) mSb.textContent='Выручка, конверсия, команда и прогресс плана';
   }
-  var data=visibleMain(),t=calcTotals(data);
+  var data=visibleMain();
+  // МВП оплаты входят в выручку и оплату, но не являются проведёнными МК.
+  var t=calcTotals(data.filter(function(r){return !isMvp(r.manager);}));
+  data.forEach(function(r){
+    if(isMvp(r.manager)&&r.paid){t.rev+=Number(r.rev)||0;t.paid+=1;}
+  });
+  t.conv=t.mk?Math.round(t.paid/t.mk*1000)/10:t.conv;
+  t.rpm=t.mk?Math.round(t.rev/t.mk):t.rpm;
+  t.avg=t.paid?Math.round(t.rev/t.paid):t.avg;
   // When renewals are counted, ALL totals (rev, paid, conv, avg, rpm) scale
   // with them — that's the user's mental model of 'продажа = продажа,
   // первичка или продление'. Conv can exceed 100% if a manager renews more
@@ -2578,7 +2586,7 @@ function renderTeamTable(data,filter) {
       html+=`<tr class="mvp-row" style="background:rgba(96,165,250,0.04)">
         <td class="tn"><div class="av-chip emoji" style="background:none">🔄</div>${esc(r.name)}&nbsp;<span class="mgr-badge up" style="font-size:9px" title="Менеджер внутренних продаж">МВП</span></td>
         <td>—</td><td>${r.paid}</td>
-        <td><span class="pill b" style="font-size:9.5px" title="Только продления, не считается конверсия">продления</span></td>
+        <td><span class="pill b" style="font-size:9.5px" title="Оплаты менеджера внутренних продаж">внутренние продажи</span></td>
         <td style="color:var(--g);white-space:nowrap">${fmt(r.rev)} ₽</td>
         <td style="color:var(--b);white-space:nowrap" title="Средний чек продления">${avg?fmt(avg)+' ₽':'—'}</td>
         <td style="color:var(--sub);white-space:nowrap" title="У продлений нет МК в этой таблице">—</td></tr>`;
