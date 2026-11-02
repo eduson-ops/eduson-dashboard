@@ -1372,7 +1372,7 @@ window.updatePersonaFooter=updatePersonaFooter;
 <!-- ══ АНАЛИТИКА ══ -->
 <div class="page" id="page-analytics">
   <div class="page-hdr">
-    <div class="page-eyebrow">Аналитика · Май 2026</div>
+    <div class="page-eyebrow" id="analytics-eyebrow">Аналитика · текущий месяц</div>
     <div class="page-title">Аналитика</div>
     <div class="page-sub">Воронка, конверсия, пакеты, возраст клиентов</div>
   </div>
@@ -2711,6 +2711,14 @@ function setPer(p,btn){curPer=p;document.querySelectorAll('.pbtn').forEach(b=>b.
 // ═══════════════════════════════════════
 // ANALYTICS
 // ═══════════════════════════════════════
+function analyticsPeriodLabel(){
+  var months=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+  if(dfMode==='week') return 'эта неделя';
+  if(dfMode==='custom'&&dfFrom&&dfTo) return fmtDate(dfFrom)+' — '+fmtDate(dfTo);
+  var now=new Date();
+  return months[now.getMonth()]+' '+now.getFullYear();
+}
+
 function setDfPer(mode,btn) {
   dfMode=mode;
   document.querySelectorAll('#page-analytics .dfbtn').forEach(b=>b.classList.remove('active'));
@@ -2893,6 +2901,8 @@ function renderCancels() {
 }
 
 function renderAnalytics() {
+  var eyebrow=document.getElementById('analytics-eyebrow');
+  if(eyebrow) eyebrow.textContent='Аналитика · '+analyticsPeriodLabel();
   var data=visibleAnalytics(),c=gc();
 
   // ── 1. Воронка ──
