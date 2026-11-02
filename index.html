@@ -1958,6 +1958,22 @@ function extractCrmId(url) {
   return all ? all[all.length - 1] : url;
 }
 
+// Payment rows are authoritative for payment attribution. A CRM lead can
+// have an older lesson owned by another manager, but the payment owner must
+// remain the manager recorded on the payment form.
+function applyPaymentToLesson(lesson, payment) {
+  if(!lesson || !payment) return lesson;
+  if(payment.manager) lesson.manager = payment.manager;
+  lesson.rev = payment.rev;
+  lesson.paid = true;
+  lesson.paytype = payment.paytype;
+  lesson.paydate = payment.paydate;
+  lesson.pack = payment.pack || lesson.pack;
+  lesson.practice = payment.practice || lesson.practice;
+  lesson.scenario = 'pay_later';
+  return lesson;
+}
+
 // ═══════════════════════════════════════
 // LOAD
 // ═══════════════════════════════════════
@@ -2049,13 +2065,7 @@ async function loadAll() {
       // Сценарий 3: МК + оплата позже → обновляем существующий урок
       var mk = mkMap[crmId];
       var pay = payMap[crmId];
-      mk.rev = pay.rev;
-      mk.paid = true;
-      mk.paytype = pay.paytype;
-      mk.paydate = pay.paydate;
-      mk.pack = pay.pack || mk.pack;
-      mk.practice = pay.practice || mk.practice;
-      mk.scenario = 'pay_later';
+      applyPaymentToLesson(mk, pay);
     }
   }
 
@@ -2098,11 +2108,7 @@ async function loadAll() {
     }
     if(fuzzyMk){
       // Нашли нечёткий матч — мёрджим оплату в найденный МК
-      fuzzyMk.rev = pay.rev; fuzzyMk.paid = true;
-      fuzzyMk.paytype = pay.paytype; fuzzyMk.paydate = pay.paydate;
-      fuzzyMk.pack = pay.pack || fuzzyMk.pack;
-      fuzzyMk.practice = pay.practice || fuzzyMk.practice;
-      fuzzyMk.scenario = 'pay_later';
+      applyPaymentToLesson(fuzzyMk, pay);
       console.info('[pay-fuzzy] matched:', pay.crmId, '→', fuzzyMk.crmId, pay.crm);
     } else {
       payOnlyFinal.push(pay);
