@@ -12,15 +12,14 @@
   var slots = function () { return (global.__bookingSlots || []).filter(function (slot) { return String(slot.status || 'wait').toLowerCase() === 'wait'; }); };
   var slotKey = function (slot) { return [slot.date, slot.time, slot.who || slot.manager].join('|'); };
   var render = function (root, state) {
-    var role = state.role; var bookings = state.bookings || []; var managers = global.__bookingManagers || [];
+    var role = state.role; var bookings = state.bookings || [];
     var slotRows = slots();
     var body = '';
     if (role === 'call_center') {
       body = '<form id="booking-create-form" class="booking-form">'
-        + '<label>Сейл<select name="sale" required>' + managers.map(function (name) { return '<option>' + esc(name) + '</option>'; }).join('') + '</select></label>'
-        + '<label>Свободный слот<select name="slot" required>' + slotRows.map(function (slot) { return '<option value="' + esc(slotKey(slot)) + '">' + esc(slot.date + ' · ' + slot.time + ' · ' + (slot.who || slot.manager)) + '</option>'; }).join('') + '</select></label>'
+        + '<label>Свободный слот<select name="slot" required>' + slotRows.map(function (slot) { return '<option value="' + esc(slotKey(slot)) + '">' + esc(slot.date + ' · ' + slot.time) + '</option>'; }).join('') + '</select><span class="booking-slot-meta">Свободно слотов: <b>' + slotRows.length + '</b></span></label>'
         + '<label>Ссылка AmoCRM<input name="crmUrl" type="url" placeholder="https://...amocrm.ru/..." required></label>'
-        + '<label>Возраст клиента<input name="age" type="number" min="1" max="18" required></label>'
+        + '<label>Возраст ребёнка<input name="age" type="number" min="1" max="18" required></label>'
         + '<label>Телефон клиента<input name="phone" type="tel" placeholder="+7 999 123-45-67" required></label>'
         + '<button class="booking-primary" type="submit">Создать заявку →</button><div id="booking-form-status" role="status"></div></form>'
         + '<h3 class="booking-section-title">Мои заявки</h3>' + bookingList(bookings);
@@ -31,7 +30,7 @@
     }
     root.innerHTML = '<div class="booking-toolbar"><label>Режим<select id="booking-role-select">' + Object.keys(roleName).map(function (key) { return '<option value="' + key + '"' + (key === role ? ' selected' : '') + '>' + roleName[key] + '</option>'; }).join('') + '</select></label><span class="booking-status-line">Данные обновляются через booking endpoint</span></div>' + body;
     var roleSelect = root.querySelector('#booking-role-select'); if (roleSelect) roleSelect.addEventListener('change', function () { writeRole(this.value); refresh(root); });
-    var form = root.querySelector('#booking-create-form'); if (form) { form.addEventListener('submit', function (event) { submitCreate(event, root); }); var saleSelect = form.querySelector('select[name="sale"]'); var slotSelect = form.querySelector('select[name="slot"]'); var syncSale = function () { if (!saleSelect || !slotSelect) return; var manager = String(slotSelect.value || '').split('|')[2] || ''; var surname = manager.split(' ')[0]; Array.prototype.forEach.call(saleSelect.options, function (option) { if (surname && option.textContent.indexOf(surname) === 0) saleSelect.value = option.value; }); }; if (slotSelect) { slotSelect.addEventListener('change', syncSale); syncSale(); } }
+    var form = root.querySelector('#booking-create-form'); if (form) { form.addEventListener('submit', function (event) { submitCreate(event, root); }); }
     root.querySelectorAll('[data-booking-action]').forEach(function (button) { button.addEventListener('click', function () { transition(this.dataset.bookingAction, this.dataset.bookingId, root); }); });
   };
   var bookingList = function (bookings) { return bookings.length ? '<div class="booking-list">' + bookings.map(function (booking) { return '<article class="booking-card"><b>' + esc(booking.date + ' · ' + booking.time) + '</b><span>' + esc(booking.sale) + ' · ' + esc(booking.phone) + '</span><span class="booking-pill ' + esc(booking.status) + '">' + esc(booking.status) + '</span><a href="' + esc(booking.crmUrl) + '" target="_blank" rel="noopener">AmoCRM ↗</a></article>'; }).join('') + '</div>' : '<div class="booking-empty">Записей пока нет</div>'; };
