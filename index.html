@@ -1864,23 +1864,27 @@ const cc = s => (s||'').replace(/^"|"$/g,'').trim();
 const gc = () => ({grid:'rgba(255,255,255,0.05)',tick:'#606060'});
 
 function parseCSV(txt) {
-  // Handle both \r\n (Windows/gviz) and \n line endings
-  var rows=[], lines=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n');
-  for(var i=0;i<lines.length;i++){
-    var line=lines[i];
-    if(!line.trim())continue;
-    var cols=[],cur='',inQ=false;
-    for(var j=0;j<line.length;j++){
-      var c=line[j];
-      if(c==='"'){
-        if(inQ && line[j+1]==='"'){cur+='"';j++;} // escaped quote
-        else{inQ=!inQ;}
-      } else if(c===','&&!inQ){
-        cols.push(cur.trim());cur='';
-      } else{cur+=c;}
+  // Parse RFC4180-style CSV. Fields may contain commas, quotes, and newlines.
+  var rows=[], row=[], cur='', inQ=false;
+  for(var i=0;i<txt.length;i++){
+    var c=txt[i];
+    if(c==='"'){
+      if(inQ && txt[i+1]==='"'){cur+='"';i++;}
+      else{inQ=!inQ;}
+    } else if(c===','&&!inQ){
+      row.push(cur.trim());cur='';
+    } else if((c==='\n'||c==='\r')&&!inQ){
+      if(c==='\r'&&txt[i+1]==='\n')i++;
+      row.push(cur.trim());cur='';
+      if(row.some(function(value){return value!=='';}))rows.push(row);
+      row=[];
+    } else{
+      cur+=c;
     }
-    cols.push(cur.trim());
-    rows.push(cols);
+  }
+  if(cur!==''||row.length){
+    row.push(cur.trim());
+    if(row.some(function(value){return value!=='';}))rows.push(row);
   }
   return rows;
 }
@@ -1931,6 +1935,7 @@ function workDaysLeft() {
 
 function parseDate(s) {
   if(!s)return null;
+  s=normDate(String(s));
   var p=s.replace(/\//g,'.').split(/[.\-]/);
   if(p.length<3)return null;
   if(p[0].length===4)return new Date(+p[0],+p[1]-1,+p[2]);
