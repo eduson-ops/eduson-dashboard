@@ -14,7 +14,7 @@ ID | Отметка времени | Дата | Время | Сейл | AmoCRM |
 
 ## 2. Google Doc
 
-Создай отдельный Google Doc для журнала бронирований и возьми его ID из URL. Скрипт добавляет одну строку при создании заявки и одну строку при смене статуса.
+Создан резервный Google Doc: [Eduson — резервный журнал записи на пробный урок](https://docs.google.com/document/d/1so8xBJI7RIONjprVwcfGw1HXNfhcTMJwzwMgxJAUCNQ/edit). Его ID: `1so8xBJI7RIONjprVwcfGw1HXNfhcTMJwzwMgxJAUCNQ`. Скрипт добавляет одну строку при создании заявки и одну строку при смене статуса.
 
 ## 3. Apps Script
 
@@ -23,7 +23,7 @@ ID | Отметка времени | Дата | Время | Сейл | AmoCRM |
 - `SHEET_ID` = `1U5L4zrFcqPAy4_6VXA5xHxqM2xAKPkWW-At2neINj18`
 - `BOOKINGS_SHEET_NAME` = `Записи на пробный`
 - `SLOTS_SHEET_NAME` = `Слоты`
-- `DOC_ID` = ID резервного Google Doc
+- `DOC_ID` = `1so8xBJI7RIONjprVwcfGw1HXNfhcTMJwzwMgxJAUCNQ`
 - `ROLE_MAP_JSON` = JSON с email, ролью и именем сейла
 
 Пример `ROLE_MAP_JSON`:
