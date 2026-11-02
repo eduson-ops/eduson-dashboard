@@ -731,14 +731,33 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .slot-status.wait{background:var(--b-bg);color:var(--b)}
 
 /* ── TRIAL BOOKING ── */
-.booking-toolbar{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 14px;border:1px solid var(--border-s);background:var(--bg2);border-radius:var(--r10)}
+.booking-toolbar{display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:16px;padding:12px 14px;border:1px solid var(--border-s);background:var(--bg2);border-radius:var(--r10);max-width:1120px}
 .booking-toolbar label,.booking-form label{display:flex;flex-direction:column;gap:6px;color:var(--muted);font:600 10px var(--mono);letter-spacing:.04em;text-transform:uppercase}
 .booking-slot-meta{font:500 11px var(--sans);color:var(--muted);letter-spacing:0;text-transform:none}
 .booking-toolbar select,.booking-form input,.booking-form select{min-height:38px;padding:8px 10px;border:1px solid var(--border-s);border-radius:var(--r6);background:var(--bg3);color:var(--text);font:500 13px var(--sans);text-transform:none;letter-spacing:0}
 .booking-status-line{font-size:11px;color:var(--muted)}
-.booking-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:16px;border:1px solid var(--border-s);background:var(--bg2);border-radius:var(--r10)}
-.booking-form label:nth-child(3),.booking-form label:nth-child(4),.booking-form label:nth-child(5),.booking-form button,.booking-form #booking-form-status{grid-column:1/-1}
-.booking-primary,.booking-actions button{min-height:38px;border:1px solid var(--y);border-radius:var(--r6);background:var(--y);color:#111;font:700 12px var(--sans);cursor:pointer;padding:8px 14px}
+.booking-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;padding:20px;border:1px solid var(--border-s);background:var(--bg2);border-radius:var(--r10);max-width:1120px}
+.booking-picker{grid-column:1/-1;padding:16px;border:1px solid var(--border-s);border-radius:var(--r10);background:var(--bg3)}
+.booking-picker-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.booking-picker-kicker{display:block;margin-bottom:4px;color:var(--y);font:700 9px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+.booking-picker h3{margin:0;color:var(--text);font-size:16px;letter-spacing:-.02em}
+.booking-free-summary{padding:6px 9px;border:1px solid var(--g-bd);border-radius:999px;background:var(--g-bg);color:var(--g);font:600 11px var(--sans);white-space:nowrap}
+.booking-date-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(124px,1fr));gap:8px;margin-bottom:14px}
+.booking-date-btn,.booking-slot-btn{border:1px solid var(--border-s);background:var(--bg2);color:var(--sub);cursor:pointer;transition:all .16s var(--ease);text-align:left}
+.booking-date-btn{display:flex;flex-direction:column;gap:4px;padding:10px 11px;border-radius:var(--r6)}
+.booking-date-btn strong{font:700 13px var(--sans);color:var(--text)}
+.booking-date-btn span,.booking-slot-btn span{font:500 10px var(--mono);color:var(--muted)}
+.booking-date-btn:hover,.booking-slot-btn:hover{border-color:var(--y-bd);background:var(--y-bg);color:var(--text)}
+.booking-date-btn.is-active{border-color:var(--y);background:var(--y-bg);box-shadow:inset 0 0 0 1px var(--y)}
+.booking-time-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:8px}
+.booking-slot-btn{display:flex;flex-direction:column;gap:4px;padding:11px 12px;border-radius:var(--r6)}
+.booking-slot-btn strong{font:700 15px var(--mono);color:var(--text)}
+.booking-slot-btn.is-active{border-color:var(--b);background:var(--b-bg);box-shadow:inset 0 0 0 1px var(--b)}
+.booking-slot-btn.is-active strong{color:var(--b)}
+.booking-slot-grid-wrap{min-height:45px}
+.booking-form > label:first-of-type,.booking-form > button,.booking-form > #booking-form-status{grid-column:1/-1}
+.booking-primary,.booking-actions button{min-height:42px;border:1px solid var(--y);border-radius:var(--r6);background:var(--y);color:#111;font:700 12px var(--sans);cursor:pointer;padding:8px 16px}
+.booking-primary{justify-self:end;min-width:220px}
 .booking-primary:disabled{opacity:.55;cursor:wait}
 .booking-section-title{margin:22px 0 10px;font-size:13px;color:var(--text)}
 .booking-note{margin-bottom:12px;color:var(--sub)}
@@ -755,7 +774,7 @@ html[data-season="season"] .sidebar:hover,html[data-season="fest"] .sidebar:hove
 .booking-actions button{min-height:32px;padding:6px 10px}
 .booking-actions button:last-child{background:transparent;color:var(--r);border-color:var(--r-bd)}
 .booking-empty{padding:24px;border:1px dashed var(--border-s);border-radius:var(--r10);color:var(--muted);text-align:center}
-@media(max-width:640px){.booking-form{grid-template-columns:1fr}.booking-toolbar{align-items:stretch;flex-direction:column}.booking-status-line{display:none}.booking-card a{margin-left:0}}
+@media(max-width:640px){.booking-form{grid-template-columns:1fr;padding:14px}.booking-toolbar{align-items:stretch;flex-direction:column}.booking-status-line{display:none}.booking-card a{margin-left:0}.booking-picker-head{flex-direction:column}.booking-free-summary{align-self:flex-start}.booking-primary{width:100%;justify-self:stretch}}
 
 /* ── SKIN BADGE IN TOPBAR ── */
 .skin-btn{

@@ -11,13 +11,57 @@
   var request = function (path, options) { var config = options || {}; if (config.body) return postForm(JSON.parse(config.body)); return jsonp(path); };
   var slots = function () { return (global.__bookingSlots || []).filter(function (slot) { return String(slot.status || 'wait').toLowerCase() === 'wait'; }); };
   var slotKey = function (slot) { return [slot.date, slot.time, slot.who || slot.manager].join('|'); };
+  var monthNames = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+  var dateLabel = function (value) {
+    var parts = String(value || '').split('.');
+    if (parts.length !== 3) return value;
+    return String(Number(parts[0])).padStart(2, '0') + ' ' + (monthNames[Number(parts[1]) - 1] || parts[1]);
+  };
+  var groupSlots = function (rows) {
+    var groups = {};
+    (rows || []).forEach(function (slot) {
+      var date = String(slot.date || '');
+      var time = String(slot.time || '');
+      if (!date || !time) return;
+      if (!groups[date]) groups[date] = { date: date, count: 0, times: {} };
+      groups[date].count += 1;
+      var key = date + '|' + time;
+      if (!groups[date].times[key]) groups[date].times[key] = { slot: slot, count: 0 };
+      groups[date].times[key].count += 1;
+    });
+    return Object.keys(groups).map(function (date) {
+      var group = groups[date];
+      group.times = Object.keys(group.times).map(function (key) { return group.times[key]; });
+      return group;
+    });
+  };
   var render = function (root, state) {
     var role = state.role; var bookings = state.bookings || [];
     var slotRows = slots();
+    var slotGroups = groupSlots(slotRows);
+    var firstGroup = slotGroups[0];
+    var firstTime = firstGroup && firstGroup.times[0];
     var body = '';
     if (role === 'call_center') {
+      var renderTimeGrid = function (group, selectedValue) {
+        if (!group) return '<div class="booking-empty">Свободных слотов пока нет</div>';
+        return '<div class="booking-time-grid">' + group.times.map(function (item) {
+          var value = slotKey(item.slot);
+          var active = value === selectedValue ? ' is-active' : '';
+          var placeLabel = item.count === 1 ? '1 место' : item.count + ' места';
+          return '<button type="button" class="booking-slot-btn' + active + '" data-slot-value="' + esc(value) + '"><strong>' + esc(item.slot.time) + '</strong><span>' + placeLabel + '</span></button>';
+        }).join('') + '</div>';
+      };
+      var initialValue = firstTime ? slotKey(firstTime.slot) : '';
+      var dateButtons = slotGroups.map(function (group, index) {
+        return '<button type="button" class="booking-date-btn' + (index === 0 ? ' is-active' : '') + '" data-booking-date="' + esc(group.date) + '"><strong>' + esc(dateLabel(group.date)) + '</strong><span>' + group.count + ' мест</span></button>';
+      }).join('');
       body = '<form id="booking-create-form" class="booking-form">'
-        + '<label>Свободный слот<select name="slot" required>' + slotRows.map(function (slot) { return '<option value="' + esc(slotKey(slot)) + '">' + esc(slot.date + ' · ' + slot.time) + '</option>'; }).join('') + '</select><span class="booking-slot-meta">Свободно слотов: <b>' + slotRows.length + '</b></span></label>'
+        + '<section class="booking-picker" aria-label="Выбор даты и времени">'
+        + '<div class="booking-picker-head"><div><span class="booking-picker-kicker">Шаг 1</span><h3>Выберите дату и время</h3></div><span class="booking-free-summary">Свободно мест <b>' + slotRows.length + '</b></span></div>'
+        + '<div class="booking-date-list">' + (dateButtons || '<div class="booking-empty">Свободных слотов пока нет</div>') + '</div>'
+        + '<div id="booking-slot-grid" class="booking-slot-grid-wrap">' + renderTimeGrid(firstGroup, initialValue) + '</div>'
+        + '<input type="hidden" name="slot" id="booking-slot-value" value="' + esc(initialValue) + '" required></section>'
         + '<label>Ссылка AmoCRM<input name="crmUrl" type="url" placeholder="https://...amocrm.ru/..." required></label>'
         + '<label>Возраст ребёнка<input name="age" type="number" min="1" max="18" required></label>'
         + '<label>Телефон клиента<input name="phone" type="tel" placeholder="+7 999 123-45-67" required></label>'
@@ -30,7 +74,26 @@
     }
     root.innerHTML = '<div class="booking-toolbar"><label>Режим<select id="booking-role-select">' + Object.keys(roleName).map(function (key) { return '<option value="' + key + '"' + (key === role ? ' selected' : '') + '>' + roleName[key] + '</option>'; }).join('') + '</select></label><span class="booking-status-line">Данные обновляются через booking endpoint</span></div>' + body;
     var roleSelect = root.querySelector('#booking-role-select'); if (roleSelect) roleSelect.addEventListener('change', function () { writeRole(this.value); refresh(root); });
-    var form = root.querySelector('#booking-create-form'); if (form) { form.addEventListener('submit', function (event) { submitCreate(event, root); }); }
+    var form = root.querySelector('#booking-create-form'); if (form) {
+      form.addEventListener('submit', function (event) { submitCreate(event, root); });
+      var slotValue = form.querySelector('#booking-slot-value');
+      var slotGrid = form.querySelector('#booking-slot-grid');
+      var activateDate = function (date) {
+        var group = slotGroups.find(function (item) { return item.date === date; });
+        var first = group && group.times[0];
+        form.querySelectorAll('[data-booking-date]').forEach(function (button) { button.classList.toggle('is-active', button.dataset.bookingDate === date); });
+        if (slotGrid) slotGrid.innerHTML = renderTimeGrid(group, first ? slotKey(first.slot) : '');
+        if (slotValue) slotValue.value = first ? slotKey(first.slot) : '';
+      };
+      form.querySelectorAll('[data-booking-date]').forEach(function (button) { button.addEventListener('click', function () { activateDate(this.dataset.bookingDate); }); });
+      if (slotGrid) slotGrid.addEventListener('click', function (event) {
+        var button = event.target.closest('[data-slot-value]');
+        if (!button) return;
+        slotGrid.querySelectorAll('[data-slot-value]').forEach(function (item) { item.classList.remove('is-active'); });
+        button.classList.add('is-active');
+        if (slotValue) slotValue.value = button.dataset.slotValue;
+      });
+    }
     root.querySelectorAll('[data-booking-action]').forEach(function (button) { button.addEventListener('click', function () { transition(this.dataset.bookingAction, this.dataset.bookingId, root); }); });
   };
   var bookingList = function (bookings) { return bookings.length ? '<div class="booking-list">' + bookings.map(function (booking) { return '<article class="booking-card"><b>' + esc(booking.date + ' · ' + booking.time) + '</b><span>' + esc(booking.sale) + ' · ' + esc(booking.phone) + '</span><span class="booking-pill ' + esc(booking.status) + '">' + esc(booking.status) + '</span><a href="' + esc(booking.crmUrl) + '" target="_blank" rel="noopener">AmoCRM ↗</a></article>'; }).join('') + '</div>' : '<div class="booking-empty">Записей пока нет</div>'; };
