@@ -67,5 +67,9 @@ export function createGoogleSheetsClient({serviceAccountPath, spreadsheetId, fet
     if (!data.length) return;
     return authorized(`${base}/values:batchUpdate`, {method: 'POST', body: {valueInputOption: 'RAW', data: data.map(item => ({...item, majorDimension: 'ROWS'}))}});
   }
-  return {request, batchUpdate};
+  async function appendCells(sheetId,values) {
+    if(!Number.isInteger(sheetId)||sheetId<0||!Array.isArray(values)||values.some(row=>!Array.isArray(row)))throw new SheetSyncError('SYNC_CONFIGURATION');
+    return authorized(`${base}:batchUpdate`,{method:'POST',body:{requests:[{appendCells:{sheetId,rows:values.map(row=>({values:row.map(value=>({userEnteredValue:typeof value==='number'?{numberValue:value}:typeof value==='boolean'?{boolValue:value}:{stringValue:String(value??'')}}))})),fields:'userEnteredValue'}}]}});
+  }
+  return {request, batchUpdate,appendCells};
 }

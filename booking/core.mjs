@@ -39,6 +39,26 @@ export function legacyOutcomeUnknown(booking) {
 export function canResolveLegacy(actor, booking) {
   return actor?.role === 'admin' && legacyOutcomeUnknown(booking);
 }
+export function canConfirmBooking(actor,booking,now=new Date()) {
+  const timing=confirmationTiming(booking||{},now);
+  return ['admin','confirmation'].includes(actor?.role)&&booking?.state==='scheduled'
+    &&booking.confirmationStatus==='pending'&&!booking.historyOnly&&!legacyOutcomeUnknown(booking)
+    &&Boolean(timing.due)&&!timing.overdue;
+}
+export function canAssignBooking(actor,booking) {
+  return actor?.role==='admin'&&booking?.state==='scheduled'&&booking.confirmationStatus==='confirmed'
+    &&!booking.historyOnly&&!legacyOutcomeUnknown(booking);
+}
+export function canRestoreBooking(actor,booking,now=new Date()) {
+  return ['admin','confirmation','call_center'].includes(actor?.role)&&booking?.state==='cancelled'
+    &&!booking.historyOnly&&new Date(booking.endsAt)>now;
+}
+export function legacyResolutionManagers(actor,booking,activeManagers=[],users=[]) {
+  if(actor?.role!=='admin')return [];
+  const source=booking?.historyOnly?users:activeManagers;
+  return [...new Map(source.filter(manager=>booking?.historyOnly?manager.role==='sales':manager.active!==false)
+    .map(manager=>[manager.id,manager])).values()];
+}
 export function canEditDetails(actor, booking) {
   if(!actor || !booking)return false;
   return ['admin','confirmation'].includes(actor.role)
@@ -83,4 +103,104 @@ export function makeDraftStore(storage, userId) {
     save(name,value) {try {storage.setItem(key(name),JSON.stringify(value));} catch {}},
     remove(name) {try {storage.removeItem(key(name));} catch {}}
   };
+}
+
+export function selectableBookingSlots(rows,date,now=new Date()) {
+  const found=new Map();
+  for(const slot of rows||[]){
+    const match=/^(\d{2}):(\d{2})$/.exec(String(slot.time||''));
+    if(slot.date!==date || !match || Number(match[1])>23 || Number(match[2])>59)continue;
+    const remaining=Number(slot.remaining);
+    if(!Number.isFinite(remaining)||remaining<=0)continue;
+    const startsAt=new Date(`${date}T${slot.time}:00+03:00`);
+    if(!Number.isFinite(+startsAt)||startsAt<=now)continue;
+    if(!found.has(slot.time))found.set(slot.time,slot);
+  }
+  return [...found.values()].sort((a,b)=>a.time.localeCompare(b.time));
+}
+
+export function isBookingSelectionAvailable(rows,date,time,now=new Date()) {
+  return selectableBookingSlots(rows,date,now).some(slot=>slot.time===time);
+}
+
+export function bookingDateRail(date,today=businessDate()) {
+  const first=addDays(date,-2)<today?today:addDays(date,-2);
+  return Array.from({length:5},(_,index)=>addDays(first,index));
+}
+
+export function bookingIntervalEnd(time) {
+  const match=/^(\d{2}):(\d{2})$/.exec(String(time||''));
+  if(!match||Number(match[1])>23||Number(match[2])>59)return null;
+  const total=Number(match[1])*60+Number(match[2])+60;
+  return {time:`${String(Math.floor(total/60)%24).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`,dayOffset:Math.floor(total/1440)};
+}
+
+export function bookingStatusPresentation(booking) {
+  const state=booking?.state;
+  if(state==='completed')return {tone:'completed',label:'Завершён',outcomeUnknown:false};
+  if(state==='cancelled')return {tone:'cancelled',label:'Отменён',outcomeUnknown:false};
+  if(state==='in_progress')return {tone:'in_progress',label:'Урок в работе',outcomeUnknown:false};
+  return {tone:booking?.confirmationStatus==='confirmed'?'confirmed':'pending',label:booking?.confirmationStatus==='confirmed'?'Урок подтверждён':'Ожидает подтверждения',outcomeUnknown:legacyOutcomeUnknown(booking)};
+}
+
+export function filterHourMetricBookings(bookings,{date,time,tag='',metric='all',allocations=[]}={}) {
+  const allocatedReserve=new Set(allocations.filter(item=>item.kind==='reserve').map(item=>item.bookingId));
+  return filterHourBookings(bookings,{time,tag}).filter(booking=>{
+    if(date&&booking.date!==date)return false;
+    const active=booking.state!=='cancelled';
+    if(metric==='total')return active;
+    if(metric==='reserve')return active&&(allocatedReserve.has(booking.id)||booking.assignmentKind==='reserve');
+    if(metric==='confirmed')return active&&booking.confirmationStatus==='confirmed';
+    if(metric==='cancelledConfirmation')return !active&&['confirmation','call_center','system'].includes(booking.cancelSource);
+    if(metric==='cancelledSales')return !active&&booking.cancelSource==='sales';
+    if(metric==='completed')return booking.state==='completed';
+    if(metric==='inProgress')return booking.state==='in_progress';
+    return true;
+  });
+}
+
+export function rollingScheduleDates(from,count=14) {
+  return Array.from({length:count},(_,index)=>addDays(from,index));
+}
+
+export function scheduleHourEntries(day) {
+  const entries=new Map();
+  for(const interval of day?.intervals||[]){
+    const start=/^(\d{2}):00$/.exec(interval.start),end=/^(\d{2}):00$/.exec(interval.end);
+    if(!start||!end)continue;
+    for(let hour=Number(start[1]);hour<Number(end[1]);hour++)entries.set(hour,effectiveReserveCapacity(interval,day));
+  }
+  return entries;
+}
+
+export function scheduleDayFromHours(day,entries) {
+  const sorted=[...entries].sort(([left],[right])=>left-right);
+  const intervals=[];
+  for(const [hour,reserveCapacity] of sorted){
+    const start=`${String(hour).padStart(2,'0')}:00`,end=`${String(hour+1).padStart(2,'0')}:00`;
+    const previous=intervals.at(-1);
+    if(previous&&previous.end===start&&previous.reserveCapacity===reserveCapacity)previous.end=end;
+    else intervals.push({start,end,reserveCapacity});
+  }
+  return {...day,intervals};
+}
+
+export function setScheduleHour(day,hour,{enabled,reserveCapacity}={}) {
+  if(!Number.isInteger(hour)||hour<10||hour>21)return day;
+  const entries=scheduleHourEntries(day);
+  const shouldEnable=enabled??!entries.has(hour);
+  if(shouldEnable)entries.set(hour,Number(reserveCapacity??entries.get(hour)??day.reserveCapacity??1));
+  else entries.delete(hour);
+  return scheduleDayFromHours(day,entries);
+}
+
+export function unionScheduleWeek(days,sourceDates,targetDates) {
+  return days.map(day=>{
+    const index=targetDates.indexOf(day.date);
+    if(index<0)return day;
+    const source=days.find(item=>item.date===sourceDates[index]);
+    const entries=scheduleHourEntries(day);
+    for(const [hour,reserve] of scheduleHourEntries(source))if(!entries.has(hour))entries.set(hour,reserve);
+    return scheduleDayFromHours(day,entries);
+  });
 }

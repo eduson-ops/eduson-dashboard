@@ -263,14 +263,14 @@ test('stats deficit counts confirmed demand for eligible primary places instead 
   assert.equal((await service.stats(admin, { date })).totals.deficit, 0);
 });
 
-test('confirmation remains allowed after deadline but rejects exact scheduled start and later', async t => {
+test('confirmation accepts before its deadline and rejects after the deadline or scheduled start', async t => {
   const { service, setNow } = await fixture(t);
   const before = await service.createBooking(caller, input());
   const boundary = await service.createBooking(caller, input());
   const later = await service.createBooking(caller, input({ time: '13:00' }));
-  setNow('2026-11-10T08:59:59.999Z');
+  setNow('2026-11-10T06:59:59.999Z');
   assert.equal((await service.confirmBooking(confirmer, before.id, { version: before.version })).confirmationStatus, 'confirmed');
-  setNow('2026-11-10T09:00:00.000Z');
+  setNow('2026-11-10T07:00:00.001Z');
   await assert.rejects(service.confirmBooking(confirmer, boundary.id, { version: boundary.version }), { status: 409 });
   setNow('2026-11-10T10:00:00.001Z');
   await assert.rejects(service.confirmBooking(confirmer, later.id, { version: later.version }), { status: 409 });

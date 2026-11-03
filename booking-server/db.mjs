@@ -2,12 +2,12 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
 
-const schema = new URL('./schema.sql', import.meta.url);
+const schemas = ['schema.sql','compensation-schema.sql','operational-schema.sql'].map(name=>new URL(name,import.meta.url));
 const result = value => ({ ...value, rows: value.rows || [], rowCount: value.rowCount ?? value.affectedRows ?? value.rows?.length ?? 0 });
 
 /** PostgreSQL owns the data in both modes. Embedded mode uses a single queued connection. */
 export async function openDatabase({ databaseUrl, dataDir, memory = false } = {}) {
-  const sql = await readFile(schema, 'utf8');
+  const sql = (await Promise.all(schemas.map(schema=>readFile(schema,'utf8')))).join('\n');
   if (databaseUrl) {
     const pool = new pg.Pool({
       connectionString: databaseUrl,

@@ -153,6 +153,24 @@ test('report projection adds a stable ID and never merges an anonymous legacy CR
   assert.equal(rows[1][14], undefined);
   assert.equal(rows[2][14], booking.id);
 });
+
+test('test reports keep all fourteen business cells and carry separate boolean metadata', {skip: !available}, async t => {
+  const f = await fixture(t);
+  const booking = snapshot({isTest: true, state: 'completed', report: {timestamp:'2026-11-03T09:00:00Z', teacher:'Synthetic teacher', date:'2026-11-03', time:'12:00', crmUrl:'CRM', recordingUrl:'RECORDING', practice:'Python', age:12, package:'Package', paymentMethod:'Без оплаты', agreement:'Agreement', objection:'Objection', channel:'Сайт', amountNet:9999}});
+  f.setBooking(booking);await enqueue(f.db,{kind:'report'});await f.sync.runOnce();
+  const rows=f.google.tabs.get('Ответы формы');
+  assert.deepEqual(rows[0].slice(14),['Booking ID','Test flag']);assert.deepEqual(rows[1].slice(0,14),module.mapReportRow(booking));assert.deepEqual(rows[1].slice(14),[booking.id,true]);
+  f.setBooking({...booking,isTest:false,version:2});await enqueue(f.db,{id:'job-2',kind:'report',version:2});await f.sync.runOnce();
+  assert.equal(rows.length,2);assert.equal(rows[1][15],false);assert.deepEqual(rows[1].slice(0,14),module.mapReportRow(booking));
+});
+
+for(const occupied of ['foreign header','foreign data'])test(`test metadata cannot replace ${occupied}`,{skip:!available},async t=>{
+  const f=await fixture(t),rows=f.google.tabs.get('Ответы формы');rows[0][14]='Booking ID';
+  if(occupied==='foreign header')rows[0][15]='Unowned production column';else rows.push([...Array(15).fill(''),'Existing data']);
+  f.setBooking(snapshot({isTest:true,report:{practice:'Python'}}));await enqueue(f.db,{kind:'report'});await f.sync.runOnce();
+  assert.equal((await f.db.query('SELECT last_error FROM eduson_booking.sync_jobs')).rows[0].last_error,'SHEET_HEADER_MISMATCH');
+  assert.equal(f.google.requests.filter(request=>request.method==='PUT'||request.url.includes(':append')).length,0);
+});
 test('cancel restore preserves the fact and changes its stable row status', {skip: !available}, async t => {
   const f = await fixture(t);
   f.setBooking(snapshot({state: 'cancelled', cancelReason: 'Synthetic reason'}));

@@ -16,3 +16,11 @@ test('published dashboard booking entry opens the platform without calling the r
   window.refreshBookingUI();
   assert.match(root.innerHTML, /Открыть букинг/);
 });
+
+test('legacy schedule navigation opens the migrated authenticated schedule before invoking the old editor',async()=>{
+  const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
+  const source=html.match(/function showPage\(id\) \{([\s\S]*?)\n\}/)[1];
+  const window={location:{assigned:null,assign(url){this.assigned=url;}}};
+  vm.runInNewContext('function showPage(id){'+source+'}\nshowPage("schedule");',{window});
+  assert.equal(window.location.assigned,'https://booking.82.148.17.109.sslip.io/#schedule');
+});

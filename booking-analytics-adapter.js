@@ -70,6 +70,21 @@
       return row.map(function (value) { return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"'; }).join(',');
     }).join('\r\n');
   }
+  function normalizedHeader(value) { return String(value || '').replace(/\s+/g, ' ').trim().toLowerCase(); }
+  function withoutTestRows(rows, kind) {
+    // Only the named metadata column owns this meaning. A foreign column stays untouched.
+    if (kind !== 'form' || normalizedHeader(rows[0][15]) !== 'test flag') return rows;
+    return [rows[0]].concat(rows.slice(1).filter(function (row) {
+      return !/^(true|1|да)$/i.test(String(row[15] == null ? '' : row[15]).trim());
+    }));
+  }
+  function csvResponse(source, rows) {
+    var headers = new Headers(source.headers);
+    // A replacement body no longer has the upstream wire encoding or byte length.
+    headers.delete('content-length');
+    headers.delete('content-encoding');
+    return new Response(serializeCsv(rows), { status: source.status, statusText: source.statusText, headers: headers });
+  }
   function lessonRow(report) {
     return [report.timestamp, report.teacher, report.date, report.time, report.crmUrl, report.recordingUrl,
       report.practice, report.age, report.package, report.paymentMethod, report.agreement, report.objection,
@@ -167,23 +182,23 @@
     finally { if (pending === request) pending = null; }
   }
   function mergedResponse(source, text, value, kind) {
-    var rows = parseCsv(text), idColumn = kind === 'form' ? 14 : 8;
+    var rows = withoutTestRows(parseCsv(text), kind), idColumn = kind === 'form' ? 14 : 8;
     var ids = new Set(value.managedBookingIds);
     var result = [rows[0].slice()];
     result[0][idColumn] = result[0][idColumn] || 'Booking ID';
+    if (kind === 'form') result[0][15] = result[0][15] || 'Test flag';
     if (kind === 'cancels') result[0][9] = result[0][9] || 'Booking status';
     rows.slice(1).forEach(function (row) {
       var id = String(row[idColumn] || '').trim();
       if (!id || !ids.has(id)) result.push(row);
     });
     (kind === 'form' ? value.lessons : value.cancellations).forEach(function (record) {
-      result.push(kind === 'form' ? lessonRow(record) : cancelRow(record));
+      if (record.isTest === true) return;
+      var row = kind === 'form' ? lessonRow(record) : cancelRow(record);
+      if (kind === 'form' && normalizedHeader(result[0][15]) === 'test flag') row.push(false);
+      result.push(row);
     });
-    var headers = new Headers(source.headers);
-    // A replacement body no longer has the upstream wire encoding or byte length.
-    headers.delete('content-length');
-    headers.delete('content-encoding');
-    return new Response(serializeCsv(result), { status: source.status, statusText: source.statusText, headers: headers });
+    return csvResponse(source, result);
   }
 
   window.fetch = async function (input, init) {
@@ -209,7 +224,11 @@
       text = legacy[kind].text;
     }
     var value = await snapshot();
-    if (!value) return response;
+    if (!value) {
+      // Test reports stay in the backoffice without entering analytics during an API outage.
+      var originalRows = parseCsv(text), safeRows = withoutTestRows(originalRows, kind);
+      return safeRows.length === originalRows.length ? response : csvResponse(response, safeRows);
+    }
     return mergedResponse(response, text, value, kind);
   };
 
