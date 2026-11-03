@@ -306,7 +306,7 @@ test('versioned schema migration widens existing age checks and preserves stored
   service = new BookingService(db, { now: () => new Date('2026-11-03T09:00:00Z') });
   assert.equal((await service.listBookings(admin,{ scope:'all' }))[0].id, original.id);
   assert.equal((await service.createBooking(admin,input({ age:1 }))).age, 1);
-  assert.equal((await db.query('SELECT version FROM eduson_booking.schema_migrations')).rows[0].version, 1);
+  assert.ok((await db.query('SELECT version FROM eduson_booking.schema_migrations')).rows.some(row=>row.version===1));
 });
 
 test('analytics retains archived cancellation facts and distinguishes actor from assigned teacher', async t => {

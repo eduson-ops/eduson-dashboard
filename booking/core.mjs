@@ -30,6 +30,47 @@ export function filterHourBookings(bookings, {time,tag='',search=''} = {}) {
   return bookings.filter(booking=>booking.time===time && matchesSearch(booking,search)
     && (!tag || (range && Number(booking.age)>=Number(range[1]) && Number(booking.age)<=Number(range[2]))));
 }
+export function booleanFact(value, yes, no, unknown='Не указано') {
+  return value === true ? yes : value === false ? no : unknown;
+}
+export function legacyOutcomeUnknown(booking) {
+  return booking?.state === 'scheduled' && booking.legacy?.elapsedUnknown === true;
+}
+export function canResolveLegacy(actor, booking) {
+  return actor?.role === 'admin' && legacyOutcomeUnknown(booking);
+}
+export function canEditDetails(actor, booking) {
+  if(!actor || !booking)return false;
+  return ['admin','confirmation'].includes(actor.role)
+    || (actor.role === 'call_center' && Boolean(actor.id) && booking.createdBy === actor.id)
+    || (actor.role === 'sales' && Boolean(actor.id) && booking.assignedTo === actor.id);
+}
+const detailFields=['studentName','parentName','phone','crmUrl','age','hasPc','parentPresent','comment'];
+function normalizeDetail(field, value) {
+  if(['hasPc','parentPresent'].includes(field))return value === true || value === 'true' ? true : value === false || value === 'false' ? false : null;
+  if(field === 'age')return value === '' || value == null ? null : Number(value);
+  return String(value ?? '').trim();
+}
+export function changedDetails(original, values) {
+  const changes={};
+  for(const field of detailFields){
+    if(!Object.hasOwn(values,field))continue;
+    const value=normalizeDetail(field,values[field]);
+    if(!Object.is(value,normalizeDetail(field,original[field])))changes[field]=value;
+  }
+  return changes;
+}
+export function effectiveReserveCapacity(interval, day) {
+  return Number(interval.reserveCapacity ?? day.reserveCapacity ?? 1);
+}
+export function setDayReserveCapacity(day, value) {
+  const reserveCapacity=Number(value);
+  const update=intervals=>intervals.map(interval=>({...interval,reserveCapacity}));
+  return {...day,reserveCapacity,intervals:update(day.intervals),...(day.disabledIntervals?{disabledIntervals:update(day.disabledIntervals)}:{})};
+}
+export function schedulePayload(day, {managerId,ageGroups}) {
+  return {managerId,date:day.date,intervals:day.intervals.map(interval=>({start:interval.start,end:interval.end,...(interval.reserveCapacity == null?{}:{reserveCapacity:Number(interval.reserveCapacity)})})),ageGroups:[...ageGroups],reserveCapacity:Number(day.reserveCapacity??1),version:Number(day.version||0)};
+}
 export function confirmationTiming(booking, now = new Date()) {
   const due = new Date(booking.confirmationDueAt);
   const valid = Number.isFinite(due.getTime());

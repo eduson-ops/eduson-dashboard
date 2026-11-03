@@ -109,3 +109,40 @@ test('parallel incorrect logins cannot exceed the ten-attempt limit', async t =>
   assert.equal(responses.filter(x => x.status === 429).length, 6);
   await Promise.all(responses.map(x => x.arrayBuffer()));
 });
+
+test('legacy HTTP corrections preserve unknown facts and require an administrator for historical outcomes', async t => {
+  const db = await openDatabase({ memory: true });
+  let instant = new Date('2030-01-01T06:00:00Z');
+  const app = await createApp({ db, now: () => instant, enableWorkers: false });
+  t.after(async () => { await app.close(); await db.close(); });
+  const port = await app.listen(0); const base = `http://127.0.0.1:${port}`;
+  const system = { id: 'system', role: 'admin' }; const password = 'Legacy password 2030';
+  const admin = await app.auth.createUser(system, { name: 'Администратор', email: 'admin@legacy.test', role: 'admin', password });
+  const confirmation = await app.auth.createUser(system, { name: 'Подтверждение', email: 'confirm@legacy.test', role: 'confirmation', password });
+  const sales = await app.auth.createUser(system, { name: 'Сейл', email: 'sales@legacy.test', role: 'sales', password });
+  await app.service.saveSchedule(admin, { managerId: sales.id, date: '2030-01-02', intervals: [{ start: '12:00', end: '13:00', reserveCapacity: 0 }] });
+  const original = await app.service.createBooking(admin, { date: '2030-01-02', time: '12:00', studentName: 'До переноса', parentName: 'До переноса', phone: '+79990000000', crmUrl: 'https://eduson.amocrm.ru/leads/detail/989898', age: 10, hasPc: true, parentPresent: true, idempotencyKey: 'legacy-http' });
+  await db.query("UPDATE eduson_booking.bookings SET student_name='',parent_name='',phone='',has_pc=NULL,parent_present=NULL,created_by='legacy-import' WHERE id=$1", [original.id]);
+  instant = new Date('2030-01-03T06:00:00Z');
+  await db.query('INSERT INTO eduson_booking.audit_events(id,booking_id,actor_id,actor_role,action,payload,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)', ['legacy-http-import', original.id, 'legacy-import', 'admin', 'legacy_imported', JSON.stringify({ source: 'vds_sqlite', managerName: sales.name, capturedAt: instant.toISOString(), elapsedUnknown: true, raw: { privateNote: 'raw-only-in-audit' } }), instant]);
+  async function login(email) {
+    const res = await fetch(base + '/api/session/login', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    assert.equal(res.status, 200); return { ...(await res.json()), cookie: res.headers.get('set-cookie').split(';')[0] };
+  }
+  async function request(session, action, method, input) {
+    const res = await fetch(`${base}/api/bookings/${original.id}/${action}`, { method, headers: { cookie: session.cookie, 'content-type': 'application/json', 'x-csrf-token': session.csrfToken }, body: JSON.stringify(input) });
+    return { status: res.status, body: await res.json() };
+  }
+  const a = await login(admin.email); const c = await login(confirmation.email);
+  let result = await request(c, 'details', 'PUT', { version: original.version, studentName: 'Уточнённое имя' });
+  assert.equal(result.status, 200);
+  let record = result.body.booking;
+  assert.equal(record.parentName, ''); assert.equal(record.phone, ''); assert.equal(record.parentPresent, null);
+  assert.equal(record.legacy.elapsedUnknown, true); assert.equal('raw' in record.legacy, false);
+  result = await request(c, 'resolve-legacy', 'POST', { version: record.version, outcome: 'completed', managerId: sales.id, reason: 'Проверена запись урока' });
+  assert.equal(result.status, 403);
+  result = await request(a, 'resolve-legacy', 'POST', { version: record.version, outcome: 'completed', managerId: sales.id, reason: 'Проверена запись урока' });
+  assert.equal(result.status, 200); record = result.body.booking;
+  assert.equal(record.state, 'completed'); assert.equal(record.confirmationStatus, 'pending'); assert.equal(record.confirmedAt, null);
+  assert.equal(record.legacy.needsReview, false);
+});

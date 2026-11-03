@@ -245,3 +245,9 @@ test('a delayed cancellation projects its archived facts even when the booking w
   assert.deepEqual(row.slice(0, 8), [cancellation.timestamp, snapshot().crmUrl, cancellation.reason, 'Да', cancellation.contactMethod, snapshot().age, cancellation.comment, cancellation.manager]);
   assert.equal(row[9], 'restored');
 });
+test('legacy unknown PC and parent attendance map to blank cells while known booleans retain their truth', () => {
+  assert.equal(typeof module.mapBookingRow, 'function', 'Booking mapper must expose pure legacy truth mapping for regression checks');
+  assert.deepEqual(module.mapBookingRow(snapshot({hasPc: null, parentPresent: null})).slice(6, 8), ['', '']);
+  assert.deepEqual(module.mapBookingRow(snapshot({hasPc: false, parentPresent: false})).slice(6, 8), ['Нет', 'Нет']);
+  assert.deepEqual(module.mapBookingRow(snapshot({hasPc: true, parentPresent: true})).slice(6, 8), ['Да', 'Да']);
+});

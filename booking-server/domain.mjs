@@ -4,7 +4,8 @@ const HOURS = Array.from({ length: 12 }, (_, i) => `${String(i + 10).padStart(2,
 const ROLES = ['admin', 'call_center', 'confirmation', 'sales'];
 const SYSTEM = { id: 'system', role: 'admin', name: 'Система' };
 const BOOKING_SELECT = `SELECT b.*,u.name AS assigned_name,r.payload AS report_payload,
-  (SELECT e.payload || jsonb_build_object('actorId',e.actor_id,'actorRole',e.actor_role) FROM eduson_booking.audit_events e WHERE e.booking_id=b.id AND e.action IN ('cancelled','expired') ORDER BY (e.payload->>'version')::int DESC,e.created_at DESC LIMIT 1) AS cancellation_payload
+  (SELECT (e.payload-'raw') || jsonb_build_object('actorId',e.actor_id,'actorRole',e.actor_role) FROM eduson_booking.audit_events e WHERE e.booking_id=b.id AND e.action IN ('cancelled','expired','legacy_cancelled') ORDER BY (e.payload->>'version')::int DESC,e.created_at DESC LIMIT 1) AS cancellation_payload
+  ,(SELECT e.payload FROM eduson_booking.audit_events e WHERE e.booking_id=b.id AND e.action='legacy_imported' ORDER BY e.created_at,e.id LIMIT 1) AS legacy_payload
   FROM eduson_booking.bookings b LEFT JOIN eduson_booking.users u ON u.id=b.assigned_to LEFT JOIN eduson_booking.reports r ON r.booking_id=b.id`;
 const iso = value => value == null ? null : new Date(value).toISOString();
 const dateString = value => typeof value === 'string' ? value.slice(0, 10) : new Date(value).toISOString().slice(0, 10);
@@ -30,6 +31,19 @@ function url(value, label) {
     try { parsed = new URL(result); } catch { fail(400, `${label}: укажите корректную ссылку.`, 'VALIDATION'); }
     assert(['http:', 'https:'].includes(parsed.protocol) && !parsed.username && !parsed.password, 400, `${label}: требуется ссылка http или https.`, 'VALIDATION');
   }
+  return result;
+}
+function validatedPhone(value) {
+  const result=text(value,'Телефон',{required:true,max:40});
+  const digits=result.replace(/\D/g,'');
+  assert(digits.length>=10 && digits.length<=15,400,'Телефон должен содержать от 10 до 15 цифр.','VALIDATION');
+  return result;
+}
+function validatedCrm(value) {
+  const result=url(value,'CRM');
+  const parsed=result ? new URL(result) : null;
+  const suffix='.amocrm.ru',subdomain=parsed?.hostname.slice(0,-suffix.length)||'';
+  assert(parsed?.protocol==='https:' && parsed.hostname.endsWith(suffix) && subdomain.length>0 && subdomain.split('.').every(Boolean) && parsed.pathname.length>1 && /^https:\/\/[^\s/]+\.amocrm\.ru\/\S+$/i.test(result),400,'Укажите ссылку HTTPS на запись в AmoCRM.','VALIDATION');
   return result;
 }
 function validDate(value) {
@@ -69,20 +83,35 @@ function intervals(value) {
     assert(item && typeof item === 'object', 400, 'Некорректный рабочий интервал.', 'VALIDATION');
     const start = minute(item.start), end = minute(item.end, true);
     assert(end > start, 400, 'Конец интервала должен быть позже начала.', 'VALIDATION');
-    return { start: item.start, end: item.end, from: start, to: end };
+    assert(item.reserveCapacity === undefined || [0,1].includes(item.reserveCapacity),400,'На интервал разрешено не более одного резервного места.','VALIDATION');
+    return { start: item.start, end: item.end, from: start, to: end, ...(item.reserveCapacity === undefined ? {} : {reserveCapacity:item.reserveCapacity}) };
   }).sort((a, b) => a.from - b.from);
   const result = [];
   for (const item of sorted) {
     const previous = result.at(-1);
     assert(!previous || item.from >= previous.to, 400, 'Рабочие интервалы не должны пересекаться.', 'VALIDATION');
-    if (previous && previous.to === item.from) { previous.end = item.end; previous.to = item.to; }
+    if (previous && previous.to === item.from && previous.reserveCapacity === item.reserveCapacity) { previous.end = item.end; previous.to = item.to; }
     else result.push({ ...item });
   }
-  return result.map(({ start, end }) => ({ start, end }));
+  return result.map(({ start, end, reserveCapacity }) => ({ start, end, ...(reserveCapacity === undefined ? {} : {reserveCapacity}) }));
 }
 function available(schedule, time) {
   const start = minute(time);
   return schedule.intervals.some(interval => minute(interval.start) <= start && minute(interval.end, true) >= start + 60);
+}
+function intervalReserve(schedule,time) {
+  const start=minute(time);
+  const interval=schedule.intervals.find(item=>minute(item.start)<=start && minute(item.end,true)>=start+60);
+  return interval?.reserveCapacity ?? schedule.reserve_capacity;
+}
+function legacyObject(row) {
+  if(!row.legacy_payload)return null;
+  const missingFields=[];
+  for(const [field,column] of [['studentName','student_name'],['parentName','parent_name'],['phone','phone'],['crmUrl','crm_url']])if(!row[column]?.trim())missingFields.push(field);
+  for(const [field,column] of [['hasPc','has_pc'],['parentPresent','parent_present']])if(row[column]===null)missingFields.push(field);
+  const resolved=['completed','cancelled'].includes(row.state);
+  const elapsedUnknown=!resolved && row.legacy_payload.elapsedUnknown===true;
+  return {source:row.legacy_payload.source,managerName:row.legacy_payload.managerName,elapsedUnknown,missingFields,needsReview:!resolved && (missingFields.length>0 || elapsedUnknown)};
 }
 function bookingObject(row) {
   return {
@@ -93,7 +122,7 @@ function bookingObject(row) {
     assignedTo: row.assigned_to, assignedName: row.assigned_name || null, assignmentKind: row.assignment_kind, state: row.state,
     cancelReason: row.cancel_reason, cancelSource: row.cancel_source, createdBy: row.created_by,
     createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), startedAt: iso(row.started_at), completedAt: iso(row.completed_at), cancelledAt: iso(row.cancelled_at),
-    version: row.version, report: row.report_payload || null, cancellation: row.cancellation_payload || null
+    version: row.version, report: row.report_payload || null, cancellation: row.cancellation_payload || null, legacy:legacyObject(row)
   };
 }
 function managerObject(row) { return { id: row.id, email: row.email, name: row.name, role: row.role, active: row.active, ageGroups: row.age_groups }; }
@@ -124,10 +153,15 @@ export class BookingService {
     const at = this.instant().toISOString();
     const cancellation = ['cancelled','expired'].includes(action) ? { timestamp:at,reason:row.cancel_reason,firstCancellation:!row.cancellation_payload,contactMethod:'',comment:row.comment,manager:actor.name || actor.id,source:row.cancel_source } : {};
     await tx.query('INSERT INTO eduson_booking.audit_events(id,booking_id,actor_id,actor_role,action,payload,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)', [randomUUID(), row.id, actor.id, actor.role, action, JSON.stringify({ ...cancellation,...payload,version:row.version }), at]);
-    // A cancellation transition also changes the main booking projection, including restore assignments.
-    for (const projectionKind of kind === 'cancel' ? ['cancel', 'booking'] : [kind]) {
+    // Each action updates the main booking projection as well as its report or cancellation facts.
+    for (const projectionKind of kind === 'booking' ? ['booking'] : [kind,'booking']) {
       await tx.query('INSERT INTO eduson_booking.sync_jobs(id,booking_id,kind,version,status,attempts,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,0,$6,$6) ON CONFLICT(booking_id,kind,version) DO NOTHING', [randomUUID(), row.id, projectionKind, row.version, 'pending', at]);
     }
+    await this.markSheetsDirty(tx);
+  }
+  async markSheetsDirty(tx) {
+    await tx.query(`INSERT INTO eduson_booking.sheet_projections(key,version,status,attempts,updated_at) VALUES('schedule',1,'pending',0,$1)
+      ON CONFLICT(key) DO UPDATE SET version=eduson_booking.sheet_projections.version+1,status='pending',attempts=0,last_error=NULL,updated_at=EXCLUDED.updated_at`,[this.instant().toISOString()]);
   }
   async change(tx, row, changes) {
     const entries = Object.entries(changes);
@@ -137,13 +171,14 @@ export class BookingService {
     await tx.query(`UPDATE eduson_booking.bookings SET ${assignments.join(',')} WHERE id=$${entries.length + 2}`, params);
     return this.get(tx, row.id);
   }
-  async context(tx, date, time, excludeId = null) {
-    const users = (await tx.query("SELECT u.*,s.intervals,s.reserve_capacity FROM eduson_booking.users u JOIN eduson_booking.schedules s ON s.manager_id=u.id WHERE u.role='sales' AND u.active=true AND s.date=$1 ORDER BY u.id", [date])).rows.filter(row => available(row, time));
-    const bookings = (await tx.query("SELECT * FROM eduson_booking.bookings WHERE date=$1 AND time=$2 AND state<>'cancelled' AND ($3::text IS NULL OR id<>$3)", [date, time, excludeId])).rows;
+  async context(tx, date, time, excludeId = null, { historical = false } = {}) {
+    // Historical publications describe capacity then; present staff settings only govern current/future work.
+    const users = (await tx.query("SELECT u.*,s.intervals,s.reserve_capacity FROM eduson_booking.users u JOIN eduson_booking.schedules s ON s.manager_id=u.id WHERE s.date=$1 AND ($2::boolean OR (u.role='sales' AND u.active=true)) ORDER BY u.id", [date,historical])).rows.filter(row => available(row, time)).map(row=>({...row,age_groups:historical?[]:row.age_groups,reserve_capacity:intervalReserve(row,time)}));
+    const bookings = (await tx.query(`${BOOKING_SELECT} WHERE b.date=$1 AND b.time=$2 AND b.state<>'cancelled' AND ($3::text IS NULL OR b.id<>$3) ORDER BY b.created_at,b.id`, [date, time, excludeId])).rows;
     const slots = users.flatMap(user => [{ key: `${user.id}:primary`, user, kind: 'primary' }, ...(user.reserve_capacity ? [{ key: `${user.id}:reserve`, user, kind: 'reserve' }] : [])]);
     return { users, bookings, slots };
   }
-  match(context, extra = [], forced = null) {
+  matchResult(context, extra = [], forced = null) {
     const bookings = [...context.bookings, ...extra];
     const occupied = new Map();
     const pending = [];
@@ -151,14 +186,15 @@ export class BookingService {
       const target = forced?.id === b.id ? forced : b.assigned_to ? { managerId: b.assigned_to, kind: b.assignment_kind } : null;
       if (target) {
         const slot = context.slots.find(s => s.user.id === target.managerId && s.kind === target.kind);
-        if (!slot || !eligible(slot.user, b.age) || occupied.has(slot.key)) return false;
+        if (!slot || !eligible(slot.user, b.age) || occupied.has(slot.key)) return null;
         occupied.set(slot.key, b.id);
       } else pending.push(b);
     }
     const fixed = new Set(occupied.keys());
     const byId = new Map(pending.map(b => [b.id, b]));
     const visit = (b, seen) => {
-      for (const slot of context.slots) {
+      const orderedSlots=b.legacy_payload?.managerName ? [...context.slots].sort((a,c)=>Number(c.user.name===b.legacy_payload.managerName)-Number(a.user.name===b.legacy_payload.managerName)) : context.slots;
+      for (const slot of orderedSlots) {
         if (fixed.has(slot.key) || seen.has(slot.key) || !eligible(slot.user, b.age)) continue;
         seen.add(slot.key);
         const previous = occupied.get(slot.key);
@@ -166,7 +202,10 @@ export class BookingService {
       }
       return false;
     };
-    return pending.every(b => visit(b, new Set()));
+    return pending.every(b => visit(b, new Set())) ? occupied : null;
+  }
+  match(context,extra=[],forced=null) {
+    return this.matchResult(context,extra,forced)!==null;
   }
   primaryDeficit(context, confirmed) {
     const slots = context.slots.filter(slot => slot.kind === 'primary');
@@ -220,15 +259,9 @@ export class BookingService {
     const startsAt = new Date(`${date}T${input.time}:00+03:00`);
     const values = {
       student: text(input.studentName, 'Имя ученика', { required: true, max: 160 }), parent: text(input.parentName, 'Имя родителя', { required: true, max: 160 }),
-      phone: text(input.phone, 'Телефон', { required: true, max: 40 }), crm: url(input.crmUrl, 'CRM'), age: ageValue(input.age),
+      phone: validatedPhone(input.phone), crm: validatedCrm(input.crmUrl), age: ageValue(input.age),
       comment: text(input.comment, 'Комментарий', { max: 5000 }), key: text(input.idempotencyKey, 'Ключ запроса', { required:true, max:128 })
     };
-    const crm = values.crm ? new URL(values.crm) : null;
-    const crmSuffix = '.amocrm.ru';
-    const crmSubdomain = crm?.hostname.slice(0, -crmSuffix.length) || '';
-    assert(crm?.protocol === 'https:' && crm.hostname.endsWith(crmSuffix) && crmSubdomain.length > 0 && crmSubdomain.split('.').every(Boolean) && crm.pathname.length > 1 && /^https:\/\/[^\s/]+\.amocrm\.ru\/\S+$/i.test(values.crm), 400, 'Укажите ссылку HTTPS на запись в AmoCRM.', 'VALIDATION');
-    const phoneDigits = values.phone.replace(/\D/g, '');
-    assert(phoneDigits.length >= 10 && phoneDigits.length <= 15, 400, 'Телефон должен содержать от 10 до 15 цифр.', 'VALIDATION');
     assert(typeof input.hasPc === 'boolean' && typeof input.parentPresent === 'boolean', 400, 'Укажите наличие компьютера и присутствие родителя.', 'VALIDATION');
     return this.mutation(async tx => {
       if (values.key) {
@@ -346,6 +379,58 @@ export class BookingService {
       return bookingObject(await this.get(tx, id));
     });
   }
+  async updateBookingDetails(actor,id,input={}) {
+    authorized(actor);
+    const mapping={studentName:'student_name',parentName:'parent_name',phone:'phone',crmUrl:'crm_url',age:'age',hasPc:'has_pc',parentPresent:'parent_present',comment:'comment'};
+    assert(input && typeof input==='object' && !Array.isArray(input),400,'Передайте поля занятия.','VALIDATION');
+    for(const key of Object.keys(input))assert(key==='version'||Object.hasOwn(mapping,key),400,'Можно менять только контактные данные и сведения об ученике.','VALIDATION');
+    const changes={};
+    for(const [key,column] of Object.entries(mapping)) {
+      if(!Object.hasOwn(input,key))continue;
+      if(key==='studentName'||key==='parentName')changes[column]=text(input[key],key==='studentName'?'Имя ученика':'Имя родителя',{required:true,max:160});
+      else if(key==='phone')changes[column]=validatedPhone(input[key]);
+      else if(key==='crmUrl')changes[column]=validatedCrm(input[key]);
+      else if(key==='age')changes[column]=ageValue(input[key]);
+      else if(key==='comment')changes[column]=text(input[key],'Комментарий',{max:5000});
+      else {assert(typeof input[key]==='boolean',400,'Укажите Да или Нет для компьютера и присутствия родителя.','VALIDATION');changes[column]=input[key];}
+    }
+    assert(Object.keys(changes).length>0,400,'Не указаны данные для изменения.','VALIDATION');
+    return this.mutation(async tx=>{
+      let row=await this.get(tx,id);canChange(actor,row);versionCheck(row,input);
+      if(Object.entries(changes).every(([key,value])=>row[key]===value))return bookingObject(row);
+      row=await this.change(tx,row,changes);
+      if(Object.hasOwn(changes,'age') && row.state!=='cancelled')assert(this.match(await this.context(tx,dateString(row.date),row.time)),409,'Возраст не подходит назначенному менеджеру или доступным местам.','CAPACITY_CONFLICT');
+      if(row.report_payload) {
+        const payload={...row.report_payload,crmUrl:row.crm_url,age:row.age,teacher:row.assigned_name,date:dateString(row.date),time:row.time};
+        await tx.query('UPDATE eduson_booking.reports SET payload=$1,version=$2,updated_at=$3 WHERE booking_id=$4',[JSON.stringify(payload),row.version,this.instant().toISOString(),id]);
+      }
+      await this.record(tx,actor,row,'details_updated',{fields:Object.keys(changes)},row.report_payload?'report':'booking');
+      return bookingObject(await this.get(tx,id));
+    });
+  }
+  async resolveLegacy(actor,id,input={}) {
+    authorized(actor,['admin']);
+    assert(['completed','cancelled'].includes(input.outcome),400,'Выберите подтверждённый исход перенесённого занятия.','VALIDATION');
+    const reason=text(input.reason,'Основание решения',{required:true,max:2000});
+    if(input.outcome==='completed')assert(typeof input.managerId==='string'&&input.managerId,400,'Укажите менеджера, который провёл занятие.','VALIDATION');
+    return this.mutation(async tx=>{
+      let row=await this.get(tx,id);versionCheck(row,input);
+      assert(row.legacy_payload?.elapsedUnknown===true && row.state==='scheduled' && new Date(row.ends_at)<=this.instant(),409,'Решение доступно только для прошедшей перенесённой записи с неизвестным исходом.','INVALID_STATE');
+      if(input.outcome==='cancelled') {
+        row=await this.change(tx,row,{state:'cancelled',cancel_reason:reason,cancel_source:actor.role,cancelled_at:this.instant().toISOString()});
+        await this.record(tx,actor,row,'cancelled',{reason,source:actor.role,resolvedLegacy:true},'cancel');
+      } else {
+        const manager=(await tx.query("SELECT id FROM eduson_booking.users WHERE id=$1 AND role='sales' AND active=true",[input.managerId])).rows[0];
+        assert(manager,400,'Укажите действующего менеджера, который провёл занятие.','VALIDATION');
+        const overlap=(await tx.query("SELECT id FROM eduson_booking.bookings WHERE assigned_to=$1 AND assignment_kind='primary' AND state<>'cancelled' AND starts_at<$2 AND ends_at>$3 AND id<>$4",[input.managerId,row.ends_at,row.starts_at,id])).rows;
+        assert(overlap.length===0,409,'У менеджера уже есть основное занятие в этом интервале.','ASSIGNMENT_UNAVAILABLE');
+        try {await this.assignment(tx,row,{managerId:input.managerId,kind:'primary'});} catch(error) {if(error.status===409)fail(409,'Откройте этот интервал в расписании или выберите фактического менеджера.','ASSIGNMENT_UNAVAILABLE');throw error;}
+        row=await this.change(tx,row,{state:'completed',assigned_to:input.managerId,assignment_kind:'primary',completed_at:this.instant().toISOString()});
+        await this.record(tx,actor,row,'legacy_resolved_completed',{reason,managerId:input.managerId});
+      }
+      return bookingObject(await this.get(tx,id));
+    });
+  }
   async listBookings(actor, filters = {}) {
     authorized(actor);
     const conditions = [], values = [];
@@ -414,6 +499,7 @@ export class BookingService {
       for (const booking of affected) assert(this.match(await this.context(tx,dateString(booking.date),booking.time)), 409, 'Расписание нужно сохранить вместе с назначенными занятиями и доступными местами.', 'CAPACITY_CONFLICT');
       const day = scheduleObject((await tx.query('SELECT * FROM eduson_booking.schedules WHERE manager_id=$1 AND date=$2', [managerId,date])).rows[0]);
       await tx.query('INSERT INTO eduson_booking.audit_events(id,booking_id,actor_id,actor_role,action,payload,created_at) VALUES ($1,NULL,$2,$3,$4,$5,$6)', [randomUUID(),actor.id,actor.role,'schedule_saved',JSON.stringify({ ...day, ageGroups: groups ?? user.age_groups }),at]);
+      await this.markSheetsDirty(tx);
       return day;
     });
   }
@@ -431,13 +517,57 @@ export class BookingService {
     const groups = managerId ? (await this.db.query('SELECT age_groups FROM eduson_booking.users WHERE id=$1',[managerId])).rows[0]?.age_groups || [] : [];
     return { days, ageGroups: groups };
   }
+  async getSheetSnapshot(actor) {
+    authorized(actor,['admin']);
+    return this.db.transaction(async tx=>{
+      await tx.query('LOCK TABLE eduson_booking.bookings, eduson_booking.schedules, eduson_booking.users IN SHARE MODE');
+      const schedules=(await tx.query('SELECT s.*,u.name FROM eduson_booking.schedules s JOIN eduson_booking.users u ON u.id=s.manager_id ORDER BY s.date,u.name,s.manager_id')).rows;
+      const ownedBookingIds=(await tx.query('SELECT id FROM eduson_booking.bookings ORDER BY id')).rows.map(row=>row.id);
+      const managedSchedules=schedules.map(row=>({date:dateString(row.date),manager:row.name}));
+      const ownership=new Map();
+      for(const schedule of schedules) {
+        const key=JSON.stringify([dateString(schedule.date),schedule.name]);
+        if(!ownership.has(key))ownership.set(key,[]);
+        ownership.get(key).push(schedule.manager_id);
+      }
+      const unresolved=[...ownership.entries()].filter(([,ids])=>new Set(ids).size>1).map(([key,managerIds])=>{
+        const [date,manager]=JSON.parse(key);return {code:'AMBIGUOUS_MANAGER_NAME',date,manager,managerIds};
+      });
+      if(unresolved.length)return {managedSchedules,scheduleRows:[],slotRows:[],ownedBookingIds,unresolved};
+      const scheduleRows=[],slotRows=[],contexts=new Map();
+      const snapshotAt=this.instant();
+      const readContext=(date,time)=>this.context(tx,date,time,null,{historical:+new Date(`${date}T${time}:00+03:00`)+3600000<=+snapshotAt});
+      for(const schedule of schedules)for(const time of HOURS) {
+        if(!available(schedule,time))continue;
+        const date=dateString(schedule.date),key=`${date}/${time}`;
+        if(!contexts.has(key))contexts.set(key,await readContext(date,time));
+        if(contexts.get(key).users.some(user=>user.id===schedule.manager_id))scheduleRows.push({manager:schedule.name,date,time});
+      }
+      // An orphaned active interval is a projection error, never silently omitted.
+      const occupied=(await tx.query("SELECT DISTINCT date,time FROM eduson_booking.bookings WHERE state<>'cancelled' ORDER BY date,time")).rows;
+      for(const row of occupied) {
+        const date=dateString(row.date),key=`${date}/${row.time}`;
+        if(!contexts.has(key))contexts.set(key,await readContext(date,row.time));
+      }
+      for(const [key,context] of [...contexts.entries()].sort(([a],[b])=>a.localeCompare(b))) {
+        const ledger=this.matchResult(context);
+        assert(ledger!==null,409,'Не удалось сопоставить все занятия с расписанием. Проверьте доступные интервалы и возрастные теги.','PROJECTION_UNRESOLVED');
+        const separator=key.indexOf('/'),date=key.slice(0,separator),time=key.slice(separator+1);
+        for(const slot of [...context.slots].sort((a,b)=>a.user.name.localeCompare(b.user.name,'ru')||a.user.id.localeCompare(b.user.id)||(a.kind==='primary'?-1:1))) {
+          const bookingId=ledger.get(slot.key)||'';
+          slotRows.push({date,time,manager:slot.user.name,status:bookingId?'booked':'wait',bookingId});
+        }
+      }
+      return {managedSchedules,scheduleRows,slotRows,ownedBookingIds,unresolved:[]};
+    });
+  }
   async managers(actor) {
     authorized(actor);
     return (await this.db.query("SELECT id,email,name,role,active,age_groups FROM eduson_booking.users WHERE role='sales' AND active=true ORDER BY name,id")).rows.map(managerObject);
   }
   async expireUnconfirmed() {
     return this.mutation(async tx => {
-      const rows = (await tx.query("SELECT * FROM eduson_booking.bookings WHERE confirmation_status='pending' AND state='scheduled' AND ends_at<=$1 ORDER BY ends_at,id",[this.instant().toISOString()])).rows;
+      const rows = (await tx.query(`${BOOKING_SELECT} WHERE b.confirmation_status='pending' AND b.state='scheduled' AND b.ends_at<=$1 AND NOT EXISTS(SELECT 1 FROM eduson_booking.audit_events legacy WHERE legacy.booking_id=b.id AND legacy.action='legacy_imported' AND legacy.payload->>'elapsedUnknown'='true') ORDER BY b.ends_at,b.id`,[this.instant().toISOString()])).rows;
       for (const original of rows) {
         const row = await this.change(tx,original,{ state:'cancelled',cancel_reason:'Занятие не подтверждено и не состоялось',cancel_source:'system',cancelled_at:this.instant().toISOString() });
         await this.record(tx,SYSTEM,row,'expired',{ reason:row.cancel_reason,source:'system' },'cancel');
@@ -463,7 +593,7 @@ export class BookingService {
       teacher:b.assignedName,assignedTeacher:b.assignedName,assignedTo:b.assignedTo,
       crmUrl:b.crmUrl,age:b.age,reason:b.cancelReason,source:b.cancellation?.source ?? b.cancelSource,
       cancellation:b.cancellation,actorId:b.cancellation?.actorId ?? null,
-      actorRole:b.cancellation?.actorRole ?? null,actorName:b.cancellation?.manager ?? null,
+      actorRole:b.cancellation?.actorRole ?? null,actorName:b.cancellation?.authorUnknown ? null : b.cancellation?.manager ?? null,
       confirmationStatus:b.confirmationStatus,version:b.version,cancelledAt:b.cancelledAt
     }));
   }

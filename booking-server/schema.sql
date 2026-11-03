@@ -107,3 +107,27 @@ BEGIN
     INSERT INTO eduson_booking.schema_migrations(version) VALUES (1);
   END IF;
 END $$;
+
+CREATE TABLE IF NOT EXISTS eduson_booking.sheet_projections (
+  key TEXT PRIMARY KEY,
+  version INT NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','done','error')),
+  attempts INT NOT NULL DEFAULT 0,
+  last_error TEXT,
+  lease_token TEXT,
+  lease_until TIMESTAMPTZ,
+  previous_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM eduson_booking.schema_migrations WHERE version=2) THEN
+    ALTER TABLE eduson_booking.bookings ALTER COLUMN has_pc DROP NOT NULL;
+    ALTER TABLE eduson_booking.bookings ALTER COLUMN parent_present DROP NOT NULL;
+    ALTER TABLE eduson_booking.bookings ADD CONSTRAINT bookings_legacy_unknown_booleans CHECK (
+      created_by='legacy-import' OR (has_pc IS NOT NULL AND parent_present IS NOT NULL)
+    );
+    INSERT INTO eduson_booking.schema_migrations(version) VALUES (2);
+  END IF;
+END $$;

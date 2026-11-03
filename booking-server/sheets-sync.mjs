@@ -1,11 +1,6 @@
-import { readFile } from 'node:fs/promises';
-import { sign } from 'node:crypto';
-
-const OAUTH_URL = 'https://oauth2.googleapis.com/token';
-const SHEETS_URL = 'https://sheets.googleapis.com/v4/spreadsheets/';
+import { createGoogleSheetsClient, SheetSyncError as SyncError, safeSheetSyncError as safeError, normalizeSheetHeader as normalizeHeader } from './google-sheets-client.mjs';
 const MAX_ATTEMPTS = 8;
 const LEASE_MS = 5 * 60_000;
-const SAFE_ERRORS = new Set(['SYNC_CONFIGURATION', 'SYNC_ATTEMPTS_EXHAUSTED', 'SERVICE_ACCOUNT_INVALID', 'OAUTH_FAILED', 'NETWORK_FAILED', 'SHEET_HEADER_MISMATCH', 'SHEET_DUPLICATE_ID', 'SHEET_RESPONSE_INVALID', 'BOOKING_NOT_FOUND', 'SYNC_JOB_KIND_INVALID', 'SYNC_FAILED']);
 const BOOKING_HEADERS = ['ID', 'Дата', 'Время', 'Менеджер', 'AmoCRM', 'Возраст ребёнка', 'ПК', 'Родитель', 'Комментарий', 'Статус', 'Создано', 'Изменено'];
 const REPORT_HEADERS = [']', 'Кто провёл урок?', 'Дата МК', 'Время МК', 'Ссылка на CRM', 'Ссылка на запись урока', 'Практика', 'Возраст', 'Какой пакет предложил/оплатили', 'Вариант оплаты', 'Договорённости с клиентом', 'Итоговое возражение', 'С какого канала пришли (смотри скрин)', 'Сумма оплаты (после комиссий банка) без копеек'];
 const CANCEL_HEADERS = ['Отметка времени', 'Ссылка на AMO', 'Причина отмены', 'Первичная отмена или нет?', 'Как пробовали связаться?', 'Возраст', 'Комментарий', 'МИМК'];
@@ -15,15 +10,8 @@ const TARGETS = {
   cancel: {tab: 'Отмены', headers: CANCEL_HEADERS, lastColumn: 'J', idColumn: 'I', extraHeaders: ['Booking ID', 'Booking status']},
 };
 
-class SyncError extends Error {
-  constructor(code) { super(code); this.code = code; }
-}
-function safeError(error) {
-  return SAFE_ERRORS.has(error?.code) || /^GOOGLE_HTTP_[1-5]\d{2}$/.test(error?.code || '') ? error.code : 'SYNC_FAILED';
-}
 const cell = value => value == null ? '' : value instanceof Date ? value.toISOString() : value;
 const yesNo = value => value == null ? '' : value ? 'Да' : 'Нет';
-const normalizeHeader = value => String(value ?? '').replace(/\s+/gu, ' ').trim().toLocaleLowerCase('ru-RU');
 
 /** The original report sheet has fourteen business columns; stable identity is separate. */
 export function mapReportRow(booking) {
@@ -33,7 +21,7 @@ export function mapReportRow(booking) {
     report.age ?? booking.age, report.package, report.paymentMethod, report.agreement, report.objection,
     report.channel, report.amountNet].map(cell);
 }
-function mapBookingRow(booking) {
+export function mapBookingRow(booking) {
   const state = booking.state === 'scheduled' ? (booking.confirmationStatus === 'confirmed' ? 'confirmed' : 'pending_confirmation') : booking.state;
   return [booking.id, booking.date, booking.time, booking.assignedName, booking.crmUrl, booking.age,
     yesNo(booking.hasPc), yesNo(booking.parentPresent), booking.comment, state, booking.createdAt, booking.updatedAt].map(cell);
@@ -47,50 +35,11 @@ function mapCancellationRow(booking) {
 
 /** Creates an opt-in projection worker. Construction never reads a key or contacts Google. */
 export function createSheetSynchronizer({db, getBooking, serviceAccountPath, spreadsheetId, enabled = false, fetchImpl = fetch, now = () => new Date()} = {}) {
-  let token = null;
   let running = false;
   const clock = () => new Date(typeof now === 'function' ? now() : now);
   const rangeFor = (target, cells) => `'${target.tab}'!${cells}`;
-  const valuesUrl = range => `${SHEETS_URL}${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`;
-
-  async function fetchJson(url, options) {
-    let response;
-    try { response = await fetchImpl(url, {...options, signal: AbortSignal.timeout(30_000)}); }
-    catch { throw new SyncError('NETWORK_FAILED'); }
-    if (!response.ok) throw new SyncError(`GOOGLE_HTTP_${response.status}`);
-    try { return await response.json(); }
-    catch { throw new SyncError('SHEET_RESPONSE_INVALID'); }
-  }
-  async function accessToken() {
-    if (token && token.expiresAt > clock().valueOf() + 60_000) return token.value;
-    let account;
-    try {
-      account = JSON.parse(await readFile(serviceAccountPath, 'utf8'));
-      if (typeof account.client_email !== 'string' || typeof account.private_key !== 'string') throw new Error();
-    } catch { throw new SyncError('SERVICE_ACCOUNT_INVALID'); }
-    const issuedAt = Math.floor(clock().valueOf() / 1000);
-    const encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');
-    const unsigned = `${encode({alg: 'RS256', typ: 'JWT'})}.${encode({iss: account.client_email, scope: 'https://www.googleapis.com/auth/spreadsheets', aud: OAUTH_URL, iat: issuedAt, exp: issuedAt + 3600})}`;
-    let assertion;
-    try { assertion = `${unsigned}.${sign('RSA-SHA256', Buffer.from(unsigned), account.private_key).toString('base64url')}`; }
-    catch { throw new SyncError('SERVICE_ACCOUNT_INVALID'); }
-    const body = new URLSearchParams({grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion});
-    const result = await fetchJson(OAUTH_URL, {method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: body.toString()});
-    if (typeof result.access_token !== 'string' || !result.access_token || !Number.isFinite(Number(result.expires_in)) || Number(result.expires_in) <= 0) throw new SyncError('OAUTH_FAILED');
-    token = {value: result.access_token, expiresAt: clock().valueOf() + Math.min(Number(result.expires_in), 3600) * 1000};
-    return token.value;
-  }
-  async function sheetRequest(range, {method = 'GET', values, append = false} = {}) {
-    const bearer = await accessToken();
-    let url = valuesUrl(range) + (append ? ':append' : '');
-    if (method !== 'GET') url += `?valueInputOption=RAW${append ? '&insertDataOption=INSERT_ROWS' : ''}`;
-    try {
-      return await fetchJson(url, {method, headers: {Authorization: `Bearer ${bearer}`, ...(values ? {'Content-Type': 'application/json'} : {})}, ...(values ? {body: JSON.stringify({majorDimension: 'ROWS', values})} : {})});
-    } catch (error) {
-      if (error.code === 'GOOGLE_HTTP_401') token = null;
-      throw error;
-    }
-  }
+  const client = createGoogleSheetsClient({serviceAccountPath, spreadsheetId, fetchImpl, now});
+  const sheetRequest = client.request;
   async function validateHeaders(target) {
     // Read the complete owned range before adding any metadata column.
     const result = await sheetRequest(rangeFor(target, `A1:${target.lastColumn}1`));

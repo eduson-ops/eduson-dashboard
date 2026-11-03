@@ -144,7 +144,7 @@ export async function createAuth(db, { now = () => new Date(), validateUserChang
         }
         const groups = ageGroups(input.ageGroups === undefined ? old.age_groups || [] : input.ageGroups);
         const result = await tx.query('UPDATE eduson_booking.users SET email=$2,name=$3,role=$4,active=$5,age_groups=$6,password_hash=$7 WHERE id=$1 RETURNING *', [id, next.email, next.name, next.role, active, JSON.stringify(groups), password || old.password_hash]);
-        if (validateUserChange && (active !== old.active || next.role !== old.role || JSON.stringify(groups) !== JSON.stringify(old.age_groups))) await validateUserChange(tx);
+        if (validateUserChange && (active !== old.active || next.role !== old.role || next.name !== old.name || JSON.stringify(groups) !== JSON.stringify(old.age_groups))) await validateUserChange(tx);
         if (password || !active || next.role !== old.role) await tx.query('DELETE FROM eduson_booking.sessions WHERE user_id=$1', [id]);
         return publicUser(result.rows[0]);
       });

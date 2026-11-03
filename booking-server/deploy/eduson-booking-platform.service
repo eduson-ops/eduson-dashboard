@@ -1,7 +1,7 @@
 # Шаблон отдельного сервиса. Сначала выполните условия выпуска из README.md.
 # Не заменяет /opt/eduson-booking и не изменяет существующие сервисы.
 # Проверьте реальный путь к Node >=22 и свободный порт перед установкой.
-# Секция Install отсутствует намеренно: шаблон не включает автозапуск.
+# Включайте автозапуск после проверки отдельного релиза и переключения vhost.
 [Unit]
 Description=Eduson booking platform
 After=network-online.target
@@ -11,8 +11,8 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-User=booking
-Group=booking
+User=eduson-booking-platform
+Group=eduson-booking-platform
 WorkingDirectory=/opt/eduson-booking-platform/current
 EnvironmentFile=/etc/eduson-booking-platform.env
 Environment=NODE_ENV=production
@@ -29,3 +29,6 @@ ProtectSystem=strict
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 StandardOutput=journal
 StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

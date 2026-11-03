@@ -1,4 +1,4 @@
-import { businessDate, addDays, weekDates, safeUrl, matchesSearch, confirmationTiming, makeDraftStore, isHourOverloaded, filterHourBookings } from './core.mjs';
+import { businessDate, addDays, weekDates, safeUrl, matchesSearch, confirmationTiming, makeDraftStore, isHourOverloaded, filterHourBookings, booleanFact, legacyOutcomeUnknown, canResolveLegacy, canEditDetails, changedDetails, effectiveReserveCapacity, setDayReserveCapacity, schedulePayload } from './core.mjs';
 
 const app = document.querySelector('#app');
 const dialog = document.querySelector('#editor');
@@ -9,6 +9,7 @@ const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,bookings:[
 let drafts;
 let refreshTimer;
 let lastFocus;
+const detailSnapshots=new WeakMap();
 const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
 const fieldValue = value => esc(value ?? '');
 const isAdmin = () => state.user?.role === 'admin';
@@ -223,11 +224,24 @@ function renderBookingToolbar() {
 
 function ageGroup(age) {return ageGroups.find(group=>{const [min,max]=group.split('-').map(Number);return Number(age)>=min&&Number(age)<=max;})||'';}
 function ageBadge(age) {const group=ageGroup(age);return age?`<span class="age-tag" data-group="${group}">${esc(group||`${age} лет`)}</span>`:'';}
+function studentName(booking) {return String(booking.studentName||'').trim()||'Имя не указано';}
+function studentAge(booking) {return booking.age == null || booking.age === '' ? 'Возраст не указан' : `${Number(booking.age)} лет`;}
+function legacyBadges(booking) {
+  if(!booking.legacy)return '';
+  const missing=booking.legacy.missingFields?.length>0;
+  return `<div class="legacy-badges"><span class="legacy-badge" title="Запись из прежнего букинга">Перенесено</span>${missing?'<span class="legacy-badge incomplete">Данные неполные</span>':''}</div>`;
+}
+function detailsButton(booking) {return canEditDetails(state.user,booking)?`<button class="subtle compact" data-action="details" data-id="${esc(booking.id)}">${booking.legacy?'Дополнить данные':'Изменить данные'}</button>`:'';}
+function resolveLegacyButton(booking) {return canResolveLegacy(state.user,booking)?`<button class="outline compact" data-action="resolve-legacy" data-id="${esc(booking.id)}">Уточнить итог</button>`:'';}
+function bookingEquipment(booking) {
+  return `${booleanFact(booking.hasPc,'Компьютер есть','Без компьютера','Компьютер: не указано')} · ${booleanFact(booking.parentPresent,'Родитель будет','Родитель не будет','Участие родителя: не указано')}`;
+}
 function externalLink(url,label,className='link-line') {const safe=safeUrl(url);return safe?`<a class="${esc(className)}" href="${esc(safe)}" target="_blank" rel="noopener noreferrer">${esc(label)}</a>`:'';}
 function statusBadge(booking) {
   if(booking.state==='completed')return '<span class="status completed">Мастер-класс проведён</span>';
   if(booking.state==='cancelled')return '<span class="status cancelled">Мастер-класс отменён</span>';
   if(booking.state==='in_progress')return '<span class="status in_progress">Мастер-класс идёт</span>';
+  if(legacyOutcomeUnknown(booking))return '<span class="status pending">Итог не уточнён</span>';
   if(booking.assignmentKind==='reserve')return '<span class="status reserve">Резерв</span>';
   return booking.confirmationStatus==='confirmed'?'<span class="status confirmed">Подтверждён</span>':'<span class="status pending">Ожидает подтверждения</span>';
 }
@@ -248,13 +262,14 @@ function bookingRow(booking) {
   let actions='';
   if(cancelled){actions=`<div class="status-text cancelled">Мастер-класс отменён</div><div class="cancel-detail">${esc(booking.cancelReason||'')}</div>${!isSales()?`<button class="subtle compact" data-action="restore" data-id="${esc(booking.id)}">Восстановить запись</button>`:''}`;}
   else if(completed){actions='<div class="status-text">Мастер-класс проведён</div>';}
+  else if(legacyOutcomeUnknown(booking)){actions=`${statusBadge(booking)}${resolveLegacyButton(booking)}<div class="status-note">В прежнем букинге итог не зафиксирован.${isAdmin()?'':' Его уточняет администратор.'}</div>`;}
   else if(booking.state==='in_progress') {actions=`${statusBadge(booking)}${canActSales?`<button class="primary" data-action="complete" data-id="${esc(booking.id)}">Завершить мастер-класс</button>`:''}`;}
   else if(canActSales&&booking.confirmationStatus==='confirmed'&&booking.assignmentKind==='primary') {actions=`<button class="primary" data-action="start" data-id="${esc(booking.id)}">Начать мастер-класс</button><button class="secondary" data-action="no-show" data-id="${esc(booking.id)}">Ученик не пришёл</button>`;}
   else {actions=statusBadge(booking);if(canConfirm()&&booking.confirmationStatus!=='confirmed')actions+=`<button class="primary compact" data-action="confirm" data-id="${esc(booking.id)}">Подтвердить запись</button>`;if(['confirmation','call_center','admin'].includes(state.user.role))actions+=`<button class="subtle compact" data-action="cancel" data-id="${esc(booking.id)}">Отменить запись</button>`;}
   const timing=confirmationTiming(booking);
-  const deadline=booking.confirmationStatus!=='confirmed'&&!cancelled&&!completed?`<div class="status-note"${timing.overdue?' style="color:#c3656e"':''}>${timing.overdue?'Срок подтверждения истёк':'Подтвердить до'} ${timeStamp(booking.confirmationDueAt)}</div>`:'';
+  const deadline=booking.confirmationStatus!=='confirmed'&&!cancelled&&!completed&&!legacyOutcomeUnknown(booking)?`<div class="status-note"${timing.overdue?' style="color:#c3656e"':''}>${timing.overdue?'Срок подтверждения истёк':'Подтвердить до'} ${timeStamp(booking.confirmationDueAt)}</div>`:'';
   const phone=String(booking.phone||'').replace(/[^+\d]/g,'');
-  return `<tr><td><span class="student-name">${esc(booking.studentName)}</span><div class="booking-extra">${booking.hasPc?'Компьютер есть':'Без компьютера'}${booking.parentPresent?' · Родитель будет':''}</div>${ageBadge(booking.age)}${booking.comment?`<div class="booking-note">${esc(booking.comment)}</div>`:''}</td><td><span class="nowrap">${dateText(booking.date)}</span><br>${esc(booking.time)}<div class="status-note">60 минут</div>${booking.assignmentKind?`<div class="status-note">${booking.assignmentKind==='reserve'?'Резерв':'Основная запись'}</div>`:''}</td><td>${externalLink(booking.backofficeUrl||state.config.backofficeUrl,'Перейти в Backoffice')}${externalLink(booking.crmUrl,'Перейти в Amo CRM')}<div>Родитель: ${esc(booking.parentName||'—')}</div>${phone?`<a class="link-line" href="tel:${esc(phone)}">${esc(booking.phone)}</a>`:''}${booking.assignedName?`<div class="status-note">МИМК: ${esc(booking.assignedName)}</div>`:''}${isAdmin()&&!cancelled?`<button class="subtle compact" data-action="assignment" data-id="${esc(booking.id)}">${booking.assignedTo?'Изменить назначение':'Назначить МИМК'}</button>`:''}</td><td><div class="button-stack">${actions}</div>${deadline}</td><td>${canReport()&&completed?`<button class="report-button" data-action="report" data-id="${esc(booking.id)}" aria-label="${booking.report?'Открыть':'Заполнить'} отчёт о занятии ${esc(booking.studentName)}">${icon('document')}</button><div class="status-note">${booking.report?'Заполнен':'Не заполнен'}</div>`:booking.report?'<span class="status-note">Заполнен</span>':'<span class="muted">—</span>'}</td></tr>`;
+  return `<tr><td><span class="student-name">${esc(studentName(booking))}</span>${legacyBadges(booking)}<div class="booking-extra">${esc(bookingEquipment(booking))}</div>${booking.age==null?'<div class="status-note">Возраст не указан</div>':ageBadge(booking.age)}${booking.comment?`<div class="booking-note">${esc(booking.comment)}</div>`:''}</td><td><span class="nowrap">${dateText(booking.date)}</span><br>${esc(booking.time)}<div class="status-note">60 минут</div>${booking.assignmentKind?`<div class="status-note">${booking.assignmentKind==='reserve'?'Резерв':'Основная запись'}</div>`:''}</td><td>${externalLink(booking.backofficeUrl||state.config.backofficeUrl,'Перейти в Backoffice')}${externalLink(booking.crmUrl,'Перейти в Amo CRM')}<div>Родитель: ${esc(booking.parentName||'Не указано')}</div>${phone?`<a class="link-line" href="tel:${esc(phone)}">${esc(booking.phone)}</a>`:'<div class="status-note">Телефон не указан</div>'}${booking.assignedName?`<div class="status-note">МИМК: ${esc(booking.assignedName)}</div>`:booking.legacy?.managerName?`<div class="status-note">МИМК в прежнем букинге: ${esc(booking.legacy.managerName)}</div>`:''}${detailsButton(booking)}${isAdmin()&&!cancelled&&!legacyOutcomeUnknown(booking)?`<button class="subtle compact" data-action="assignment" data-id="${esc(booking.id)}">${booking.assignedTo?'Изменить назначение':'Назначить МИМК'}</button>`:''}</td><td><div class="button-stack">${actions}</div>${deadline}</td><td>${canReport()&&completed?`<button class="report-button" data-action="report" data-id="${esc(booking.id)}" aria-label="${booking.report?'Открыть':'Заполнить'} отчёт о занятии ${esc(studentName(booking))}">${icon('document')}</button><div class="status-note">${booking.report?'Заполнен':'Не заполнен'}</div>`:booking.report?'<span class="status-note">Заполнен</span>':'<span class="muted">—</span>'}</td></tr>`;
 }
 
 function renderAdmin() {
@@ -266,6 +281,12 @@ function renderAdmin() {
 function scheduleDraftKey() {return `schedule.${state.managerId}.${weekDates(state.week)[0]}`;}
 function persistSchedule() {drafts.save(scheduleDraftKey(),state.scheduleDraft);}
 
+function scheduleInterval(interval,index,day) {
+  const common=`data-schedule-date="${day.date}" data-index="${index}"`;
+  const capacity=effectiveReserveCapacity(interval,day);
+  return `<div class="interval interval-with-reserve"><div class="interval-time"><input type="time" step="3600" value="${esc(interval.start)}" aria-label="Начало рабочего интервала ${dateText(day.date)}" ${common} data-field="start"><span>–</span><input type="time" step="3600" value="${esc(interval.end)}" aria-label="Конец рабочего интервала ${dateText(day.date)}" ${common} data-field="end"><button class="remove-interval" data-action="remove-interval" data-date="${day.date}" data-index="${index}" aria-label="Удалить интервал">×</button></div><label class="interval-reserve">Резервных мест<select ${common} data-field="intervalReserveCapacity" aria-label="Резерв в интервале ${esc(interval.start)}–${esc(interval.end)} ${dateText(day.date)}"><option value="0"${selected(capacity,0)}>0</option><option value="1"${selected(capacity,1)}>1</option></select></label></div>`;
+}
+
 function renderSchedule() {
   if(!state.managerId)return '<div class="empty"><strong>Нет менеджеров мастер-классов</strong>Добавьте сотрудника с ролью менеджера, чтобы настроить расписание.</div>';
   const dates=weekDates(state.week);
@@ -275,7 +296,7 @@ function renderSchedule() {
   return `${isAdmin()?`<div class="toolbar"><label class="toolbar-label" for="schedule-manager">МИМК</label><select id="schedule-manager">${state.managers.map(manager=>`<option value="${esc(manager.id)}"${selected(state.managerId,manager.id)}>${esc(manager.name)}</option>`).join('')}</select></div>`:''}${state.scheduleConflict?'<div class="error-banner" role="alert">Расписание изменилось на сервере. Черновик сохранён. <button class="subtle compact" data-action="reset-schedule">Сбросить черновик и загрузить актуальное</button></div>':''}<div class="schedule-wrap"><section class="schedule-panel"><h2 class="schedule-heading">${esc(manager.name)}</h2><div class="tag-toolbar"><h3>Теги:</h3>${schedule.ageGroups.map(group=>`<span class="age-tag" data-group="${esc(group)}">${esc(group)}<button type="button" data-action="remove-tag" data-tag="${esc(group)}" aria-label="Убрать возраст ${esc(group)}">×</button></span>`).join('')}<div class="tag-choice"><select id="age-tag-choice" aria-label="Добавить возрастной тег"><option value="">Добавить тег</option>${ageGroups.filter(group=>!schedule.ageGroups.includes(group)).map(group=>`<option>${group}</option>`).join('')}</select><button class="tag-add" data-action="add-tag" aria-label="Добавить выбранный тег">+</button></div></div><div class="week-nav"><button class="subtle" data-action="previous-week">Предыдущая</button><strong>Текущая неделя: ${dateShort(dates[0])} – ${dateText(dates[6])}</strong><button class="subtle" data-action="next-week">Следующая</button></div>${dates.map((date,index)=>{
     const day=schedule.days.find(day=>day.date===date)||{date,intervals:[]};
     const enabled=day.intervals.length>0;
-    return `<div class="schedule-day${enabled?'':' off'}"><div class="day-name">${['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'][index]}<small>${dateText(date)}</small></div><button type="button" class="switch" role="switch" aria-checked="${enabled}" aria-label="Рабочий день ${dateText(date)}" data-action="toggle-day" data-date="${date}"></button><div><div class="intervals">${day.intervals.map((interval,intervalIndex)=>`<div class="interval"><input type="time" step="3600" value="${esc(interval.start)}" aria-label="Начало рабочего интервала ${dateText(date)}" data-schedule-date="${date}" data-index="${intervalIndex}" data-field="start"><span>–</span><input type="time" step="3600" value="${esc(interval.end)}" aria-label="Конец рабочего интервала ${dateText(date)}" data-schedule-date="${date}" data-index="${intervalIndex}" data-field="end"><button class="remove-interval" data-action="remove-interval" data-date="${date}" data-index="${intervalIndex}" aria-label="Удалить интервал">×</button></div>`).join('')}<button class="add-hours" data-action="add-interval" data-date="${date}">Добавить<br>часы работы</button></div>${enabled?`<label class="reserve-field">Резервных мест в час<input type="number" min="0" max="1" value="${Number(day.reserveCapacity??1)}" data-schedule-date="${date}" data-field="reserveCapacity"></label>`:''}</div></div>`;
+    return `<div class="schedule-day${enabled?'':' off'}"><div class="day-name">${['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота','Воскресенье'][index]}<small>${dateText(date)}</small></div><button type="button" class="switch" role="switch" aria-checked="${enabled}" aria-label="Рабочий день ${dateText(date)}" data-action="toggle-day" data-date="${date}"></button><div><div class="intervals">${day.intervals.map((interval,intervalIndex)=>scheduleInterval(interval,intervalIndex,day)).join('')}<button class="add-hours" data-action="add-interval" data-date="${date}">Добавить<br>часы работы</button></div>${enabled?`<label class="reserve-field">Резерв по умолчанию<select data-schedule-date="${date}" data-field="reserveCapacity" aria-label="Установить резерв во всех интервалах ${dateText(date)}"><option value="0"${selected(day.reserveCapacity??1,0)}>0</option><option value="1"${selected(day.reserveCapacity??1,1)}>1</option></select><span class="field-hint">Изменение заменит резерв в каждом интервале дня.</span></label>`:''}</div></div>`;
   }).join('')}<div class="schedule-description">Рабочий интервал включает начало и исключает конец. Интервал 20:00–21:00 позволяет провести занятие в 20:00. Без тегов доступны все возрасты.</div><div class="schedule-save"><span class="dirty-note" id="schedule-dirty">${drafts.read(scheduleDraftKey()).days?'Есть сохранённый черновик':''}</span><button class="primary" data-action="save-schedule"${state.scheduleConflict?' disabled':''}>Сохранить расписание</button></div></section></div>`;
 }
 
@@ -307,7 +328,7 @@ function serializeForm(form) {
 function persistForm(form) {
   if(!drafts||!form?.dataset.draft)return;
   const values=serializeForm(form);delete values.password;
-  drafts.save(form.dataset.draft,values);
+  drafts.save(form.dataset.draft,form.id==='details-form'?{changes:changedDetails(detailSnapshots.get(form)||{},values)}:values);
 }
 
 function openCreate() {
@@ -341,16 +362,45 @@ async function loadSlots(preferredTime) {
 
 function getBooking(id) {return state.bookings.find(booking=>booking.id===id);}
 
+function openDetails(booking) {
+  if(!booking||!canEditDetails(state.user,booking))return;
+  const name=`details.${booking.id}`;
+  const initial=structuredClone(booking);
+  const values={...initial,...(drafts.read(name).changes||{})};
+  const triValue=value=>value===true?'true':value===false?'false':'';
+  const triOptions=field=>[...(initial[field]==null?[{value:'',label:'Не указано'}]:[]),{value:'true',label:'Да'},{value:'false',label:'Нет'}];
+  showDialog(booking.legacy?'Дополнить данные':'Данные ученика и родителя',`<form id="details-form" data-draft="${esc(name)}"><div class="dialog-body">${formError()}<div class="readonly-facts"><span>Занятие: <strong>${dateText(booking.date)} · ${esc(booking.time)}</strong></span><span>МИМК: <strong>${esc(booking.assignedName||'Не указан')}</strong></span></div>${booking.legacy?'<div class="notice">В прежнем букинге сохранились не все сведения. Заполните известные данные. Неизвестные поля можно оставить без изменений.</div>':'<p class="report-header-note">Здесь можно исправить контакты и сведения об ученике. Дата, время и назначение МИМК сохраняются.</p>'}<div class="form-grid">${formField('studentName','Имя ученика',values.studentName,{required:Boolean(initial.studentName),placeholder:'Не указано'})}${formField('parentName','Имя родителя',values.parentName,{required:Boolean(initial.parentName),placeholder:'Не указано'})}${formField('phone','Телефон родителя',values.phone,{type:'tel',required:Boolean(initial.phone),placeholder:'Не указано'})}${formField('crmUrl','Ссылка на сделку Amo CRM',values.crmUrl,{type:'url',required:Boolean(initial.crmUrl),placeholder:'Не указано'})}${formField('age','Возраст ученика',values.age,{type:'number',required:initial.age!=null,min:1,max:18})}${formField('hasPc','У ученика есть компьютер',triValue(values.hasPc),{options:triOptions('hasPc')})}${formField('parentPresent','Родитель будет на занятии',triValue(values.parentPresent),{options:triOptions('parentPresent')})}${formField('comment','Комментарий',values.comment,{type:'textarea',full:true})}</div></div><div class="dialog-footer"><span class="small">Черновик сохраняется автоматически</span><button type="button" class="secondary" data-action="close-dialog">Закрыть</button><button type="submit" class="primary">Сохранить данные</button></div></form>`,{name:'details',bookingId:booking.id,version:booking.version});
+  detailSnapshots.set(dialog.querySelector('#details-form'),initial);
+}
+
+function updateLegacyOutcomeFields() {
+  const form=dialog.querySelector('#resolve-legacy-form');if(!form)return;
+  const completed=form.elements.outcome.value==='completed';
+  const manager=form.elements.managerId;
+  manager.required=completed;manager.disabled=!completed;
+  manager.closest('.field').hidden=!completed;
+}
+
+function openResolveLegacy(booking) {
+  if(!canResolveLegacy(state.user,booking))return;
+  const name=`resolve-legacy.${booking.id}`;
+  const values=drafts.read(name);
+  showDialog('Уточнить итог мастер-класса',`<form id="resolve-legacy-form" data-draft="${esc(name)}"><div class="dialog-body">${formError()}<p class="report-header-note">${esc(studentName(booking))} · ${dateText(booking.date)} · ${esc(booking.time)}</p><div class="notice">В прежнем букинге итог этого занятия не зафиксирован. Укажите фактический итог и основание. Прошедшая дата сама по себе не означает отмену.</div><div class="form-grid">${formField('outcome','Фактический итог',values.outcome||'',{required:true,full:true,options:[{value:'',label:'Выберите итог'},{value:'completed',label:'Фактически проведён'},{value:'cancelled',label:'Не состоялся'}]})}${formField('managerId','МИМК, который фактически провёл занятие',values.managerId||'',{full:true,options:[{value:'',label:'Выберите МИМК'},...state.managers.map(manager=>({value:manager.id,label:manager.name}))]})}${formField('reason','На основании чего уточнили итог',values.reason||'',{type:'textarea',required:true,full:true})}</div><p class="field-hint">Для проведённого занятия сервер проверит расписание МИМК, возраст и пересечения. После сохранения можно заполнить отчёт.</p></div><div class="dialog-footer"><span class="small">Итог сохранится в истории изменений</span><button type="button" class="secondary" data-action="close-dialog">Назад</button><button type="submit" class="primary">Сохранить итог</button></div></form>`,{name:'resolve-legacy',bookingId:booking.id,version:booking.version});
+  updateLegacyOutcomeFields();
+}
+
 function openCancel(booking,noShow=false) {
   if(!booking)return;
-  showDialog(noShow?'Ученик не пришёл':'Отмена мастер-класса',`<form id="cancel-form"><div class="dialog-body">${formError()}<p class="report-header-note">${esc(booking.studentName)} · ${dateText(booking.date)} · ${esc(booking.time)}</p>${formField('reason','Причина отмены',noShow?'Ученик не пришёл':'',{type:'textarea',required:true,full:true,readOnly:noShow})}<p class="field-hint">Запись останется в истории. Администратор сможет восстановить её при наличии места.</p></div><div class="dialog-footer"><button type="button" class="secondary" data-action="close-dialog">Назад</button><button type="submit" class="danger">Отменить мастер-класс</button></div></form>`,{name:'cancel',bookingId:booking.id,version:booking.version});
+  showDialog(noShow?'Ученик не пришёл':'Отмена мастер-класса',`<form id="cancel-form"><div class="dialog-body">${formError()}<p class="report-header-note">${esc(studentName(booking))} · ${dateText(booking.date)} · ${esc(booking.time)}</p>${formField('reason','Причина отмены',noShow?'Ученик не пришёл':'',{type:'textarea',required:true,full:true,readOnly:noShow})}<p class="field-hint">Запись останется в истории. Администратор сможет восстановить её при наличии места.</p></div><div class="dialog-footer"><button type="button" class="secondary" data-action="close-dialog">Назад</button><button type="submit" class="danger">Отменить мастер-класс</button></div></form>`,{name:'cancel',bookingId:booking.id,version:booking.version});
 }
 
 function openReport(booking) {
   if(!booking)return;
   const name=`report.${booking.id}`;
   const values={...(booking.report||{}),...drafts.read(name)};
-  showDialog('Отчёт о мастер-классе',`<form id="report-form" data-draft="${esc(name)}"><div class="dialog-body">${formError()}<div class="readonly-facts"><span>Ученик: <strong>${esc(booking.studentName)}</strong></span><span>Дата: <strong>${dateText(booking.date)} ${esc(booking.time)}</strong></span><span>МИМК: <strong>${esc(booking.assignedName||state.user.name)}</strong></span><span>Возраст: <strong>${Number(booking.age)} лет</strong></span></div><div class="report-header-note">Дата, время, МИМК и ссылка Amo CRM подставляются из записи. Повторное сохранение обновляет этот же отчёт.</div><div class="form-grid">${formField('practice','Практика / направление',values.practice,{required:true})}${formField('package','Пакет',values.package,{required:true})}${formField('paymentMethod','Способ оплаты',values.paymentMethod,{required:true})}${formField('agreement','Договорённость',values.agreement,{required:true})}${formField('objection','Возражение',values.objection)}${formField('channel','Канал',values.channel,{required:true})}${formField('amountNet','Сумма нетто, ₽',values.amountNet??'',{type:'number',min:0,step:'0.01',required:true})}${formField('recordingUrl','Ссылка на запись',values.recordingUrl,{type:'url'})}</div><p class="field-hint" style="margin-top:18px">Сумма в отчёте фиксирует итог занятия. Финансовые платежи учитываются отдельно.</p></div><div class="dialog-footer"><span class="small">Черновик сохраняется автоматически</span><button type="button" class="secondary" data-action="close-dialog">Закрыть</button><button type="submit" class="primary">Сохранить отчёт</button></div></form>`,{name:'report',bookingId:booking.id,version:booking.version});
+  const facts=`<div class="readonly-facts"><span>Ученик: <strong>${esc(studentName(booking))}</strong></span><span>Дата: <strong>${dateText(booking.date)} ${esc(booking.time)}</strong></span><span>МИМК: <strong>${esc(booking.assignedName||'Не указан')}</strong></span><span>Возраст: <strong>${esc(studentAge(booking))}</strong></span></div>`;
+  const fields=formField('practice','Практика / направление',values.practice,{required:true})+formField('package','Пакет',values.package,{required:true})+formField('paymentMethod','Способ оплаты',values.paymentMethod,{required:true})+formField('agreement','Договорённость',values.agreement,{required:true})+formField('objection','Возражение',values.objection)+formField('channel','Канал',values.channel,{required:true})+formField('amountNet','Сумма нетто, ₽',values.amountNet??'',{type:'number',min:0,step:'0.01',required:true})+formField('recordingUrl','Ссылка на запись',values.recordingUrl,{type:'url'});
+  showDialog('Отчёт о мастер-классе',`<form id="report-form" data-draft="${esc(name)}"><div class="dialog-body">${formError()}${facts}<div class="report-header-note">Дата, время, МИМК и ссылка Amo CRM подставляются из записи. Повторное сохранение обновляет этот же отчёт.</div><div class="form-grid">${fields}</div><p class="field-hint" style="margin-top:18px">Сумма в отчёте фиксирует итог занятия. Финансовые платежи учитываются отдельно.</p></div><div class="dialog-footer"><span class="small">Черновик сохраняется автоматически</span><button type="button" class="secondary" data-action="close-dialog">Закрыть</button><button type="submit" class="primary">Сохранить отчёт</button></div></form>`,{name:'report',bookingId:booking.id,version:booking.version});
 }
 
 function assignmentForm(booking) {
@@ -359,7 +409,14 @@ function assignmentForm(booking) {
 
 function openHour(time,oneBooking) {
   const bookings=oneBooking?[oneBooking]:filterHourBookings(state.bookings,{time,tag:state.tag,search:state.search});
-  showDialog(oneBooking?'Назначение МИМК':`Мастер-классы · ${dateText(state.adminDate)} · ${time}`,`<div class="dialog-body">${bookings.length?bookings.map(booking=>`<article class="drawer-booking" data-id="${esc(booking.id)}"><div class="drawer-booking-top"><div><span class="student-name">${esc(booking.studentName)}</span><div class="small">${dateText(booking.date)} · ${esc(booking.time)} · ${Number(booking.age)} лет</div><div style="margin-top:8px">Родитель: ${esc(booking.parentName)} · ${esc(booking.phone)}</div>${externalLink(booking.crmUrl,'Перейти в Amo CRM')}${externalLink(booking.backofficeUrl||state.config.backofficeUrl,'Перейти в Backoffice')}</div><div>${statusBadge(booking)}<div class="status-note">${esc(booking.assignedName||'МИМК не назначен')}</div></div></div>${booking.state==='scheduled'?assignmentForm(booking):''}<div class="drawer-actions">${booking.confirmationStatus!=='confirmed'&&booking.state==='scheduled'?`<button class="outline compact" data-action="confirm" data-id="${esc(booking.id)}">Подтвердить</button>`:''}${booking.state==='scheduled'?`<button class="subtle compact" data-action="cancel" data-id="${esc(booking.id)}">Отменить запись</button>`:''}${booking.state==='completed'?`<button class="subtle compact" data-action="report" data-id="${esc(booking.id)}">${booking.report?'Открыть':'Заполнить'} отчёт</button>`:''}<button class="subtle compact" data-action="audit" data-id="${esc(booking.id)}">История изменений</button></div></article>`).join(''):'<div class="empty">На этот час нет записей.</div>'}</div>`,{name:oneBooking?'assignment':'hour',bookingId:oneBooking?.id||''});
+  const rows=bookings.map(booking=>{
+    const ordinaryScheduled=booking.state==='scheduled'&&!legacyOutcomeUnknown(booking);
+    const phone=String(booking.phone||'').replace(/[^+\d]/g,'');
+    const contacts=`<div style="margin-top:8px">Родитель: ${esc(booking.parentName||'Не указано')}</div>${phone?`<a class="link-line" href="tel:${esc(phone)}">${esc(booking.phone)}</a>`:'<div class="status-note">Телефон не указан</div>'}<div class="booking-extra">${esc(bookingEquipment(booking))}</div>`;
+    const actions=`${detailsButton(booking)}${resolveLegacyButton(booking)}${ordinaryScheduled&&booking.confirmationStatus!=='confirmed'?`<button class="outline compact" data-action="confirm" data-id="${esc(booking.id)}">Подтвердить</button>`:''}${ordinaryScheduled?`<button class="subtle compact" data-action="cancel" data-id="${esc(booking.id)}">Отменить запись</button>`:''}${booking.state==='completed'?`<button class="subtle compact" data-action="report" data-id="${esc(booking.id)}">${booking.report?'Открыть':'Заполнить'} отчёт</button>`:''}<button class="subtle compact" data-action="audit" data-id="${esc(booking.id)}">История изменений</button>`;
+    return `<article class="drawer-booking" data-id="${esc(booking.id)}"><div class="drawer-booking-top"><div><span class="student-name">${esc(studentName(booking))}</span>${legacyBadges(booking)}<div class="small">${dateText(booking.date)} · ${esc(booking.time)} · ${esc(studentAge(booking))}</div>${contacts}${externalLink(booking.crmUrl,'Перейти в Amo CRM')}${externalLink(booking.backofficeUrl||state.config.backofficeUrl,'Перейти в Backoffice')}${booking.legacy?.managerName?`<div class="status-note">МИМК в прежнем букинге: ${esc(booking.legacy.managerName)}</div>`:''}</div><div>${statusBadge(booking)}<div class="status-note">${esc(booking.assignedName||'МИМК не назначен')}</div></div></div>${legacyOutcomeUnknown(booking)?'<p class="status-note">В прежнем букинге итог не зафиксирован. Требуется проверка администратора.</p>':''}${ordinaryScheduled?assignmentForm(booking):''}<div class="drawer-actions">${actions}</div></article>`;
+  }).join('');
+  showDialog(oneBooking?'Назначение МИМК':`Мастер-классы · ${dateText(state.adminDate)} · ${time}`,`<div class="dialog-body">${rows||'<div class="empty">На этот час нет записей.</div>'}</div>`,{name:oneBooking?'assignment':'hour',bookingId:oneBooking?.id||''});
   dialog.dataset.hour=time||oneBooking?.time||'';
 }
 
@@ -374,7 +431,7 @@ function openUser(user) {
 async function mutateBooking(id,action,body={},version) {
   const booking=getBooking(id);
   if(!booking&&version===undefined)throw new Error('Запись больше не доступна. Обновите список.');
-  const result=await api(`/bookings/${encodeURIComponent(id)}/${action}`,{method:action==='report'?'PUT':'POST',body:{...body,version:version??booking.version}});
+  const result=await api(`/bookings/${encodeURIComponent(id)}/${action}`,{method:['report','details'].includes(action)?'PUT':'POST',body:{...body,version:version??booking.version}});
   const index=state.bookings.findIndex(item=>item.id===id);
   if(index>=0)state.bookings[index]=result.booking;
   return result.booking;
@@ -383,6 +440,8 @@ async function mutateBooking(id,action,body={},version) {
 async function performBookingAction(id,action) {
   const booking=getBooking(id);if(!booking)return;
   if(action==='report'){openReport(booking);return;}
+  if(action==='details'){openDetails(booking);return;}
+  if(action==='resolve-legacy'){openResolveLegacy(booking);return;}
   if(action==='cancel'||action==='no-show'){openCancel(booking,action==='no-show');return;}
   if(action==='assignment'){openHour(booking.time,booking);return;}
   const result=await mutateBooking(id,action);
@@ -402,7 +461,7 @@ async function saveSchedule(button) {
   button.disabled=true;button.textContent='Сохраняем…';
   try {
     for(const day of schedule.days){
-      const result=await api('/schedule',{method:'PUT',body:{managerId,date:day.date,intervals:day.intervals,ageGroups:schedule.ageGroups,reserveCapacity:Number(day.reserveCapacity??1),version:Number(day.version||0)}});
+      const result=await api('/schedule',{method:'PUT',body:schedulePayload(day,{managerId,ageGroups:schedule.ageGroups})});
       day.version=result.day.version;
       const local=drafts.read(draftKey);
       const storedDay=local.days?.find(stored=>stored.date===day.date);
@@ -443,7 +502,7 @@ async function handleAction(event) {
       if(action==='remove-interval')day.intervals.splice(Number(target.dataset.index),1);
       persistSchedule();renderContent();return;
     }
-    if(['confirm','start','complete','restore','cancel','no-show','report','assignment'].includes(action)) {target.disabled=true;try {await performBookingAction(id,action);}finally {target.disabled=false;}}
+    if(['confirm','start','complete','restore','cancel','no-show','report','assignment','details','resolve-legacy'].includes(action)) {target.disabled=true;try {await performBookingAction(id,action);}finally {target.disabled=false;}}
   } catch(error) {notify(error.message,true);if(error.status===409)await refresh({quiet:true});}
 }
 
@@ -468,9 +527,11 @@ app.addEventListener('input',event=>{
   const input=event.target;
   if(!input.dataset.scheduleDate||!state.scheduleDraft)return;
   const day=state.scheduleDraft.days.find(day=>day.date===input.dataset.scheduleDate);if(!day)return;
-  if(input.dataset.field==='reserveCapacity')day.reserveCapacity=Number(input.value);
+  if(input.dataset.field==='reserveCapacity')Object.assign(day,setDayReserveCapacity(day,input.value));
+  else if(input.dataset.field==='intervalReserveCapacity'&&day.intervals[Number(input.dataset.index)])day.intervals[Number(input.dataset.index)].reserveCapacity=Number(input.value);
   else if(day.intervals[Number(input.dataset.index)])day.intervals[Number(input.dataset.index)][input.dataset.field]=input.value;
   persistSchedule();const note=document.querySelector('#schedule-dirty');if(note)note.textContent='Есть сохранённый черновик';
+  if(input.dataset.field==='reserveCapacity')renderContent();
 });
 
 dialog.addEventListener('click',handleAction);
@@ -479,6 +540,7 @@ dialog.addEventListener('input',event=>{persistForm(event.target.closest('form')
 dialog.addEventListener('change',event=>{
   const form=event.target.closest('form');persistForm(form);
   if(form?.id==='create-form'&&['date','age'].includes(event.target.name))loadSlots();
+  if(form?.id==='resolve-legacy-form'&&event.target.name==='outcome')updateLegacyOutcomeFields();
 });
 
 dialog.addEventListener('submit',async event=>{
@@ -500,6 +562,24 @@ dialog.addEventListener('submit',async event=>{
     } else if(form.id==='cancel-form') {
       await mutateBooking(dialog.dataset.bookingId,'cancel',{reason:values.reason},Number(dialog.dataset.version));
       dialog.close();notify('Мастер-класс отменён');await refresh({quiet:true});
+    } else if(form.id==='details-form') {
+      const bookingId=dialog.dataset.bookingId;
+      const version=Number(dialog.dataset.version);
+      persistForm(form);
+      const changes=changedDetails(detailSnapshots.get(form)||{},values);
+      if(!Object.keys(changes).length)throw new Error('Нет изменений для сохранения. Неизвестные данные можно оставить незаполненными.');
+      await mutateBooking(bookingId,'details',changes,version);
+      drafts.remove(form.dataset.draft);dialog.close();notify('Данные записи обновлены');await refresh({quiet:true});
+    } else if(form.id==='resolve-legacy-form') {
+      const bookingId=dialog.dataset.bookingId;
+      const version=Number(dialog.dataset.version);
+      persistForm(form);
+      if(!['completed','cancelled'].includes(values.outcome))throw new Error('Выберите фактический итог занятия.');
+      if(!String(values.reason||'').trim())throw new Error('Укажите, на основании чего уточнили итог.');
+      if(values.outcome==='completed'&&!values.managerId)throw new Error('Выберите МИМК, который фактически провёл занятие.');
+      const updated=await mutateBooking(bookingId,'resolve-legacy',{outcome:values.outcome,reason:values.reason,...(values.outcome==='completed'?{managerId:values.managerId}:{})},version);
+      drafts.remove(form.dataset.draft);dialog.close();notify('Фактический итог сохранён');await refresh({quiet:true});
+      if(updated.state==='completed')openReport(updated);
     } else if(form.id==='report-form') {
       persistForm(form);
       await mutateBooking(dialog.dataset.bookingId,'report',{...values,amountNet:Number(values.amountNet)},Number(dialog.dataset.version));

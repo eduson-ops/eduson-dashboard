@@ -39,13 +39,15 @@ function safePath(path) {
 export async function createApp({ db, now = () => new Date(), secureCookies = false, publicOrigin, trustProxy = false, demo = false, demoDate, enableWorkers = true, syncOptions } = {}) {
   if (!db) throw Error('Database is required');
   const service = new BookingService(db, { now });
-  const auth = await createAuth(db, { now, validateUserChange: tx => service.validateCapacity(tx) });
+  const auth = await createAuth(db, { now, validateUserChange: async tx => { await service.validateCapacity(tx); await service.markSheetsDirty(tx); } });
   const limiter = createLoginLimiter();
   const subscribers = new Set(); let revision = 0; let closing = false; let workerBusy = false;
-  let synchronizer = null;
+  let synchronizer = null; let scheduleSynchronizer = null;
   if (syncOptions?.enabled) {
     const { createSheetSynchronizer } = await import('./sheets-sync.mjs');
+    const { createScheduleSheetSynchronizer } = await import('./sheet-schedule-sync.mjs');
     synchronizer = createSheetSynchronizer({ ...syncOptions, db, getBooking: async id => (await service.listBookings(SYSTEM, { id, scope: 'all' }))[0] });
+    scheduleSynchronizer = createScheduleSheetSynchronizer({ ...syncOptions, db, getSnapshot: () => service.getSheetSnapshot(SYSTEM) });
   }
   function broadcast() {
     revision++;
@@ -54,7 +56,13 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
   async function syncStatus() {
     const result = await db.query("SELECT status,count(*)::int AS n FROM eduson_booking.sync_jobs GROUP BY status");
     const counts = Object.fromEntries(result.rows.map(x => [x.status, x.n]));
-    return { enabled: Boolean(synchronizer), pending: (counts.pending || 0) + (counts.processing || 0), errors: counts.error || 0, ...(synchronizer ? await synchronizer.status() : {}) };
+    const projections = (await db.query('SELECT status,count(*)::int AS n FROM eduson_booking.sheet_projections GROUP BY status')).rows;
+    const projectionCounts = Object.fromEntries(projections.map(x => [x.status, x.n]));
+    const status = synchronizer ? await synchronizer.status() : {};
+    const schedule = scheduleSynchronizer ? await scheduleSynchronizer.status() : {};
+    const pending = (counts.pending || 0) + (counts.processing || 0) + (projectionCounts.pending || 0) + (projectionCounts.processing || 0);
+    const errors = (counts.error || 0) + (projectionCounts.error || 0);
+    return { enabled: Boolean(synchronizer), pending, errors, error: errors, lastError: schedule.lastError || status.lastError || null, schedule };
   }
   async function worker() {
     if (workerBusy || closing) return;
@@ -62,7 +70,11 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
     try {
       const expired = await service.expireUnconfirmed(now());
       if (Array.isArray(expired) ? expired.length : Number(expired) > 0) broadcast();
-      if (synchronizer) await synchronizer.runOnce();
+      if (scheduleSynchronizer) await scheduleSynchronizer.runOnce();
+      if (synchronizer) {
+        const started = Date.now();
+        for (let i = 0; i < 8 && Date.now() - started < 10_000; i++) if (!(await synchronizer.runOnce()).processed) break;
+      }
     } catch (error) { console.error('Booking background operation failed', /^[A-Z0-9_]{2,40}$/.test(error.code || '') ? error.code : 'WORKER_ERROR'); }
     finally { workerBusy = false; }
   }
@@ -131,9 +143,9 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       if (path === '/api/bookings' && method === 'POST') {
         const booking = await service.createBooking(user, await body(req)); broadcast(); return json(res, { booking }, 201);
       }
-      const match = path.match(/^\/api\/bookings\/([^/]+)\/(confirm|assign|start|complete|cancel|restore|report)$/);
-      if (match && method === (match[2] === 'report' ? 'PUT' : 'POST')) {
-        const methods = { confirm: 'confirmBooking', assign: 'assignBooking', start: 'startBooking', complete: 'completeBooking', cancel: 'cancelBooking', restore: 'restoreBooking', report: 'saveReport' };
+      const match = path.match(/^\/api\/bookings\/([^/]+)\/(confirm|assign|start|complete|cancel|restore|report|details|resolve-legacy)$/);
+      if (match && method === (['report','details'].includes(match[2]) ? 'PUT' : 'POST')) {
+        const methods = { confirm: 'confirmBooking', assign: 'assignBooking', start: 'startBooking', complete: 'completeBooking', cancel: 'cancelBooking', restore: 'restoreBooking', report: 'saveReport', details: 'updateBookingDetails', 'resolve-legacy': 'resolveLegacy' };
         const booking = await service[methods[match[2]]](user, decodeURIComponent(match[1]), await body(req));
         broadcast(); return json(res, { booking });
       }
