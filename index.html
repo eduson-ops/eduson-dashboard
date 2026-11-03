@@ -7,7 +7,7 @@
 <title>Eduson Kids · Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Unbounded:wght@400;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="booking-ui.js?v=03438cd-booking-picker"></script>
+<script src="booking-ui.js?v=booking-platform-20261103"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -1858,8 +1858,8 @@ const URLS = {
 
 // COLUMNS Форма 1 — Отчёт о МК (0-indexed):
 // 0=timestamp,1=manager,2=date,3=time,4=crm,5=recording,
-// 6=practice,7=age,8=pack,9=notes,10=agreement,11=objection
-// (оплата убрана)
+// 6=practice,7=age,8=pack,9=paymentMethod,10=agreement,11=objection,
+// 12=channel,13=amountNet,14=bookingId. Выручка берётся только из листа «Оплаты».
 //
 // COLUMNS Форма 2 — Отчёт об оплате (0-indexed):
 // 0=timestamp,1=manager,2=crm,3=paydate,4=practice,5=pack,6=paytype,7=revenue
@@ -2108,7 +2108,7 @@ async function loadAll() {
   };
 
   // Parse lessons (Форма 1 — без оплаты)
-  // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=notes,10=agreement,11=objection
+  // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=paymentMethod,10=agreement,11=objection,12=channel,13=amountNet,14=bookingId
   var mkMap = {}; // crmId → lesson object
   var mkList = [];
   for(var i=1;i<rawForm.length;i++){
@@ -2119,7 +2119,8 @@ async function loadAll() {
     var lesson = {
       ts:cc(r[0]),manager:window.__canonicalMgr(cc(r[1])),date:cc(r[2]),time:cc(r[3]),
       crm:crmUrl,crmId:crmId,rec:cc(r[5]),practice:cc(r[6]),age:cc(r[7]),
-      pack:cc(r[8]),notes:cc(r[9]),agreement:cc(r[10]),objection:cc(r[11]),
+      pack:cc(r[8]),notes:'',paymentMethod:cc(r[9]),agreement:cc(r[10]),objection:cc(r[11]),
+      channel:cc(r[12]),amountNet:parseFloat(cc(r[13]).replace(/[^0-9.,]/g,'').replace(',','.'))||0,bookingId:cc(r[14]),
       rev:0,paid:false,paytype:'',scenario:'no_pay'
     };
     mkList.push(lesson);

@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.booking-data/
+.booking-demo/
+*.log
+playwright-report/
+test-results/
