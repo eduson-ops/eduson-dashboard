@@ -34,3 +34,5 @@ select{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='ht
 
 .sidebar-bottom{padding-bottom:12px}.sidebar>.connection{margin:0;padding:0 16px 20px;color:#b8bac8;font-size:9px}
 @media(max-width:760px){.sidebar>.connection{padding:0 16px 9px;font-size:9px}.sidebar>.connection span:last-child{white-space:nowrap}}
+
+input[type=date]{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='17' viewBox='0 0 16 17'%3E%3Crect x='2' y='3.5' width='12' height='12' rx='1.5' fill='none' stroke='%23778bdd'/%3E%3Cpath d='M2 7h12M5 1.5v4m6-4v4M5 10h1m3 0h1m-5 3h1m3 0h1' fill='none' stroke='%23778bdd' stroke-linecap='round'/%3E%3C/svg%3E");background-position:right 10px center;background-repeat:no-repeat;background-size:16px 17px}input[type=date]::-webkit-calendar-picker-indicator{opacity:0;cursor:pointer}
