@@ -72,6 +72,25 @@ test('stable booking ID replaces synchronized rows and preserves separate lesson
   assert.equal(response.headers.has('content-length'), false);
 });
 
+test('test report metadata excludes test lessons while managed IDs still replace stale copies',async()=>{
+  const headers=[...formHeaders,'Test flag'];
+  const b=browser({forms:csv([headers,[...lessonRow('test-managed'),'TRUE'],[...lessonRow('test-unmanaged'),'true'],[...lessonRow('real-managed'),'FALSE'],[...lessonRow('',{practice:'Legacy real'}),''],[...lessonRow('real-unmanaged'),'false']]),snapshot:{lessons:[lesson('real-managed',{practice:'Current real'}),lesson('test-api',{isTest:true,practice:'Should be excluded'})],cancellations:[],managedBookingIds:['test-managed','real-managed','test-api']}});
+  const {rows}=await b.rows(formUrl);
+  assert.deepEqual(rows.slice(1).map(row=>row[14]),['','real-unmanaged','real-managed']);assert.equal(rows[0][15],'Test flag');assert.equal(rows.at(-1)[6],'Current real');assert.equal(rows.at(-1)[13],'1234');
+  await b.context.loadAll();assert.equal(b.data('lessons').length,3);
+});
+
+for(const failure of [{apiStatus:401},{apiStatus:403},{apiStatus:500},{apiError:true}])test(`test report rows stay excluded without the analytics API: ${JSON.stringify(failure)}`,async()=>{
+  const forms=csv([[...formHeaders,'Test flag'],[...lessonRow('test'),'TRUE'],[...lessonRow('real'),'FALSE'],[...lessonRow('legacy'), '']]);
+  const b=browser({forms,...failure}),{rows,response}=await b.rows(formUrl);
+  assert.deepEqual(rows.slice(1).map(row=>row[14]),['real','legacy']);assert.equal(response.headers.get('x-source'),'legacy');assert.equal(response.headers.has('content-length'),false);
+});
+
+test('a foreign column after Booking ID never becomes test metadata by position alone',async()=>{
+  const forms=csv([[...formHeaders,'Foreign flag'],[...lessonRow('legacy'),'TRUE']]);
+  const b=browser({forms,apiError:true});assert.equal(await(await b.context.fetch(formUrl)).text(),forms);
+});
+
 test('restore removes managed archived cancellations while active database cancellations replace synchronized rows', async () => {
   const b = browser({ cancels: csv([cancelHeaders, cancelRow('restored'), cancelRow('cancelled'), cancelRow('legacy'), cancelRow('archived-unmanaged', 'scheduled')]), snapshot: { lessons: [], cancellations: [cancellation('cancelled')], managedBookingIds: ['restored', 'cancelled'] } });
   const { rows } = await b.rows(cancelUrl);

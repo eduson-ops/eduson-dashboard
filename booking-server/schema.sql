@@ -108,6 +108,16 @@ BEGIN
   END IF;
 END $$;
 
+-- Archived source records remain facts without consuming the published calendar.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM eduson_booking.schema_migrations WHERE version=3) THEN
+    ALTER TABLE eduson_booking.bookings ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE eduson_booking.bookings ADD COLUMN IF NOT EXISTS history_only BOOLEAN NOT NULL DEFAULT false;
+    INSERT INTO eduson_booking.schema_migrations(version) VALUES (3);
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS eduson_booking.sheet_projections (
   key TEXT PRIMARY KEY,
   version INT NOT NULL DEFAULT 1,
@@ -129,5 +139,16 @@ BEGIN
       created_by='legacy-import' OR (has_pc IS NOT NULL AND parent_present IS NOT NULL)
     );
     INSERT INTO eduson_booking.schema_migrations(version) VALUES (2);
+  END IF;
+END $$;
+
+-- Proven historical ownership is evidence, not live calendar occupancy.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM eduson_booking.schema_migrations WHERE version=4) THEN
+    DROP INDEX IF EXISTS eduson_booking.bookings_unique_assignment;
+    CREATE UNIQUE INDEX bookings_unique_assignment ON eduson_booking.bookings(assigned_to,starts_at,assignment_kind)
+      WHERE state <> 'cancelled' AND assigned_to IS NOT NULL AND history_only=false;
+    INSERT INTO eduson_booking.schema_migrations(version) VALUES (4);
   END IF;
 END $$;

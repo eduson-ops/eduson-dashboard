@@ -6,7 +6,7 @@ const REPORT_HEADERS = [']', 'Кто провёл урок?', 'Дата МК', '
 const CANCEL_HEADERS = ['Отметка времени', 'Ссылка на AMO', 'Причина отмены', 'Первичная отмена или нет?', 'Как пробовали связаться?', 'Возраст', 'Комментарий', 'МИМК'];
 const TARGETS = {
   booking: {tab: 'Booking VDS', headers: BOOKING_HEADERS, lastColumn: 'L', idColumn: 'A'},
-  report: {tab: 'Ответы формы', headers: REPORT_HEADERS, lastColumn: 'O', idColumn: 'O', extraHeaders: ['Booking ID']},
+  report: {tab: 'Ответы формы', headers: REPORT_HEADERS, lastColumn: 'P', idColumn: 'O', extraHeaders: ['Booking ID', 'Test flag']},
   cancel: {tab: 'Отмены', headers: CANCEL_HEADERS, lastColumn: 'J', idColumn: 'I', extraHeaders: ['Booking ID', 'Booking status']},
 };
 
@@ -79,7 +79,7 @@ export function createSheetSynchronizer({db, getBooking, serviceAccountPath, spr
     const rowNumber = matches[0];
     let values;
     if (job.kind === 'booking') values = mapBookingRow(booking);
-    if (job.kind === 'report') values = [...mapReportRow(booking), booking.id];
+    if (job.kind === 'report') values = [...mapReportRow(booking), booking.id, booking.isTest === true];
     if (job.kind === 'cancel') {
       const cancelled = booking.state === 'cancelled';
       let fact = mapCancellationRow(booking);

@@ -18,6 +18,35 @@ test('only an admin can resolve the unknown outcome of a transferred scheduled b
   assert.equal(core.canResolveLegacy?.({role:'admin'},{...booking,legacy:{elapsedUnknown:false}}),false);
 });
 
+test('confirmation actions stop immediately after the deadline and never operate on archive rows',()=>{
+  const actor={role:'confirmation'},booking={state:'scheduled',confirmationStatus:'pending',confirmationDueAt:'2026-11-04T10:00:00Z'};
+  assert.equal(core.canConfirmBooking?.(actor,booking,new Date('2026-11-04T10:00:00Z')),true);
+  assert.equal(core.canConfirmBooking?.(actor,booking,new Date('2026-11-04T10:00:00.001Z')),false);
+  assert.equal(core.canConfirmBooking?.(actor,{...booking,historyOnly:true},new Date('2026-11-04T09:00:00Z')),false);
+  assert.equal(core.canConfirmBooking?.({role:'sales'},booking,new Date('2026-11-04T09:00:00Z')),false);
+  assert.equal(core.canConfirmBooking?.(actor,{...booking,state:'cancelled'},new Date('2026-11-04T09:00:00Z')),false);
+});
+
+test('archive rows expose neither assignment nor restoration actions',()=>{
+  const admin={role:'admin'},booking={state:'scheduled',confirmationStatus:'confirmed',endsAt:'2026-11-05T13:00:00Z'};
+  assert.equal(core.canAssignBooking?.(admin,booking),true);
+  assert.equal(core.canAssignBooking?.(admin,{...booking,historyOnly:true}),false);
+  assert.equal(core.canAssignBooking?.(admin,{...booking,confirmationStatus:'pending'}),false);
+  assert.equal(core.canRestoreBooking?.(admin,{...booking,state:'cancelled'},new Date('2026-11-04T09:00Z')),true);
+  assert.equal(core.canRestoreBooking?.(admin,{...booking,state:'cancelled',historyOnly:true},new Date('2026-11-04T09:00Z')),false);
+  assert.equal(core.canRestoreBooking?.(admin,{...booking,state:'cancelled'},new Date('2026-11-06T09:00Z')),false);
+});
+
+test('inactive sales appear only in archive resolution choices and never change the active assignment directory',()=>{
+  const active=[{id:'live',name:'Действующий',role:'sales',active:true}];
+  const users=[...active,{id:'past',name:'Архивный',role:'sales',active:false},{id:'confirm',role:'confirmation',active:false}];
+  const archived={historyOnly:true};
+  assert.deepEqual(core.legacyResolutionManagers?.({role:'admin'},archived,active,users)?.map(x=>x.id),['live','past']);
+  assert.deepEqual(core.legacyResolutionManagers?.({role:'admin'},{},active,users)?.map(x=>x.id),['live']);
+  assert.deepEqual(core.legacyResolutionManagers?.({role:'confirmation'},archived,active,users),[]);
+  assert.deepEqual(active.map(x=>x.id),['live']);
+});
+
 test('contact correction is limited to permitted roles and the current booking owner', () => {
   const booking={createdBy:'kc-owner',assignedTo:'sales-owner'};
   assert.equal(core.canEditDetails?.({id:'kc-owner',role:'call_center'},booking),true);

@@ -4,6 +4,8 @@ import { resolve, dirname, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from './db.mjs';
 import { BookingService } from './domain.mjs';
+import { CompensationService, getConfirmation } from './compensation.mjs';
+import { OperationalPaymentService, createOperationalSynchronizer } from './operational-reports.mjs';
 import { createAuth, createLoginLimiter, readCookie, cookieHeader, requireCsrf, checkOrigin, requestAddress } from './auth.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,10 +41,13 @@ function safePath(path) {
 export async function createApp({ db, now = () => new Date(), secureCookies = false, publicOrigin, trustProxy = false, demo = false, demoDate, enableWorkers = true, syncOptions } = {}) {
   if (!db) throw Error('Database is required');
   const service = new BookingService(db, { now });
+  const payments = new OperationalPaymentService(db, { now });
+  const compensation = new CompensationService(db, { now });
   const auth = await createAuth(db, { now, validateUserChange: async tx => { await service.validateCapacity(tx); await service.markSheetsDirty(tx); } });
   const limiter = createLoginLimiter();
   const subscribers = new Set(); let revision = 0; let closing = false; let workerBusy = false;
   let synchronizer = null; let scheduleSynchronizer = null;
+  const operationalSynchronizer = createOperationalSynchronizer({ ...syncOptions, db, now, getPayment: id => payments.getPayment(id), getConfirmation: id => getConfirmation(db, id) });
   if (syncOptions?.enabled) {
     const { createSheetSynchronizer } = await import('./sheets-sync.mjs');
     const { createScheduleSheetSynchronizer } = await import('./sheet-schedule-sync.mjs');
@@ -60,9 +65,10 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
     const projectionCounts = Object.fromEntries(projections.map(x => [x.status, x.n]));
     const status = synchronizer ? await synchronizer.status() : {};
     const schedule = scheduleSynchronizer ? await scheduleSynchronizer.status() : {};
-    const pending = (counts.pending || 0) + (counts.processing || 0) + (projectionCounts.pending || 0) + (projectionCounts.processing || 0);
-    const errors = (counts.error || 0) + (projectionCounts.error || 0);
-    return { enabled: Boolean(synchronizer), pending, errors, error: errors, lastError: schedule.lastError || status.lastError || null, schedule };
+    const operations = await operationalSynchronizer.status();
+    const pending = (counts.pending || 0) + (counts.processing || 0) + (projectionCounts.pending || 0) + (projectionCounts.processing || 0) + operations.pending;
+    const errors = (counts.error || 0) + (projectionCounts.error || 0) + operations.error;
+    return { enabled: Boolean(synchronizer), pending, errors, error: errors, lastError: schedule.lastError || status.lastError || operations.lastError || null, schedule, operations };
   }
   async function worker() {
     if (workerBusy || closing) return;
@@ -73,7 +79,11 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       if (scheduleSynchronizer) await scheduleSynchronizer.runOnce();
       if (synchronizer) {
         const started = Date.now();
-        for (let i = 0; i < 8 && Date.now() - started < 10_000; i++) if (!(await synchronizer.runOnce()).processed) break;
+        for (let i = 0; i < 8 && Date.now() - started < 10_000; i++) {
+          const booking = await synchronizer.runOnce();
+          const operation = await operationalSynchronizer.runOnce();
+          if (!booking.processed && !operation.processed) break;
+        }
       }
     } catch (error) { console.error('Booking background operation failed', /^[A-Z0-9_]{2,40}$/.test(error.code || '') ? error.code : 'WORKER_ERROR'); }
     finally { workerBusy = false; }
@@ -154,6 +164,14 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       if (path === '/api/schedule' && method === 'PUT') {
         const day = await service.saveSchedule(user, await body(req)); broadcast(); return json(res, { day });
       }
+      if (path === '/api/schedule/range' && method === 'PUT') {
+        const result = await service.saveScheduleRange(user, await body(req)); broadcast(); return json(res, result);
+      }
+      if (path === '/api/compensation' && method === 'GET') return json(res, await compensation.get(user, filter));
+      if (path === '/api/payments' && method === 'GET') return json(res, { payments: await payments.listPayments(user, filter) });
+      if (path === '/api/payments' && method === 'POST') {
+        const payment = await payments.createPayment(user, await body(req)); broadcast(); return json(res, { payment }, 201);
+      }
       if (path === '/api/admin/stats' && method === 'GET') { admin(user); return json(res, await service.stats(user, filter)); }
       if (path === '/api/users' && method === 'GET') return json(res, { users: await auth.users(user) });
       if (path === '/api/users' && method === 'POST') { const created = await auth.createUser(user, await body(req)); broadcast(); return json(res, { user: created }, 201); }
@@ -178,7 +196,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
   });
   server.requestTimeout = 30_000; server.headersTimeout = 15_000;
   return {
-    server, auth, service, worker,
+    server, auth, service, payments, compensation, worker,
     async listen(port = 4180, host = '127.0.0.1') { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => { server.off('error', reject); resolve(); }); }); return server.address().port; },
     async close() { closing = true; if (timer) clearInterval(timer); for (const stream of subscribers) stream.res.end(); if (server.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } },
   };
@@ -187,7 +205,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
 async function main() {
   if (!process.env.DATABASE_URL && process.env.BOOKING_EMBEDDED !== '1') throw Error('Set DATABASE_URL for PostgreSQL, or BOOKING_EMBEDDED=1 for explicit local review');
   const db = await openDatabase({ databaseUrl: process.env.DATABASE_URL, dataDir: process.env.BOOKING_DATA_DIR || resolve(ROOT, '.booking-data') });
-  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID } });
+  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID, enrollmentSpreadsheetId: process.env.BOOKING_ENROLLMENT_SHEET_ID } });
   if (process.env.BOOKING_ADMIN_EMAIL && process.env.BOOKING_ADMIN_PASSWORD) {
     const existing = await db.query("SELECT id FROM eduson_booking.users WHERE role='admin' AND active=true LIMIT 1");
     if (!existing.rows.length) await app.auth.createUser(SYSTEM, { name: process.env.BOOKING_ADMIN_NAME || 'Администратор', email: process.env.BOOKING_ADMIN_EMAIL, password: process.env.BOOKING_ADMIN_PASSWORD, role: 'admin' });

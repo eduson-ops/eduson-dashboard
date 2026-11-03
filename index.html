@@ -4126,6 +4126,7 @@ function renderRetention() {
 // NAVIGATION
 // ═══════════════════════════════════════
 function showPage(id) {
+  if(id==='schedule'){window.location.assign('https://booking.82.148.17.109.sslip.io/#schedule');return;}
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sb-item,.tab').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
