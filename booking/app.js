@@ -1,4 +1,4 @@
-import { businessDate, addDays, weekDates, safeUrl, matchesSearch, confirmationTiming, makeDraftStore, isHourOverloaded, filterHourBookings, booleanFact, legacyOutcomeUnknown, canResolveLegacy, canConfirmBooking, canAssignBooking, canRestoreBooking, legacyResolutionManagers, canEditDetails, changedDetails, effectiveReserveCapacity, setDayReserveCapacity, schedulePayload, selectableBookingSlots, isBookingSelectionAvailable, bookingDateRail, bookingIntervalEnd, bookingStatusPresentation, filterHourMetricBookings, rollingScheduleDates, scheduleHourEntries, setScheduleHour, unionScheduleWeek } from './core.mjs?v=operations-20261104-5';
+import { businessDate, addDays, weekDates, safeUrl, matchesSearch, confirmationTiming, makeDraftStore, isHourOverloaded, filterHourBookings, booleanFact, legacyOutcomeUnknown, canResolveLegacy, canConfirmBooking, canAssignBooking, canRestoreBooking, legacyResolutionManagers, canEditDetails, changedDetails, effectiveReserveCapacity, setDayReserveCapacity, schedulePayload, selectableBookingSlots, isBookingSelectionAvailable, bookingDateRail, bookingIntervalEnd, bookingStatusPresentation, filterHourMetricBookings, rollingScheduleDates, scheduleHourEntries, setScheduleHour, unionScheduleWeek } from './core.mjs?v=operations-20261104-6';
 
 const app = document.querySelector('#app');
 const dialog = document.querySelector('#editor');
@@ -380,9 +380,10 @@ function studentName(booking) {return String(booking.studentName||'').trim()||'�
 function studentAge(booking) {return booking.age == null || booking.age === '' ? 'Возраст не указан' : `${Number(booking.age)} лет`;}
 function legacyBadges(booking) {
   const testBadge=booking.isTest?'<span class="test-booking-badge">Тестовая запись</span>':'';
-  if(!booking.legacy)return testBadge;
+  const holdBadge=booking.capacityHold&&booking.state==='scheduled'?'<span class="capacity-hold-badge">Ожидает свободного МИМК</span>':'';
+  if(!booking.legacy)return testBadge+holdBadge;
   const missing=booking.legacy.missingFields?.length>0;
-  return `${testBadge}<div class="legacy-badges"><span class="legacy-badge" title="Запись из прежнего букинга">Перенесено</span>${missing?'<span class="legacy-badge incomplete">Данные неполные</span>':''}</div>`;
+  return `${testBadge}${holdBadge}<div class="legacy-badges"><span class="legacy-badge" title="Запись из прежнего букинга">Перенесено</span>${missing?'<span class="legacy-badge incomplete">Данные неполные</span>':''}</div>`;
 }
 function detailsButton(booking) {return canEditDetails(state.user,booking)?`<button class="subtle compact" data-action="details" data-id="${esc(booking.id)}">${booking.legacy?'Дополнить данные':'Изменить данные'}</button>`:'';}
 function resolveLegacyButton(booking) {return canResolveLegacy(state.user,booking)?`<button class="subtle compact lesson-status-action" data-action="resolve-legacy" data-id="${esc(booking.id)}">Статус урока</button>`:'';}
@@ -425,7 +426,7 @@ function bookingRow(booking) {
 function renderAdmin() {
   const headers=['Время слота','Количество МИМК','Количество слотов с Overbooking','Записано всего лидов на слот',"Записано лидов по правилу Overbooking’a",'МК Подтверждённые за час','МК отменённые М1','МК отменённые МИМК','Успешные МК'];
   const hours=state.hours.length?state.hours:Array.from({length:12},(_,i)=>({time:`${String(i+10).padStart(2,'0')}:00`}));
-  const cell=(hour,metric,label,className='')=>`<td class="${className}"><button class="stats-cell-button" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="${metric}" aria-label="${esc(label)} на ${esc(hour.time)}: ${Number(hour[metric]||0)}">${Number(hour[metric]||0)}</button></td>`;
+  const cell=(hour,metric,label,className='')=>`<td class="${className}"><button class="stats-cell-button" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="${metric}" aria-label="${esc(label)} на ${esc(hour.time)}: ${Number(hour[metric]||0)}">${Number(hour[metric]||0)}</button>${metric==='total'&&Number(hour.capacityHeld)>0?`<button class="capacity-hold-link" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="capacityHeld">Нужен МИМК: ${Number(hour.capacityHeld)}</button>`:''}</td>`;
   return `<div class="toolbar"><input type="date" id="admin-date" aria-label="Дата статистики" value="${esc(state.adminDate)}"><select id="admin-tag" aria-label="Фильтр по возрастному тегу"><option value="">Теги</option>${ageGroups.map(group=>`<option${selected(state.tag,group)}>${group}</option>`).join('')}</select><span class="spacer"></span><button class="primary" data-action="create">+ Записать на мастер-класс</button><button class="icon-button" data-action="refresh" aria-label="Обновить статистику">${icon('refresh')}</button></div><div class="table-wrap"><table class="stats-table"><thead><tr>${headers.map(header=>`<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${hours.map(hour=>`<tr><td><button class="hour-button" data-action="hour" data-time="${esc(hour.time)}" aria-label="Все записи на ${esc(hour.time)}">${esc(hour.time)}</button></td>${cell(hour,'managers','Открытые МИМК')}${cell(hour,'capacity','Все открытые места')}${cell(hour,'total','Записанные ученики',Number(hour.total||0)>Number(hour.capacity||0)?'over':Number(hour.total||0)>0?'within':'')}${cell(hour,'reserve','Резервные записи')}${cell(hour,'confirmed','Подтверждённые уроки',isHourOverloaded(hour)?'over':'')}${cell(hour,'cancelledConfirmation','Отмены КЦ и подтверждения')}${cell(hour,'cancelledSales','Отмены МИМК')}${cell(hour,'completed','Проведённые уроки')}</tr>`).join('')}</tbody></table></div><div class="stats-footer"><span>Нажмите на число, чтобы увидеть состав показателя.</span><span>Записано: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.total||0),0)}</strong></span><span>Подтверждено: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.confirmed||0),0)}</strong></span></div>`;
 }
 
@@ -606,7 +607,7 @@ function assignmentForm(booking) {
 
 function openHour(time,oneBooking,metric='all') {
   const hour=state.hours.find(item=>item.time===time)||{};
-  const names={all:'Все записи',managers:'Открытые МИМК',capacity:'Открытые места',total:'Записанные ученики',reserve:'Резервные записи',confirmed:'Подтверждённые уроки',cancelledConfirmation:'Отмены КЦ и подтверждения',cancelledSales:'Отмены МИМК',completed:'Проведённые уроки'};
+  const names={all:'Все записи',managers:'Открытые МИМК',capacity:'Открытые места',capacityHeld:'Ожидают свободного МИМК',total:'Записанные ученики',reserve:'Резервные записи',confirmed:'Подтверждённые уроки',cancelledConfirmation:'Отмены КЦ и подтверждения',cancelledSales:'Отмены МИМК',completed:'Проведённые уроки'};
   const bookings=oneBooking?[oneBooking]:filterHourMetricBookings(state.bookings,{date:state.adminDate,time,tag:state.tag,metric,allocations:hour.allocations||[]});
   if(!oneBooking&&['managers','capacity'].includes(metric)){
     const managerRows=(hour.managerList||[]).map(manager=>{

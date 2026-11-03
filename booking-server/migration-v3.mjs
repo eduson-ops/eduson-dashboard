@@ -56,7 +56,7 @@ function normalizeRecord(record,at,capturedAt){
   for(const value of [normalized.studentName,normalized.parentName,normalized.phone,normalized.comment])demand(typeof value==='string'&&value.length<=10000,'INVALID_RECORD_TEXT');
   normalized.fingerprint=hash({...normalized,id:undefined,historyOnly:undefined});return normalized;
 }
-function sourcePlan(input,{at,newFutureReserveCapacity,existingRecordEvidence}){
+function sourcePlan(input,{at,newFutureReserveCapacity,existingRecordEvidence,holdExcessPending}){
   const issues=[],rows=[],records=[],directory=new Map(),calendar=new Map(),pairs=new Map();
   const check=(location,fn)=>{try{return fn();}catch(error){issues.push({code:error.code||'INVALID_SOURCE_VALUE',location});return null;}};
   const snapshot=input?.snapshot;let capturedAt;
@@ -93,13 +93,13 @@ function sourcePlan(input,{at,newFutureReserveCapacity,existingRecordEvidence}){
   check('records',()=>demand(input?.records===undefined||Array.isArray(input.records),'INVALID_RECORDS'));
   for(const[index,record]of (Array.isArray(input?.records)?input.records:[]).entries())check(`records:${index+1}`,()=>records.push(normalizeRecord(record,at,capturedAt)));
   const identities=new Set();for(const record of records){const identity=canonical([record.source,record.sourceId]);if(identities.has(identity))issues.push({code:'DUPLICATE_SOURCE_IDENTITY',location:'records'});identities.add(identity);}
-  const facts={schedule:snapshot?.sheet?.schedule,managers:snapshot?.sheet?.managers,rubitime:input?.rubitime,records:input?.records||[],newFutureReserveCapacity,...(Array.isArray(existingRecordEvidence)&&existingRecordEvidence.length?{existingRecordEvidence}: {})};
+  const facts={schedule:snapshot?.sheet?.schedule,managers:snapshot?.sheet?.managers,rubitime:input?.rubitime,records:input?.records||[],newFutureReserveCapacity,...(Array.isArray(existingRecordEvidence)&&existingRecordEvidence.length?{existingRecordEvidence}: {}),...(holdExcessPending?{holdExcessPending:true}:{})};
   return{issues,directory,hours:[...calendar.values()],pairs:[...pairs.values()],records,sourceFingerprint:hash(facts),raw:facts,counts:{sourceRows:rows.length,canonicalPrimaryHours:calendar.size,aliasDuplicateHours:rows.length-calendar.size,managerDays:new Set([...calendar.values()].map(h=>canonical([h.manager,h.date]))).size,records:records.length,historyRecords:records.filter(r=>r.historyOnly).length}};
 }
 async function readState(tx){
   const users=(await tx.query('SELECT id,email,name,role,active,age_groups FROM eduson_booking.users ORDER BY id')).rows;
   const schedules=(await tx.query('SELECT * FROM eduson_booking.schedules ORDER BY manager_id,date')).rows;
-  const bookings=(await tx.query('SELECT id,date,time,phone,crm_url,version,state,assigned_to,assignment_kind,history_only FROM eduson_booking.bookings ORDER BY id')).rows;
+  const bookings=(await tx.query('SELECT id,date,time,phone,crm_url,version,state,assigned_to,assignment_kind,history_only,capacity_hold FROM eduson_booking.bookings ORDER BY id')).rows;
   const projection=(await tx.query("SELECT * FROM eduson_booking.sheet_projections WHERE key='schedule'")).rows[0]||null;
   const present=(await tx.query("SELECT to_regclass('eduson_booking.migration_v3_runs') name")).rows[0].name;
   const runs=present?(await tx.query('SELECT source_fingerprint FROM eduson_booking.migration_v3_runs')).rows:[];
@@ -166,10 +166,11 @@ function databasePlan(plan,state,{at,newFutureReserveCapacity,existingRecordEvid
 }
 
 /** Private source data stays in PostgreSQL audit/identity tables; the returned preview contains only counts and codes. */
-export async function migrateV3(db,input,{apply=false,expectedDatabaseFingerprint,now=()=>new Date(),newFutureReserveCapacity=1,enqueueFutureBookings=false,existingRecordEvidence=[]}={}){
+export async function migrateV3(db,input,{apply=false,expectedDatabaseFingerprint,now=()=>new Date(),newFutureReserveCapacity=1,enqueueFutureBookings=false,existingRecordEvidence=[],holdExcessPending=false}={}){
   const at=new Date(typeof now==='function'?now():now);demand(Number.isFinite(+at),'INVALID_IMPORT_TIME');demand([0,1].includes(newFutureReserveCapacity),'INVALID_RESERVE_POLICY');
+  demand(typeof holdExcessPending==='boolean','INVALID_CAPACITY_HOLD_POLICY');
   demand(db&&typeof db.transaction==='function','DATABASE_REQUIRED');
-  const plan=sourcePlan(input,{at,newFutureReserveCapacity,existingRecordEvidence});
+  const plan=sourcePlan(input,{at,newFutureReserveCapacity,existingRecordEvidence,holdExcessPending});
   const schema=apply?await readFile(new URL('./migration-v3-schema.sql',import.meta.url),'utf8'):null;
   return db.transaction(async tx=>{
     if(apply)for(const statement of schema.split(';').map(value=>value.trim()).filter(Boolean))await tx.query(statement);
@@ -198,7 +199,10 @@ export async function migrateV3(db,input,{apply=false,expectedDatabaseFingerprin
       await tx.query('INSERT INTO eduson_booking.audit_events(id,booking_id,actor_id,actor_role,action,payload,created_at)VALUES($1,$2,$3,\'admin\',\'legacy_imported\',$4,$5)',[randomUUID(),record.id,ACTOR,JSON.stringify({source:record.source,sourceIdentity:{source:record.source,id:record.sourceId},managerName:record.managerName,elapsedUnknown:record.historyOnly,capturedAt:input.snapshot.capturedAt,fingerprint:record.fingerprint,historyOnly:record.historyOnly,raw:record.raw}),at.toISOString()]);
       if(!record.historyOnly&&enqueueFutureBookings)await tx.query('INSERT INTO eduson_booking.sync_jobs(id,booking_id,kind,version,status,created_at,updated_at)VALUES($1,$2,\'booking\',1,\'pending\',$3,$3)',[randomUUID(),record.id,at.toISOString()]);
     }
-    await new BookingService({},{now:()=>at}).validateCapacity(tx);
+    const service=new BookingService({},{now:()=>at});
+    const held=holdExcessPending?await service.holdExcessImportedPending(tx,preview.records.filter(record=>!record.historyOnly).map(record=>record.id)):[];
+    await service.validateCapacity(tx);
+    preview.counts.capacityHeld=held.length;
     const previous=state.projection?.previous_payload||{},adopted=[...new Map([...(previous.attemptedManagedSchedules||[]),...plan.pairs].map(pair=>[canonical([pair.manager,pair.date]),pair])).values()];
     const payload={...previous,attemptedManagedSchedules:adopted};
     await tx.query(`INSERT INTO eduson_booking.sheet_projections(key,version,status,attempts,last_error,previous_payload,updated_at)VALUES('schedule',1,'pending',0,NULL,$1,$2)
