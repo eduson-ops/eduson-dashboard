@@ -1,0 +1,16 @@
+{
+  "name": "eduson-booking-platform",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node booking-server/server.mjs",
+    "demo": "node booking-server/demo.mjs",
+    "test": "node --test --test-concurrency=1 tests/*.mjs booking-server/tests/*.test.mjs booking/*.test.mjs"
+  },
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "@electric-sql/pglite": "0.5.15",
+    "pg": "8.23.1"
+  }
+}
