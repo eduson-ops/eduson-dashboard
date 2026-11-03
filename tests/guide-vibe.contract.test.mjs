@@ -10,5 +10,6 @@ test('guide exposes the vibe-coding tab and all three practices', () => {
   assert.match(html, /2D-платформер/);
   assert.match(html, /2D-игра аркада/);
   assert.match(html, /Лендинг своего продукта/);
+  assert.match(html, /https:\/\/practice\.eduson-kids\.ru\//);
   assert.match(html, /\['courses','vibe','reports','prices'\]/);
 });
