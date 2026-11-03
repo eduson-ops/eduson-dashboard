@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, stat, realpath } from 'node:fs/promises';
 import { resolve, dirname, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from './db.mjs';
@@ -198,4 +198,5 @@ async function main() {
   async function stop() { if (stopped) return; stopped = true; await app.close(); await db.close(); }
   process.on('SIGTERM', () => stop().then(() => process.exit(0))); process.on('SIGINT', () => stop().then(() => process.exit(0)));
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => { console.error(error.message); process.exitCode = 1; });
+const isMain = process.argv[1] && await Promise.all([realpath(resolve(process.argv[1])),realpath(fileURLToPath(import.meta.url))]).then(([entry,module])=>entry===module).catch(()=>false);
+if (isMain) main().catch(error => { console.error(error.message); process.exitCode = 1; });

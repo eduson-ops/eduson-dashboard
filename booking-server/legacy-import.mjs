@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { open, readFile, unlink } from 'node:fs/promises';
+import { open, readFile, unlink, realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { hashPassword } from './auth.mjs';
 import { openDatabase } from './db.mjs';
 
@@ -326,7 +326,8 @@ async function cli() {
   } finally { if (db) await db.close(); }
 }
 
-if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href===import.meta.url) cli().catch(error=>{
+const isMain=process.argv[1] && await Promise.all([realpath(resolve(process.argv[1])),realpath(fileURLToPath(import.meta.url))]).then(([entry,module])=>entry===module).catch(()=>false);
+if (isMain) cli().catch(error=>{
   process.stderr.write(`${JSON.stringify({ok:false,error:error instanceof ImportError?error.code:'LEGACY_IMPORT_FAILED'})}\n`);
   process.exitCode=1;
 });
