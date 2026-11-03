@@ -5,7 +5,7 @@ const dialog = document.querySelector('#editor');
 const notices = document.querySelector('#notifications');
 const roles = {call_center:'Колл-центр',confirmation:'Подтверждение',sales:'Менеджер мастер-классов',admin:'Администратор'};
 const ageGroups = ['5-7','8-9','10-12','13-14'];
-const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,bookings:[],hours:[],users:[],view:'',search:'',date:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,loading:false,error:'',connected:false,events:null,refreshToken:0};
+const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,bookings:[],hours:[],users:[],view:'',search:'',date:'',completedFrom:'',completedTo:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,loading:false,error:'',connected:false,events:null,refreshToken:0};
 let drafts;
 let refreshTimer;
 let lastFocus;
@@ -33,6 +33,8 @@ function icon(name) {
     search:'<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
     document:'<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 12h7m-7 4h7"/>',
     check:'<path d="m5 12 4 4L20 5"/>',
+    minus:'<path d="M6 12h12"/>',
+    refresh:'<path d="M20 11a8 8 0 1 0-2.4 6M20 4v7h-7"/>',
     plus:'<path d="M12 4v16M4 12h16"/>',
     arrow:'<path d="M5 12h14m-5-5 5 5-5 5"/>',
     clock:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>'
@@ -107,7 +109,7 @@ function renderLogin(error='') {
 async function bootstrap() {
   const result=await api('/bootstrap');
   state.user=result.user;state.csrfToken=result.csrfToken;state.managers=result.managers||[];state.config=result.config||{};state.sync=result.sync;
-  if(state.config.demoDate){state.adminDate=state.config.demoDate;state.date=state.config.demoDate;state.week=state.config.demoDate;}
+  if(state.config.demoDate){state.adminDate=state.config.demoDate;state.date=state.config.demoDate;state.completedFrom=state.config.demoDate;state.completedTo=state.config.demoDate;state.week=state.config.demoDate;}
   state.bookings=[];state.hours=[];state.users=[];state.error='';state.scheduleDraft=null;
   drafts=makeDraftStore(sessionStorage,state.user.id);
   const requested=location.hash.slice(1);
@@ -120,10 +122,16 @@ async function bootstrap() {
 
 function renderShell() {
   const initials=state.user.name.split(/\s+/).map(v=>v[0]).slice(0,2).join('');
-  app.innerHTML=`<div class="shell"><aside class="sidebar" aria-label="Основная навигация"><a class="brand" href="/">eduson<small>KIDS</small></a><nav class="nav">${navItem(defaultView(),'calendar','Мастер-классы')}${['sales','admin'].includes(state.user.role)?navItem('schedule','clock','Расписание'):''}${isAdmin()?navItem('users','users','Сотрудники'):''}${!isSales()?navItem('trash','trash','Корзина'):''}${isAdmin()?`<a class="nav-link" href="/dashboard/">${icon('chart')}<span>Аналитика</span></a>`:''}</nav><div class="sidebar-bottom"><div class="avatar">${esc(initials)}</div><div class="user-name">${esc(state.user.name)}</div><div class="role-label">${esc(roles[state.user.role])}</div><button class="logout" data-action="logout">Выйти</button></div><div class="mobile-user"><span>${esc(state.user.name)}</span><button data-action="logout">Выйти</button></div></aside><div class="workspace"><header class="topline"><div><h1>Мастер-классы</h1><div class="page-subtitle">${esc(roles[state.user.role])} <span aria-hidden="true">·</span> Московское время</div><div class="connection" id="connection"><span class="connection-dot offline"></span><span>Подключение к обновлениям…</span></div></div><label class="search">${icon('search')}<input id="global-search" type="search" aria-label="Поиск по AMO, ученику или телефону" placeholder="Поиск по AMO CRM" value="${esc(state.search)}"></label></header>${state.config.demo?'<div class="demo-banner">Демонстрационная среда. Здесь используются тестовые записи.</div>':''}<nav class="tabs" aria-label="Разделы мастер-классов" id="tabs"></nav><main id="main" tabindex="-1"></main></div></div>`;
+  app.innerHTML=`<div class="shell"><aside class="sidebar" aria-label="Основная навигация"><a class="brand" href="/">eduson<small>KIDS</small></a><div class="sidebar-clock"><span>Время: <time id="moscow-clock"></time></span><small>Europe/Moscow</small></div><nav class="nav">${navItem(defaultView(),'calendar','Мастер-классы')}${['sales','admin'].includes(state.user.role)?navItem('schedule','clock','Расписание'):''}${isAdmin()?navItem('users','users','Сотрудники'):''}${!isSales()?navItem('trash','trash','Корзина'):''}${isAdmin()?`<a class="nav-link" href="/dashboard/">${icon('chart')}<span>Аналитика</span></a>`:''}</nav><div class="sidebar-bottom"><div class="avatar">${esc(initials)}</div><div class="user-name">${esc(state.user.name)}</div><div class="role-label">${esc(roles[state.user.role])}</div><button class="logout" data-action="logout">Выйти</button></div><div class="connection" id="connection"><span class="connection-dot offline"></span><span>Подключение к обновлениям…</span></div><div class="mobile-user"><span>${esc(state.user.name)}</span><button data-action="logout">Выйти</button></div></aside><div class="workspace"><div class="app-header"><header class="topline"><h1>Мастер-классы</h1><label class="search">${icon('search')}<input id="global-search" type="search" aria-label="Поиск по AMO, ученику или телефону" placeholder="Поиск по amoCRM" value="${esc(state.search)}"></label></header><nav class="tabs" aria-label="Разделы мастер-классов" id="tabs"></nav></div>${state.config.demo?'<div class="demo-banner">Демонстрационная среда · тестовые записи</div>':''}<main id="main" tabindex="-1"></main></div></div>`;
   document.querySelector('#global-search').addEventListener('input',event=>{state.search=event.target.value;renderContent();});
-  renderTabs();setConnection(state.connected);
+  renderTabs();setConnection(state.connected);updateMoscowClock();
 }
+
+function updateMoscowClock() {
+  const clock=document.querySelector('#moscow-clock');
+  if(clock)clock.textContent=new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Moscow',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(new Date());
+}
+setInterval(updateMoscowClock,1000);
 
 function navItem(view, name, label) {return `<a class="nav-link${state.view===view?' selected':''}" href="#${view}" data-view="${view}">${icon(name)}<span>${label}</span></a>`;}
 
@@ -164,7 +172,8 @@ async function refresh({quiet=false}={}) {
     } else {
       const scope=view==='trash'?'trash':view==='completed'?'completed':view==='admin'?'all':'active';
       const params=new URLSearchParams({scope});
-      if(state.date && view!=='admin')params.set('date',state.date);
+      if(view==='completed'){if(state.completedFrom)params.set('from',state.completedFrom);if(state.completedTo)params.set('to',state.completedTo);}
+      else if(state.date && view!=='admin')params.set('date',state.date);
       if(view==='admin')params.set('date',state.adminDate);
       const requests=[api(`/bookings?${params}`)];
       if(view==='admin')requests.push(api(`/admin/stats?${new URLSearchParams({date:state.adminDate,...(state.tag?{tag:state.tag}:{})})}`));
@@ -219,7 +228,9 @@ function renderSync() {
 }
 
 function renderBookingToolbar() {
-  return `<div class="toolbar"><input type="date" id="booking-date" aria-label="Дата мастер-класса" value="${esc(state.date)}">${state.date?'<button class="subtle compact" data-action="all-dates">Все даты</button>':''}<button class="secondary compact" data-action="today">Сегодня</button><span class="spacer"></span>${canCreate()&&state.view!=='trash'?`<button class="primary" data-action="create">+ Записать на мастер-класс</button>`:''}<button class="icon-button" data-action="refresh" aria-label="Обновить список">↻</button></div>`;
+  const today=new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Moscow',day:'numeric',month:'long'}).format(new Date());
+  if(state.view==='completed')return `<div class="toolbar booking-toolbar"><h2 class="view-date">Сегодня, ${esc(today)}</h2><span class="spacer"></span><label class="toolbar-label" for="completed-from">Дата МК от</label><input type="date" id="completed-from" aria-label="Дата МК от" value="${esc(state.completedFrom)}"><label class="toolbar-label" for="completed-to">до</label><input type="date" id="completed-to" aria-label="Дата МК до" value="${esc(state.completedTo)}"><button class="icon-button" data-action="refresh" aria-label="Обновить список">${icon('refresh')}</button></div>`;
+  return `<div class="toolbar booking-toolbar"><h2 class="view-date">Сегодня, ${esc(today)}</h2><span class="spacer"></span><label class="toolbar-label" for="booking-date">Дата МК</label><input type="date" id="booking-date" aria-label="Дата мастер-класса" value="${esc(state.date)}">${state.date?'<button class="subtle compact" data-action="all-dates">Все даты</button>':''}<button class="secondary compact" data-action="today">Сегодня</button>${canCreate()&&state.view!=='trash'?`<button class="primary" data-action="create">+ Записать на мастер-класс</button>`:''}<button class="icon-button" data-action="refresh" aria-label="Обновить список">${icon('refresh')}</button></div>`;
 }
 
 function ageGroup(age) {return ageGroups.find(group=>{const [min,max]=group.split('-').map(Number);return Number(age)>=min&&Number(age)<=max;})||'';}
@@ -252,7 +263,7 @@ function renderBookings() {
   const toolbar=renderBookingToolbar();
   const confirmationNote=state.view==='confirmation'?'<div class="notice">Подтверждайте запись заранее. Крайний срок — за 2 часа до начала мастер-класса. Просроченная запись остаётся в очереди.</div>':'';
   if(!bookings.length)return `${toolbar}${confirmationNote}<div class="empty"><strong>${state.loading?'Загружаем мастер-классы':'Нет мастер-классов'}</strong>${state.search?'По вашему запросу ничего не найдено.':state.view==='confirmation'?'Все доступные записи обработаны.':state.view==='trash'?'Отменённые записи появятся здесь.':'Измените дату или дождитесь новых записей.'}</div>`;
-  return `${toolbar}${confirmationNote}<div class="table-wrap"><table class="booking-table"><thead><tr><th>Ученик</th><th>Дата</th><th>Дополнительно</th><th>Статус</th><th>Отчёт</th></tr></thead><tbody>${bookings.map(bookingRow).join('')}</tbody></table></div><div class="results-count">Записей: ${bookings.length}</div>`;
+  return `${toolbar}${confirmationNote}<div class="table-wrap"><table class="booking-table${state.view==='completed'?' completed-table':''}"><thead><tr><th>Ученик</th><th>Дата</th><th>Дополнительно</th><th>Статус</th><th>${state.view==='completed'?'':'Отчёт'}</th></tr></thead><tbody>${bookings.map(bookingRow).join('')}</tbody></table></div><div class="results-count">Записей: ${bookings.length}</div>`;
 }
 
 function bookingRow(booking) {
@@ -260,8 +271,8 @@ function bookingRow(booking) {
   const completed=booking.state==='completed';
   const canActSales=isSales()&&booking.assignedTo===state.user.id;
   let actions='';
-  if(cancelled){actions=`<div class="status-text cancelled">Мастер-класс отменён</div><div class="cancel-detail">${esc(booking.cancelReason||'')}</div>${!isSales()?`<button class="subtle compact" data-action="restore" data-id="${esc(booking.id)}">Восстановить запись</button>`:''}`;}
-  else if(completed){actions='<div class="status-text">Мастер-класс проведён</div>';}
+  if(cancelled){actions=`<div class="status-text cancelled"><span class="status-mark" aria-hidden="true">${icon('minus')}</span>Отменён</div><div class="cancel-detail">${esc(booking.cancelReason||'')}</div>${!isSales()?`<button class="subtle compact" data-action="restore" data-id="${esc(booking.id)}">Восстановить запись</button>`:''}`;}
+  else if(completed){actions=`<div class="status-text"><span class="status-mark" aria-hidden="true">${icon('check')}</span>Завершён</div>`;}
   else if(legacyOutcomeUnknown(booking)){actions=`${statusBadge(booking)}${resolveLegacyButton(booking)}<div class="status-note">В прежнем букинге итог не зафиксирован.${isAdmin()?'':' Его уточняет администратор.'}</div>`;}
   else if(booking.state==='in_progress') {actions=`${statusBadge(booking)}${canActSales?`<button class="primary" data-action="complete" data-id="${esc(booking.id)}">Завершить мастер-класс</button>`:''}`;}
   else if(canActSales&&booking.confirmationStatus==='confirmed'&&booking.assignmentKind==='primary') {actions=`<button class="primary" data-action="start" data-id="${esc(booking.id)}">Начать мастер-класс</button><button class="secondary" data-action="no-show" data-id="${esc(booking.id)}">Ученик не пришёл</button>`;}
@@ -275,7 +286,7 @@ function bookingRow(booking) {
 function renderAdmin() {
   const headers=['Время слота','Количество МИМК','Количество слотов с Overbooking','Записано всего лидов на слот',"Записано лидов по правилу Overbooking’a",'МК Подтверждённые за час','МК отменённые М1','МК отменённые МИМК','Успешные МК'];
   const hours=state.hours.length?state.hours:Array.from({length:12},(_,i)=>({time:`${String(i+10).padStart(2,'0')}:00`}));
-  return `<div class="toolbar"><input type="date" id="admin-date" aria-label="Дата статистики" value="${esc(state.adminDate)}"><select id="admin-tag" aria-label="Фильтр по возрастному тегу"><option value="">Теги</option>${ageGroups.map(group=>`<option${selected(state.tag,group)}>${group}</option>`).join('')}</select><span class="spacer"></span><button class="primary" data-action="create">+ Записать на мастер-класс</button><button class="icon-button" data-action="refresh" aria-label="Обновить статистику">↻</button></div><div class="table-wrap"><table class="stats-table"><thead><tr>${headers.map(header=>`<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${hours.map(hour=>`<tr data-action="hour" data-time="${esc(hour.time)}"><td><button class="hour-button" data-action="hour" data-time="${esc(hour.time)}" aria-label="Записи на ${esc(hour.time)}">${esc(hour.time)}</button></td><td>${Number(hour.managers||0)}</td><td>${Number(hour.capacity||0)}</td><td class="${Number(hour.total||0)>Number(hour.capacity||0)?'over':Number(hour.total||0)>0?'within':''}">${Number(hour.total||0)}</td><td>${Number(hour.reserve||0)}</td><td class="${isHourOverloaded(hour)?'over':''}">${Number(hour.confirmed||0)}</td><td>${Number(hour.cancelledConfirmation||0)}</td><td>${Number(hour.cancelledSales||0)}</td><td>${Number(hour.completed||0)}</td></tr>`).join('')}</tbody></table></div><div class="stats-footer"><span>Нажмите на час, чтобы открыть записи и назначения.</span><span>Записано: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.total||0),0)}</strong></span><span>Подтверждено: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.confirmed||0),0)}</strong></span></div>`;
+  return `<div class="toolbar"><input type="date" id="admin-date" aria-label="Дата статистики" value="${esc(state.adminDate)}"><select id="admin-tag" aria-label="Фильтр по возрастному тегу"><option value="">Теги</option>${ageGroups.map(group=>`<option${selected(state.tag,group)}>${group}</option>`).join('')}</select><span class="spacer"></span><button class="primary" data-action="create">+ Записать на мастер-класс</button><button class="icon-button" data-action="refresh" aria-label="Обновить статистику">${icon('refresh')}</button></div><div class="table-wrap"><table class="stats-table"><thead><tr>${headers.map(header=>`<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${hours.map(hour=>`<tr data-action="hour" data-time="${esc(hour.time)}"><td><button class="hour-button" data-action="hour" data-time="${esc(hour.time)}" aria-label="Записи на ${esc(hour.time)}">${esc(hour.time)}</button></td><td>${Number(hour.managers||0)}</td><td>${Number(hour.capacity||0)}</td><td class="${Number(hour.total||0)>Number(hour.capacity||0)?'over':Number(hour.total||0)>0?'within':''}">${Number(hour.total||0)}</td><td>${Number(hour.reserve||0)}</td><td class="${isHourOverloaded(hour)?'over':''}">${Number(hour.confirmed||0)}</td><td>${Number(hour.cancelledConfirmation||0)}</td><td>${Number(hour.cancelledSales||0)}</td><td>${Number(hour.completed||0)}</td></tr>`).join('')}</tbody></table></div><div class="stats-footer"><span>Нажмите на час, чтобы открыть записи и назначения.</span><span>Записано: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.total||0),0)}</strong></span><span>Подтверждено: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.confirmed||0),0)}</strong></span></div>`;
 }
 
 function scheduleDraftKey() {return `schedule.${state.managerId}.${weekDates(state.week)[0]}`;}
@@ -517,6 +528,8 @@ app.addEventListener('change',async event=>{
   const input=event.target;
   try {
     if(input.id==='booking-date'){state.date=input.value;await refresh();}
+    if(input.id==='completed-from'){state.completedFrom=input.value;await refresh();}
+    if(input.id==='completed-to'){state.completedTo=input.value;await refresh();}
     if(input.id==='admin-date'){state.adminDate=input.value||businessDate();await refresh();}
     if(input.id==='admin-tag'){state.tag=input.value;await refresh();}
     if(input.id==='schedule-manager'){if(state.scheduleDraft)persistSchedule();state.managerId=input.value;state.scheduleDraft=null;await refresh();}
