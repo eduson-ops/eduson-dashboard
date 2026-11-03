@@ -1682,6 +1682,7 @@ window.updatePersonaFooter=updatePersonaFooter;
 
   <div class="guide-tabs">
     <button class="guide-tab active" onclick="showGuideTab('courses',this)">Курсы</button>
+    <button class="guide-tab" onclick="showGuideTab('vibe',this)">Вайбкодинг</button>
     <button class="guide-tab" onclick="showGuideTab('reports',this)">Отчёты</button>
     <button class="guide-tab" onclick="showGuideTab('prices',this)">Цены</button>
   </div>
@@ -1715,6 +1716,41 @@ window.updatePersonaFooter=updatePersonaFooter;
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- TAB: ВАЙБКОДИНГ -->
+  <div class="guide-panel" id="gtab-vibe" style="display:none">
+    <div class="guide-grid">
+      <div class="guide-card" style="border-color:var(--b-bd)">
+        <div class="guide-card-icon" style="background:var(--b-bg);color:var(--b)">🕹️</div>
+        <div class="guide-card-title">2D-платформер</div>
+        <div class="guide-card-sub">Создай игру с собственным героем и уровнем: бегай, прыгай по платформам, собирай награды и побеждай врагов.</div>
+        <div class="guide-notes">
+          <div class="guide-note">Практика: Canvas, гравитация, коллизии, платформы и игровая логика.</div>
+          <div class="guide-note">Результат: один рабочий уровень с очками, жизнями и экраном Game Over.</div>
+        </div>
+      </div>
+
+      <div class="guide-card" style="border-color:var(--y-bd)">
+        <div class="guide-card-icon" style="background:var(--y-bg);color:var(--y)">🎮</div>
+        <div class="guide-card-title">2D-игра аркада</div>
+        <div class="guide-card-sub">Создай быструю игру на реакцию: управляй героем мышкой, лови полезные предметы и уворачивайся от опасностей.</div>
+        <div class="guide-notes">
+          <div class="guide-note">Практика: requestAnimationFrame, управление мышью, очки и столкновения.</div>
+          <div class="guide-note">Результат: игра с бонусами, опасностями, жизнями и ростом сложности.</div>
+        </div>
+      </div>
+
+      <div class="guide-card" style="border-color:var(--g-bd)">
+        <div class="guide-card-icon" style="background:var(--g-bg);color:var(--g)">💜</div>
+        <div class="guide-card-title">Лендинг своего продукта</div>
+        <div class="guide-card-sub">Собери страницу для игры, портфолио, стартапа или бренда: придумай стиль, покажи преимущества и добавь интерактив.</div>
+        <div class="guide-notes">
+          <div class="guide-note">Практика: структура страницы, визуальная система, CTA и адаптивная вёрстка.</div>
+          <div class="guide-note">Результат: готовый одностраничный сайт с анимациями и понятной подачей.</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -3194,7 +3230,7 @@ function openAgrModal(btn){
 function closeAgrModal(){document.getElementById('agr-overlay').style.display='none';}
 
 function showGuideTab(tab,btn){
-  ['courses','reports','prices'].forEach(t=>{
+    ['courses','vibe','reports','prices'].forEach(t=>{
     document.getElementById('gtab-'+t).style.display=t===tab?'block':'none';
   });
   document.querySelectorAll('#page-guide .guide-tab').forEach(b=>b.classList.remove('active'));
