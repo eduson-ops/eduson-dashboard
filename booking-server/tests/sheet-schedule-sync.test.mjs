@@ -98,7 +98,8 @@ test('actual Russian schedule header is accepted without changing business heade
   f.google.tabs.get('Расписание')[0]=['Менеджер','Дата','Время'];
   const result=await f.sync.runOnce();
   assert.equal(result.error,undefined);
-  assert.equal((await f.sync.status()).status,'done');
+  assert.equal((await f.db.query("SELECT status FROM eduson_booking.sheet_projections WHERE key='schedule'")).rows[0].status,'done');
+  assert.deepEqual(await f.sync.status(),{enabled:true,pending:0,error:0,lastError:null});
   assert.deepEqual(f.google.tabs.get('Расписание')[0],['Менеджер','Дата','Время']);
   assert.equal(f.google.tabs.get('Слоты')[1][4],'booking-1');
 });
