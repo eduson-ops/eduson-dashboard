@@ -152,3 +152,12 @@ BEGIN
     INSERT INTO eduson_booking.schema_migrations(version) VALUES (4);
   END IF;
 END $$;
+
+-- Authoritative recovery keeps overflow visible without claiming unavailable places.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM eduson_booking.schema_migrations WHERE version=5) THEN
+    ALTER TABLE eduson_booking.bookings ADD COLUMN IF NOT EXISTS capacity_hold BOOLEAN NOT NULL DEFAULT false;
+    INSERT INTO eduson_booking.schema_migrations(version) VALUES (5);
+  END IF;
+END $$;

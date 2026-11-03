@@ -76,6 +76,8 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
     try {
       const expired = await service.expireUnconfirmed(now());
       if (Array.isArray(expired) ? expired.length : Number(expired) > 0) broadcast();
+      const recovered = await service.reconcileCapacityHolds();
+      if (recovered.promoted > 0) broadcast();
       if (scheduleSynchronizer) await scheduleSynchronizer.runOnce();
       if (synchronizer) {
         const started = Date.now();

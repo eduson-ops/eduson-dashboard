@@ -129,7 +129,7 @@ function bookingObject(row) {
     assignedTo: row.assigned_to, assignedName: row.assigned_name || null, assignmentKind: row.assignment_kind, state: row.state,
     cancelReason: row.cancel_reason, cancelSource: row.cancel_source, createdBy: row.created_by,
     createdAt: iso(row.created_at), updatedAt: iso(row.updated_at), startedAt: iso(row.started_at), completedAt: iso(row.completed_at), cancelledAt: iso(row.cancelled_at),
-    version: row.version, isTest: row.is_test === true, historyOnly: row.history_only === true,
+    version: row.version, isTest: row.is_test === true, historyOnly: row.history_only === true, capacityHold:row.capacity_hold === true,
     report: row.report_payload || null, cancellation: row.cancellation_payload || null, legacy:legacyObject(row)
   };
 }
@@ -183,7 +183,7 @@ export class BookingService {
   async context(tx, date, time, excludeId = null, { historical = false } = {}) {
     // Historical publications describe capacity then; present staff settings only govern current/future work.
     const users = (await tx.query("SELECT u.*,s.intervals,s.reserve_capacity FROM eduson_booking.users u JOIN eduson_booking.schedules s ON s.manager_id=u.id WHERE s.date=$1 AND ($2::boolean OR (u.role='sales' AND u.active=true)) ORDER BY u.id", [date,historical])).rows.filter(row => available(row, time)).map(row=>({...row,age_groups:historical?[]:row.age_groups,reserve_capacity:intervalReserve(row,time)}));
-    const bookings = (await tx.query(`${BOOKING_SELECT} WHERE b.date=$1 AND b.time=$2 AND b.state<>'cancelled' AND b.history_only=false AND ($3::text IS NULL OR b.id<>$3) ORDER BY b.created_at,b.id`, [date, time, excludeId])).rows;
+    const bookings = (await tx.query(`${BOOKING_SELECT} WHERE b.date=$1 AND b.time=$2 AND b.state<>'cancelled' AND b.history_only=false AND b.capacity_hold=false AND ($3::text IS NULL OR b.id<>$3) ORDER BY b.created_at,b.id`, [date, time, excludeId])).rows;
     const slots = users.flatMap(user => [{ key: `${user.id}:primary`, user, kind: 'primary' }, ...(user.reserve_capacity ? [{ key: `${user.id}:reserve`, user, kind: 'reserve' }] : [])]);
     return { users, bookings, slots };
   }
@@ -274,6 +274,7 @@ export class BookingService {
     assert(input.isTest === undefined || typeof input.isTest === 'boolean', 400, 'Укажите признак тестового занятия.', 'VALIDATION');
     assert(!input.isTest || actor.role === 'admin', 403, 'Тестовое занятие создаёт администратор.', 'FORBIDDEN');
     assert(input.historyOnly === undefined || input.historyOnly === false, 400, 'Архивные записи создаются только при переносе данных.', 'VALIDATION');
+    assert(input.capacityHold === undefined || input.capacityHold === false, 400, 'Ожидание места задаётся только при восстановлении записей из источника.', 'VALIDATION');
     const date = validDate(input.date);
     assert(HOURS.includes(input.time), 400, 'Выберите начало занятия с 10:00 до 21:00, с шагом один час.', 'VALIDATION');
     const startsAt = new Date(`${date}T${input.time}:00+03:00`);
@@ -309,7 +310,7 @@ export class BookingService {
       assert(this.instant() <= new Date(row.confirmation_due_at), 409, 'Срок подтверждения истёк: подтвердить занятие нужно за два часа до начала.', 'CONFIRMATION_DEADLINE_PASSED');
       assert(new Date(row.starts_at) > this.instant(), 409, 'Нельзя подтвердить занятие после его начала.', 'INVALID_STATE');
       const assigned = await this.assignment(tx, row);
-      row = await this.change(tx, row, { confirmation_status: 'confirmed', confirmed_at: this.instant().toISOString(), assigned_to: assigned.managerId, assignment_kind: assigned.kind });
+      row = await this.change(tx, row, { confirmation_status: 'confirmed', confirmed_at: this.instant().toISOString(), assigned_to: assigned.managerId, assignment_kind: assigned.kind, capacity_hold:false });
       await recordConfirmation(tx, { booking:row, actor, at:iso(row.confirmed_at) });
       await this.record(tx, actor, row, 'confirmed', { managerId: assigned.managerId, kind: assigned.kind });
       return bookingObject(row);
@@ -364,7 +365,7 @@ export class BookingService {
       operationalBooking(row);
       assert(['scheduled', 'in_progress'].includes(row.state), 409, 'Это занятие нельзя отменить в текущем состоянии.', 'INVALID_STATE');
       if (actor.role === 'sales') assert(reason === 'Ученик не пришёл', 403, 'Для менеджера доступна причина «Ученик не пришёл».', 'FORBIDDEN');
-      row = await this.change(tx, row, { state: 'cancelled', cancel_reason: reason, cancel_source: actor.role, cancelled_at: this.instant().toISOString() });
+      row = await this.change(tx, row, { state: 'cancelled', cancel_reason: reason, cancel_source: actor.role, cancelled_at: this.instant().toISOString(), capacity_hold:false });
       await this.record(tx, actor, row, 'cancelled', { reason, source: actor.role }, 'cancel');
       return bookingObject(await this.get(tx, id));
     });
@@ -380,7 +381,7 @@ export class BookingService {
       const ctx = await this.context(tx, dateString(row.date), row.time, row.id);
       assert(this.match(ctx, [{ ...row, assigned_to: null, assignment_kind: null }]), 409, 'Нет свободного места для восстановления.', 'CAPACITY_FULL');
       const assignment = row.confirmation_status === 'confirmed' ? await this.assignment(tx, row) : null;
-      row = await this.change(tx, row, { state: 'scheduled', assigned_to: assignment?.managerId || null, assignment_kind: assignment?.kind || null, cancel_reason: null, cancel_source: null, cancelled_at: null, started_at: null });
+      row = await this.change(tx, row, { state: 'scheduled', assigned_to: assignment?.managerId || null, assignment_kind: assignment?.kind || null, cancel_reason: null, cancel_source: null, cancelled_at: null, started_at: null, capacity_hold:false });
       await this.record(tx, actor, row, 'restored', {}, 'cancel');
       return bookingObject(row);
     });
@@ -507,8 +508,43 @@ export class BookingService {
   }
   /** Internal: the caller owns the surrounding transaction and capacity table lock. */
   async validateCapacity(tx) {
-    const affected = (await tx.query("SELECT DISTINCT date,time FROM eduson_booking.bookings WHERE state<>'cancelled' AND history_only=false AND ends_at>$1", [this.instant().toISOString()])).rows;
+    const affected = (await tx.query("SELECT DISTINCT date,time FROM eduson_booking.bookings WHERE state<>'cancelled' AND history_only=false AND capacity_hold=false AND ends_at>$1", [this.instant().toISOString()])).rows;
     for (const booking of affected) assert(this.match(await this.context(tx,dateString(booking.date),booking.time)), 409, 'Изменение нарушает доступные места или назначения будущих занятий.', 'CAPACITY_CONFLICT');
+  }
+  /** Internal recovery operation: existing normal bookings retain priority over newly imported rows. */
+  async holdExcessImportedPending(tx, bookingIds) {
+    if(!bookingIds.length)return [];
+    const rows=(await tx.query(`${BOOKING_SELECT} WHERE b.id=ANY($1::text[]) AND b.state='scheduled' AND b.confirmation_status='pending' AND b.history_only=false ORDER BY b.created_at,b.id`,[bookingIds])).rows;
+    const imported=new Set(rows.map(row=>row.id)),contexts=new Map(),held=[];
+    for(const row of rows) {
+      const date=dateString(row.date),key=`${date}/${row.time}`;
+      if(!contexts.has(key)) {
+        const context=await this.context(tx,date,row.time);context.bookings=context.bookings.filter(booking=>!imported.has(booking.id));
+        assert(this.match(context),409,'Существующие записи требуют исправления ёмкости.','CAPACITY_CONFLICT');contexts.set(key,context);
+      }
+      const context=contexts.get(key);
+      if(this.match(context,[row]))context.bookings.push(row);
+      else {
+        const changed=await this.change(tx,row,{capacity_hold:true});
+        await this.record(tx,SYSTEM,changed,'capacity_hold_created',{reason:'Недостаточно открытых мест при восстановлении подтверждённого источника'});
+        held.push(changed.id);
+      }
+    }
+    return held;
+  }
+  async reconcileCapacityHolds() {
+    return this.mutation(async tx=>{
+      const rows=(await tx.query(`${BOOKING_SELECT} WHERE b.capacity_hold=true AND b.state='scheduled' AND b.confirmation_status='pending' AND b.history_only=false AND b.ends_at>$1 ORDER BY b.created_at,b.id`,[this.instant().toISOString()])).rows;
+      const bookingIds=[];
+      for(const row of rows) {
+        const context=await this.context(tx,dateString(row.date),row.time);
+        if(!this.match(context,[row]))continue;
+        const changed=await this.change(tx,row,{capacity_hold:false});
+        await this.record(tx,SYSTEM,changed,'capacity_hold_released',{reason:'Появилось подходящее открытое место'});bookingIds.push(row.id);
+      }
+      const remaining=(await tx.query("SELECT count(*)::int n FROM eduson_booking.bookings WHERE capacity_hold=true AND state='scheduled' AND confirmation_status='pending' AND history_only=false")).rows[0].n;
+      return{promoted:bookingIds.length,remaining,bookingIds};
+    });
   }
   async saveSchedule(actor, input = {}) {
     authorized(actor, ['admin', 'sales']);
@@ -527,7 +563,7 @@ export class BookingService {
       await tx.query('INSERT INTO eduson_booking.schedules(manager_id,date,intervals,reserve_capacity,updated_at) VALUES ($1,$2,$3,$4,$5) ON CONFLICT(manager_id,date) DO UPDATE SET intervals=EXCLUDED.intervals,reserve_capacity=EXCLUDED.reserve_capacity,updated_at=EXCLUDED.updated_at,version=eduson_booking.schedules.version+1', [managerId,date,JSON.stringify(work),reserve,at]);
       if (groups !== undefined) await tx.query('UPDATE eduson_booking.users SET age_groups=$1 WHERE id=$2', [JSON.stringify(groups),managerId]);
       // Validate the whole pending pool after the proposed change; rollback protects assignments too.
-      const affected = (await tx.query("SELECT DISTINCT date,time FROM eduson_booking.bookings WHERE state<>'cancelled' AND history_only=false AND (date=$1 OR ($2::boolean AND date>=$3))", [date,groups !== undefined,at.slice(0,10)])).rows;
+      const affected = (await tx.query("SELECT DISTINCT date,time FROM eduson_booking.bookings WHERE state<>'cancelled' AND history_only=false AND capacity_hold=false AND (date=$1 OR ($2::boolean AND date>=$3))", [date,groups !== undefined,at.slice(0,10)])).rows;
       for (const booking of affected) assert(this.match(await this.context(tx,dateString(booking.date),booking.time)), 409, 'Расписание нужно сохранить вместе с назначенными занятиями и доступными местами.', 'CAPACITY_CONFLICT');
       const day = scheduleObject((await tx.query('SELECT * FROM eduson_booking.schedules WHERE manager_id=$1 AND date=$2', [managerId,date])).rows[0]);
       await tx.query('INSERT INTO eduson_booking.audit_events(id,booking_id,actor_id,actor_role,action,payload,created_at) VALUES ($1,NULL,$2,$3,$4,$5,$6)', [randomUUID(),actor.id,actor.role,'schedule_saved',JSON.stringify({ ...day, ageGroups: groups ?? user.age_groups }),at]);
@@ -612,7 +648,7 @@ export class BookingService {
         if(contexts.get(key).users.some(user=>user.id===schedule.manager_id))scheduleRows.push({manager:schedule.name,date,time});
       }
       // An orphaned active interval is a projection error, never silently omitted.
-      const occupied=(await tx.query("SELECT DISTINCT date,time FROM eduson_booking.bookings WHERE state<>'cancelled' AND history_only=false ORDER BY date,time")).rows;
+      const occupied=(await tx.query("SELECT DISTINCT date,time FROM eduson_booking.bookings WHERE state<>'cancelled' AND history_only=false AND capacity_hold=false ORDER BY date,time")).rows;
       for(const row of occupied) {
         const date=dateString(row.date),key=`${date}/${row.time}`;
         if(!contexts.has(key))contexts.set(key,await readContext(date,row.time));
@@ -637,7 +673,7 @@ export class BookingService {
     return this.mutation(async tx => {
       const rows = (await tx.query(`${BOOKING_SELECT} WHERE b.confirmation_status='pending' AND b.state='scheduled' AND b.history_only=false AND b.ends_at<=$1 AND NOT EXISTS(SELECT 1 FROM eduson_booking.audit_events legacy WHERE legacy.booking_id=b.id AND legacy.action='legacy_imported' AND legacy.payload->>'elapsedUnknown'='true') ORDER BY b.ends_at,b.id`,[this.instant().toISOString()])).rows;
       for (const original of rows) {
-        const row = await this.change(tx,original,{ state:'cancelled',cancel_reason:'Занятие не подтверждено и не состоялось',cancel_source:'system',cancelled_at:this.instant().toISOString() });
+        const row = await this.change(tx,original,{ state:'cancelled',cancel_reason:'Занятие не подтверждено и не состоялось',cancel_source:'system',cancelled_at:this.instant().toISOString(),capacity_hold:false });
         await this.record(tx,SYSTEM,row,'expired',{ reason:row.cancel_reason,source:'system' },'cancel');
       }
       return rows.length;
@@ -682,13 +718,13 @@ export class BookingService {
         const ledger = this.matchResult(ctx);
         const allocations = ledger === null ? [] : ctx.slots.filter(slot => ledger.has(slot.key)).map(slot => ({ bookingId:ledger.get(slot.key), managerId:slot.user.id, managerName:slot.user.name, kind:slot.kind })).filter(allocation => active.some(booking => booking.id === allocation.bookingId));
         const reservedIds = new Set(allocations.filter(allocation => allocation.kind === 'reserve').map(allocation => allocation.bookingId));
-        hours.push({ time,managers:managers.length,managerList:managers,allocations,capacity,total:active.length,reserve:active.filter(b=>b.assignment_kind==='reserve' || reservedIds.has(b.id)).length,confirmed,
+        hours.push({ time,managers:managers.length,managerList:managers,allocations,capacity,total:active.length,capacityHeld:active.filter(b=>b.capacity_hold).length,reserve:active.filter(b=>b.assignment_kind==='reserve' || reservedIds.has(b.id)).length,confirmed,
           cancelledConfirmation:bookings.filter(b=>b.state==='cancelled' && ['confirmation','call_center','system'].includes(b.cancel_source)).length,
           cancelledSales:bookings.filter(b=>b.state==='cancelled' && b.cancel_source==='sales').length,
           completed:active.filter(b=>b.state==='completed').length,inProgress:active.filter(b=>b.state==='in_progress').length,
           assigned:active.filter(b=>b.assigned_to).length,unassigned:active.filter(b=>!b.assigned_to).length,deficit:this.primaryDeficit(ctx,active.filter(b=>b.confirmation_status==='confirmed')) });
       }
-      const fields = ['capacity','total','reserve','confirmed','cancelledConfirmation','cancelledSales','completed','inProgress','assigned','unassigned','deficit'];
+      const fields = ['capacity','total','capacityHeld','reserve','confirmed','cancelledConfirmation','cancelledSales','completed','inProgress','assigned','unassigned','deficit'];
       return { hours,totals:Object.fromEntries(fields.map(field=>[field,hours.reduce((sum,h)=>sum+h[field],0)])) };
     });
   }

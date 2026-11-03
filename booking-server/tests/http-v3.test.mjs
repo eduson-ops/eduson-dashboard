@@ -37,3 +37,19 @@ test('HTTP v3 connects schedule, automatic confirmation accrual and separate dur
   assert.equal((await call('anna','/api/payments')).status,403);
   const status=await call('admin','/api/sync');assert.equal(status.status,200);assert.equal(status.data.operations.pending,3);assert.ok(status.data.pending>=3);
 });
+
+test('background worker releases a recovered waiting record when a real methodist opens a place',async t=>{
+  const db=await openDatabase({memory:true}),now=()=>new Date('2030-01-01T06:00Z');
+  const app=await createApp({db,now,enableWorkers:false});t.after(async()=>{await app.close();await db.close();});
+  const system={id:'system',role:'admin'},password='Worker v3 test password';
+  const admin=await app.auth.createUser(system,{email:'admin@holds.test',name:'Админ',role:'admin',password});
+  const sale=await app.auth.createUser(system,{email:'sale@holds.test',name:'Сейл',role:'sales',password});
+  const second=await app.auth.createUser(system,{email:'second@holds.test',name:'Второй сейл',role:'sales',password});
+  await app.service.saveSchedule(sale,{date:'2030-01-02',intervals:[{start:'12:00',end:'13:00'}],reserveCapacity:0});
+  const row=await app.service.createBooking(admin,{date:'2030-01-02',time:'12:00',studentName:'Ученик',parentName:'Родитель',phone:'+79990000000',age:10,hasPc:true,parentPresent:true,crmUrl:'https://eduson.amocrm.ru/leads/detail/1',idempotencyKey:'worker-base'});
+  await db.query(`INSERT INTO eduson_booking.bookings(id,date,time,starts_at,ends_at,student_name,parent_name,phone,crm_url,age,has_pc,parent_present,confirmation_due_at,created_by,capacity_hold) SELECT 'worker-held',date,time,starts_at,ends_at,'Восстановленный ученик',parent_name,phone,'https://eduson.amocrm.ru/leads/detail/2',age,has_pc,parent_present,confirmation_due_at,'legacy-import',true FROM eduson_booking.bookings WHERE id=$1`,[row.id]);
+  await app.worker();assert.equal((await db.query("SELECT capacity_hold FROM eduson_booking.bookings WHERE id='worker-held'")).rows[0].capacity_hold,true);
+  await app.service.saveSchedule(second,{date:'2030-01-02',intervals:[{start:'12:00',end:'13:00'}],reserveCapacity:0});
+  await app.worker();assert.equal((await db.query("SELECT capacity_hold FROM eduson_booking.bookings WHERE id='worker-held'")).rows[0].capacity_hold,false);
+  assert.equal((await db.query('SELECT count(*)::int n FROM eduson_booking.compensation_events')).rows[0].n,0);
+});

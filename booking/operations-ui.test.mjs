@@ -22,6 +22,12 @@ test('each hourly metric opens the facts counted by that cell, including pending
   assert.deepEqual(filter('completed'),['held']);
 });
 
+test('capacity waiting detail contains only active records waiting for a real place',()=>{
+  const base={date:'2026-11-04',time:'11:00',age:10};
+  const bookings=[{...base,id:'ordinary',state:'scheduled',capacityHold:false},{...base,id:'held',state:'scheduled',capacityHold:true},{...base,id:'cancelled',state:'cancelled',capacityHold:true},{...base,id:'other-hour',time:'12:00',state:'scheduled',capacityHold:true}];
+  assert.deepEqual(filterHourMetricBookings(bookings,{...base,metric:'capacityHeld'}).map(b=>b.id),['held']);
+});
+
 test('schedule editor spans 14 rolling dates including the 21:00 lesson ending at 22:00',()=>{
   const dates=rollingScheduleDates('2026-12-29');
   assert.equal(dates.length,14);assert.equal(dates[0],'2026-12-29');assert.equal(dates.at(-1),'2027-01-11');
