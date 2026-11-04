@@ -23,7 +23,7 @@ const timeStamp = value => value ? new Date(value).toLocaleString('ru-RU',{timeZ
 const selected = (left,right) => String(left) === String(right) ? ' selected' : '';
 const checked = value => value ? ' checked' : '';
 const formError = error => `<div class="form-error" role="alert">${esc(error || '')}</div>`;
-const sourceRetryCodes = new Set(['UNKNOWN_STAFF_MAPPING','MIGRATION_LINK_REQUIRED','EXISTING_CAPACITY_CONFLICT']);
+const sourceRetryCodes = new Set(['UNKNOWN_STAFF_MAPPING','MIGRATION_LINK_REQUIRED','EXISTING_CAPACITY_CONFLICT','SOURCE_IDENTITY_CONFLICT']);
 
 function icon(name) {
   const paths = {
