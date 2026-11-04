@@ -70,6 +70,7 @@ export function createSheetSynchronizer({db, getBooking, serviceAccountPath, spr
   async function project(job, booking) {
     const target = TARGETS[job.kind];
     if (!target) throw new SyncError('SYNC_JOB_KIND_INVALID');
+    if (job.kind === 'booking' && booking.historyOnly === true && booking.legacy?.elapsedUnknown === true) return;
     if (job.kind === 'report' && !booking.report) return;
     await validateHeaders(target);
     // Each attempt reads stable IDs again, including an append whose response was lost.

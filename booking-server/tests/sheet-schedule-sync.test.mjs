@@ -35,9 +35,9 @@ function fakeGoogle() {
   const response = value => new Response(JSON.stringify(value), {headers: {'content-type': 'application/json'}});
   const column = text => [...text].reduce((sum, char) => sum * 26 + char.charCodeAt(0) - 64, 0) - 1;
   function locate(range) {
-    const match = /^'(.+)'!([A-Z]+)(\d*)(?::([A-Z]+)(\d*))?$/.exec(range);
+    const match = /^'((?:[^']|'')+)'!([A-Z]+)(\d*)(?::([A-Z]+)(\d*))?$/.exec(range);
     assert.ok(match, `Unexpected range ${range}`);
-    return {rows: tabs.get(match[1]), fromColumn: column(match[2]), fromRow: Number(match[3] || 1) - 1,
+    return {rows: tabs.get(match[1].replaceAll("''", "'")), fromColumn: column(match[2]), fromRow: Number(match[3] || 1) - 1,
       toColumn: column(match[4] || match[2]), toRow: match[5] ? Number(match[5]) : null};
   }
   function write({range, values}) {
@@ -93,6 +93,37 @@ const writes = google => google.requests.filter(request => request.method && req
 const facts = rows => rows.slice(1).filter(row => row.some(value => value !== '' && value != null));
 
 test('schedule synchronizer export exists', () => assert.equal(typeof module.createScheduleSheetSynchronizer, 'function', 'Schedule and slots projection must be implemented'));
+test('configured PG tabs receive the complete projection while both legacy tabs stay untouched', {skip: !available}, async t => {
+  const names={scheduleSheetName:'Booking VDS — Расписание',slotsSheetName:'Booking VDS — Слоты'};
+  const f=await fixture(t,names),legacy=structuredClone([...f.google.tabs]);
+  f.google.tabs.set(names.scheduleSheetName,[['Менеджер','Дата','Время'],['Owned','04.11.2026','13:00']]);
+  f.google.tabs.set(names.slotsSheetName,[['Дата','Время','Менеджер','Статус']]);
+  assert.equal((await f.sync.runOnce()).status,'done');
+  assert.deepEqual(facts(f.google.tabs.get(names.scheduleSheetName)),[['Owned','04.11.2026','14:00']]);
+  assert.deepEqual(facts(f.google.tabs.get(names.slotsSheetName)),[['04.11.2026','14:00','Owned','booked','booking-1'],['04.11.2026','14:00','Owned','wait','']]);
+  assert.equal(f.google.tabs.get(names.slotsSheetName)[0][4],'Booking ID');
+  for(const [name,rows] of legacy)assert.deepEqual(f.google.tabs.get(name),rows);
+  const ranges=f.google.requests.filter(r=>!r.url.includes('oauth2.googleapis.com')).flatMap(r=>r.url.includes('values:batchUpdate')?JSON.parse(r.body).data.map(value=>value.range):[decodeURIComponent(new URL(r.url).pathname.split('/values/')[1]).replace(/:append$/,'')]);
+  assert.ok(ranges.length>=5);assert.ok(ranges.every(range=>range.startsWith("'Booking VDS — Расписание'!")||range.startsWith("'Booking VDS — Слоты'!")));
+  const before=f.google.requests.length;assert.equal((await f.sync.runOnce()).processed,false);assert.equal(f.google.requests.length,before);
+});
+test('configured tab names quote internal apostrophes in reads, updates and appends', {skip: !available}, async t => {
+  const names={scheduleSheetName:"PG O'Brien — Расписание",slotsSheetName:"PG O'Brien — Слоты"};
+  const f=await fixture(t,names);f.google.tabs.set(names.scheduleSheetName,[['Manager','Дата','Время']]);f.google.tabs.set(names.slotsSheetName,[['Дата','Время','Менеджер','Статус']]);
+  assert.equal((await f.sync.runOnce()).status,'done');
+  assert.equal(facts(f.google.tabs.get(names.slotsSheetName))[0][4],'booking-1');
+  assert.ok(f.google.requests.some(r=>decodeURIComponent(r.url).includes("'PG O''Brien — Слоты'!")));
+  const batch=writes(f.google).find(r=>r.url.includes('values:batchUpdate'));assert.equal(JSON.parse(batch.body).data[0].range,"'PG O''Brien — Слоты'!E1:E1");
+});
+test('ambiguous, malformed or colliding tab configuration fails before network or database access', {skip: !available}, () => {
+  let calls=0;
+  const blocked={db:{query(){calls++;throw Error('DB forbidden');}},fetchImpl(){calls++;throw Error('Network forbidden');}};
+  for(const name of ['',null,42,' Слоты','Слоты ','Slots\n','Slots\u0000','Slots!A1:C','Slots[A]','A:B','A/B','A\\B','A?B','A*B','e\u0301','a'.repeat(101)])for(const field of ['scheduleSheetName','slotsSheetName']){
+    assert.throws(()=>module.createScheduleSheetSynchronizer({...blocked,[field]:name}),error=>error.code==='SYNC_CONFIGURATION',`${field}: ${JSON.stringify(name)}`);
+  }
+  for(const names of [{scheduleSheetName:'Слоты',slotsSheetName:'Слоты'},{scheduleSheetName:'Слоты',slotsSheetName:'слоты'}])assert.throws(()=>module.createScheduleSheetSynchronizer({...blocked,...names}),error=>error.code==='SYNC_CONFIGURATION');
+  assert.equal(calls,0);
+});
 test('actual Russian schedule header is accepted without changing business headers', {skip: !available}, async t => {
   const f=await fixture(t);
   f.google.tabs.get('Расписание')[0]=['Менеджер','Дата','Время'];

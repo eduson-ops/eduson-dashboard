@@ -6,6 +6,7 @@ import { openDatabase } from './db.mjs';
 import { BookingService } from './domain.mjs';
 import { CompensationService, getConfirmation } from './compensation.mjs';
 import { OperationalPaymentService, createOperationalSynchronizer } from './operational-reports.mjs';
+import { createSlackNotifications } from './slack-notifications.mjs';
 import { createAuth, createLoginLimiter, readCookie, cookieHeader, requireCsrf, checkOrigin, requestAddress } from './auth.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -38,15 +39,17 @@ function safePath(path) {
   return target.startsWith(ROOT + sep) ? { path: target, booking: trimmed.startsWith('/booking/') } : null;
 }
 
-export async function createApp({ db, now = () => new Date(), secureCookies = false, publicOrigin, trustProxy = false, demo = false, demoDate, enableWorkers = true, syncOptions } = {}) {
+export async function createApp({ db, now = () => new Date(), secureCookies = false, publicOrigin, trustProxy = false, demo = false, demoDate, enableWorkers = true, syncOptions, slackOptions } = {}) {
   if (!db) throw Error('Database is required');
   const service = new BookingService(db, { now });
   const payments = new OperationalPaymentService(db, { now });
   const compensation = new CompensationService(db, { now });
+  const notifications = createSlackNotifications({ ...slackOptions, db, now, getStats: date => service.stats(SYSTEM, {date}) });
+  await notifications.initialize();
   const auth = await createAuth(db, { now, validateUserChange: async tx => { await service.validateCapacity(tx); await service.markSheetsDirty(tx); } });
   const limiter = createLoginLimiter();
-  const subscribers = new Set(); let revision = 0; let closing = false; let workerBusy = false;
-  let synchronizer = null; let scheduleSynchronizer = null;
+  const subscribers = new Set(); let revision = 0; let closing = false; let workerBusy = false; let notificationBusy = false;
+  let synchronizer = null; let scheduleSynchronizer = null; let googleQueueTurn = 0;
   const operationalSynchronizer = createOperationalSynchronizer({ ...syncOptions, db, now, getPayment: id => payments.getPayment(id), getConfirmation: id => getConfirmation(db, id) });
   if (syncOptions?.enabled) {
     const { createSheetSynchronizer } = await import('./sheets-sync.mjs');
@@ -81,17 +84,32 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       if (scheduleSynchronizer) await scheduleSynchronizer.runOnce();
       if (synchronizer) {
         const started = Date.now();
-        for (let i = 0; i < 8 && Date.now() - started < 10_000; i++) {
-          const booking = await synchronizer.runOnce();
-          const operation = await operationalSynchronizer.runOnce();
-          if (!booking.processed && !operation.processed) break;
+        const queues = [synchronizer, operationalSynchronizer];
+        // One shared budget avoids doubling Google request bursts across the two queues.
+        for (let i = 0; i < 4 && Date.now() - started < 10_000; i++) {
+          const turn = googleQueueTurn++ % 2;
+          const first = await queues[turn].runOnce();
+          if (!first.processed && !(await queues[1 - turn].runOnce()).processed) break;
         }
       }
     } catch (error) { console.error('Booking background operation failed', /^[A-Z0-9_]{2,40}$/.test(error.code || '') ? error.code : 'WORKER_ERROR'); }
-    finally { workerBusy = false; }
+    finally { workerBusy = false; await notificationWorker(); }
+  }
+  async function notificationWorker() {
+    if (notificationBusy || closing) return;
+    notificationBusy = true;
+    try {
+      const started = Date.now();
+      for (let i = 0; i < 4 && Date.now() - started < 10_000; i++) {
+        if (!(await notifications.runOnce()).processed) break;
+      }
+    } catch { console.error('Booking notifications failed', 'NOTIFICATION_WORKER_ERROR'); }
+    finally { notificationBusy = false; }
   }
   const timer = enableWorkers ? setInterval(worker, 15_000) : null;
+  const notificationTimer = enableWorkers ? setInterval(notificationWorker, 5_000) : null;
   timer?.unref();
+  notificationTimer?.unref();
 
   const server = http.createServer(async (req, res) => {
     res.setHeader('x-content-type-options', 'nosniff');
@@ -149,7 +167,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
         res.on('close', () => { clearInterval(heartbeat); subscribers.delete(stream); });
         return;
       }
-      if (path === '/api/bootstrap' && method === 'GET') return json(res, { ...session, managers: await service.managers(user), config: { timezone: 'Europe/Moscow', lessonMinutes: 60, hours: Array.from({ length: 12 }, (_, i) => `${i + 10}:00`), backofficeUrl: BACKOFFICE, dashboardUrl: '/dashboard/', demo, ...(demoDate ? { demoDate } : {}) }, sync: user.role === 'admin' ? await syncStatus() : { enabled: Boolean(synchronizer) } });
+      if (path === '/api/bootstrap' && method === 'GET') return json(res, { ...session, managers: await service.managers(user), config: { timezone: 'Europe/Moscow', lessonMinutes: 60, hours: Array.from({ length: 12 }, (_, i) => `${i + 10}:00`), backofficeUrl: BACKOFFICE, dashboardUrl: '/dashboard/', demo, ...(demoDate ? { demoDate } : {}) }, sync: user.role === 'admin' ? await syncStatus() : { enabled: Boolean(synchronizer) }, ...(user.role === 'admin' ? {notifications: await notifications.status()} : {}) });
       const filter = Object.fromEntries(url.searchParams);
       if (path === '/api/bookings' && method === 'GET') return json(res, { bookings: await service.listBookings(user, filter) });
       if (path === '/api/bookings' && method === 'POST') {
@@ -181,6 +199,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       if (userMatch && method === 'PATCH') { const updated = await auth.updateUser(user, decodeURIComponent(userMatch[1]), await body(req)); broadcast(); return json(res, { user: updated }); }
       if (path === '/api/audit' && method === 'GET') { admin(user); return json(res, { events: await service.listAudit(user, filter) }); }
       if (path === '/api/sync' && method === 'GET') { admin(user); return json(res, await syncStatus()); }
+      if (path === '/api/notifications/status' && method === 'GET') { admin(user); return json(res, await notifications.status()); }
       if (path === '/api/analytics/lessons' && method === 'GET') { admin(user); return json(res, { lessons: await service.getAnalyticsLessons(user, filter) }); }
       if (path === '/api/analytics/cancellations' && method === 'GET') { admin(user); return json(res, { cancellations: await service.getAnalyticsCancellations(user, filter) }); }
       if (path === '/api/analytics/snapshot' && method === 'GET') {
@@ -198,16 +217,23 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
   });
   server.requestTimeout = 30_000; server.headersTimeout = 15_000;
   return {
-    server, auth, service, payments, compensation, worker,
+    server, auth, service, payments, compensation, notifications, worker,
     async listen(port = 4180, host = '127.0.0.1') { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => { server.off('error', reject); resolve(); }); }); return server.address().port; },
-    async close() { closing = true; if (timer) clearInterval(timer); for (const stream of subscribers) stream.res.end(); if (server.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } },
+    async close() { closing = true; if (timer) clearInterval(timer); if (notificationTimer) clearInterval(notificationTimer); for (const stream of subscribers) stream.res.end(); if (server.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } },
   };
 }
 
 async function main() {
   if (!process.env.DATABASE_URL && process.env.BOOKING_EMBEDDED !== '1') throw Error('Set DATABASE_URL for PostgreSQL, or BOOKING_EMBEDDED=1 for explicit local review');
   const db = await openDatabase({ databaseUrl: process.env.DATABASE_URL, dataDir: process.env.BOOKING_DATA_DIR || resolve(ROOT, '.booking-data') });
-  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID, enrollmentSpreadsheetId: process.env.BOOKING_ENROLLMENT_SHEET_ID } });
+  let slackConfig = {};
+  if (process.env.BOOKING_SLACK_CONFIG_PATH) {
+    try {
+      slackConfig = JSON.parse(await readFile(process.env.BOOKING_SLACK_CONFIG_PATH, 'utf8'));
+      if (!slackConfig || Array.isArray(slackConfig) || typeof slackConfig !== 'object') throw Error();
+    } catch { throw Error('BOOKING_SLACK_CONFIG_INVALID'); }
+  }
+  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', slackOptions: {config: slackConfig}, syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID, enrollmentSpreadsheetId: process.env.BOOKING_ENROLLMENT_SHEET_ID, ...(process.env.BOOKING_SCHEDULE_SHEET_NAME ? {scheduleSheetName: process.env.BOOKING_SCHEDULE_SHEET_NAME} : {}), ...(process.env.BOOKING_SLOTS_SHEET_NAME ? {slotsSheetName: process.env.BOOKING_SLOTS_SHEET_NAME} : {}) } });
   if (process.env.BOOKING_ADMIN_EMAIL && process.env.BOOKING_ADMIN_PASSWORD) {
     const existing = await db.query("SELECT id FROM eduson_booking.users WHERE role='admin' AND active=true LIMIT 1");
     if (!existing.rows.length) await app.auth.createUser(SYSTEM, { name: process.env.BOOKING_ADMIN_NAME || 'Администратор', email: process.env.BOOKING_ADMIN_EMAIL, password: process.env.BOOKING_ADMIN_PASSWORD, role: 'admin' });

@@ -12,7 +12,12 @@ const fail = code => {throw new SheetSyncError(code);};
 const text = value => value == null ? '' : String(value);
 const pairKey = row => JSON.stringify([row.date, row.manager]);
 const slotKey = row => JSON.stringify([row.date, row.time, row.manager]);
-const range = (tab, cells) => `'${tab.name}'!${cells}`;
+const range = (tab, cells) => `'${tab.name.replaceAll("'", "''")}'!${cells}`;
+function sheetName(value) {
+  // Reject ambiguous configuration rather than silently redirecting its ownership.
+  if (typeof value !== 'string' || !value || value.length > 100 || value !== value.trim() || value !== value.normalize('NFC') || /[\p{C}\[\]:*?/\\!]/u.test(value)) fail('SYNC_CONFIGURATION');
+  return value;
+}
 function isoDate(year, month, day) {
   const date = new Date(Date.UTC(year, month - 1, day));
   if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day || year < 1900 || year > 9999) fail('SHEET_DATE_INVALID');
@@ -106,7 +111,10 @@ function planTab(tab, values, snapshot, previous) {
 }
 
 /** Coalesces schedule mutations into a single, exclusively leased Sheets projection. */
-export function createScheduleSheetSynchronizer({db, getSnapshot, serviceAccountPath, spreadsheetId, enabled = false, fetchImpl = fetch, now = () => new Date()} = {}) {
+export function createScheduleSheetSynchronizer({db, getSnapshot, serviceAccountPath, spreadsheetId, scheduleSheetName = 'Расписание', slotsSheetName = 'Слоты', enabled = false, fetchImpl = fetch, now = () => new Date()} = {}) {
+  const names = [sheetName(scheduleSheetName), sheetName(slotsSheetName)];
+  if (names[0].toLocaleLowerCase('ru-RU') === names[1].toLocaleLowerCase('ru-RU')) fail('SYNC_CONFIGURATION');
+  const tabs = TABS.map((tab, index) => ({...tab, name: names[index]}));
   let running = false;
   const clock = () => new Date(typeof now === 'function' ? now() : now);
   const client = createGoogleSheetsClient({serviceAccountPath, spreadsheetId, fetchImpl, now});
@@ -148,9 +156,9 @@ export function createScheduleSheetSynchronizer({db, getSnapshot, serviceAccount
         }
         const snapshot = validateSnapshot(rawSnapshot);
         const previous = job.previous_payload || {};
-        const reads = await Promise.all(TABS.map(tab => client.request(range(tab, `A:${tab.last}`), {unformatted: true})));
+        const reads = await Promise.all(tabs.map(tab => client.request(range(tab, `A:${tab.last}`), {unformatted: true})));
         // Validate both sheets and compute the complete ownership-limited plan before writing either.
-        const plans = TABS.map((tab, index) => planTab(tab, reads[index].values || [], snapshot, previous));
+        const plans = tabs.map((tab, index) => planTab(tab, reads[index].values || [], snapshot, previous));
         const updates = plans.flatMap(plan => plan.writes);
         if (updates.length || plans.some(plan => plan.append.length)) {
           // Persist uncertain ownership before the first external write. A lost response

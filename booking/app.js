@@ -108,7 +108,7 @@ function renderLogin(error='') {
 
 async function bootstrap() {
   const result=await api('/bootstrap');
-  state.user=result.user;state.csrfToken=result.csrfToken;state.managers=result.managers||[];state.config=result.config||{};state.sync=result.sync;
+  state.user=result.user;state.csrfToken=result.csrfToken;state.managers=result.managers||[];state.config=result.config||{};state.sync=result.sync;state.notifications=result.notifications||null;
   if(state.config.demoDate){state.adminDate=state.config.demoDate;state.date=state.config.demoDate;state.completedFrom=state.config.demoDate;state.completedTo=state.config.demoDate;state.week=state.config.demoDate;}
   state.bookings=[];state.hours=[];state.users=[];state.error='';state.scheduleDraft=null;
   drafts=makeDraftStore(sessionStorage,state.user.id);
@@ -158,6 +158,7 @@ async function refresh({quiet=false}={}) {
   if(!quiet){state.loading=true;renderContent();}
   const view=state.view;
   const syncRequest=isAdmin()?api('/sync').catch(error=>({...state.sync,loadError:error.message})):null;
+  const notificationRequest=isAdmin()?api('/notifications/status').catch(()=>({...state.notifications,loadError:true})):null;
   try {
     if(view==='users') {const result=await api('/users');if(token!==state.refreshToken)return;state.users=result.users||[];}
     else if(view==='compensation') {
@@ -196,6 +197,7 @@ async function refresh({quiet=false}={}) {
       if(results[1]){state.hours=results[1].hours||[];state.totals=results[1].totals||{};}
     }
     if(syncRequest){const sync=await syncRequest;if(token===state.refreshToken)state.sync=sync;}
+    if(notificationRequest){const status=await notificationRequest;if(token===state.refreshToken)state.notifications=status;}
     if(token!==state.refreshToken)return;
     state.error='';
   } catch(error) {if(token===state.refreshToken)state.error=error.message;}
@@ -230,7 +232,7 @@ function renderContent() {
   else if(state.view==='compensation')content=renderCompensation();
   else if(state.view==='payments')content=renderPayments();
   else content=renderBookings();
-  main.innerHTML=`${state.error?`<div class="error-banner" role="alert">${esc(state.error)} <button class="subtle compact" data-action="refresh">Повторить</button></div>`:''}${state.loading?'<div class="loading-line" role="status">Загружаем данные…</div>':''}${content}${renderSync()}`;
+  main.innerHTML=`${state.error?`<div class="error-banner" role="alert">${esc(state.error)} <button class="subtle compact" data-action="refresh">Повторить</button></div>`:''}${state.loading?'<div class="loading-line" role="status">Загружаем данные…</div>':''}${content}${renderSync()}${renderNotificationStatus()}`;
   if(savedFocus)document.getElementById(savedFocus)?.focus();
 }
 
@@ -241,6 +243,18 @@ function renderSync() {
   if(Number(sync.errors||sync.error)>0)return `<div class="error-banner" role="alert" style="margin-top:18px">Изменения сохранены в базе букинга. Ошибок синхронизации Google Sheets: ${Number(sync.errors||sync.error)}.${sync.lastError?` ${esc(sync.lastError)}`:''}</div>`;
   if(!sync.enabled)return '<div class="connection-note">Бэкофис не подключён. Записи сохранены в букинге.</div>';
   return '';
+}
+
+function renderNotificationStatus() {
+  const status=state.notifications;
+  if(!isAdmin()||!status?.enabled)return '';
+  if(status.loadError)return '<div class="connection-note" role="status">Не удалось проверить уведомления Slack.</div>';
+  const problems=[];
+  if(!status.configured)problems.push('Slack ожидает настройки подключения.');
+  if(status.uncertain)problems.push(`Нужно проверить доставку уведомлений в Slack: ${Number(status.uncertain)}. Повторная отправка остановлена, чтобы избежать дублей.`);
+  if(status.blockedMapping){const names=(status.unmappedManagers||[]).map(person=>person.name).filter(Boolean);problems.push(`Не указан получатель Slack${names.length?`: ${names.join(', ')}`:''}.`);}
+  if(status.configured&&(Number(status.error)>0||status.plannerError))problems.push('Часть уведомлений Slack задерживается. Записи и отчёты сохранены в букинге.');
+  return problems.length?`<div class="error-banner" role="alert" style="margin-top:18px">${problems.map(esc).join(' ')}</div>`:'';
 }
 
 function wizardDraft() {
