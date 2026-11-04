@@ -2111,8 +2111,10 @@ async function loadAll() {
   // Cols: 0=ts,1=manager,2=date,3=time,4=crm,5=rec,6=practice,7=age,8=pack,9=paymentMethod,10=agreement,11=objection,12=channel,13=amountNet,14=bookingId
   var mkMap = {}; // crmId → lesson object
   var mkList = [];
+  var hasTestFlag = cc((rawForm[0]||[])[15]).replace(/\s+/g,' ').toLowerCase()==='test flag';
   for(var i=1;i<rawForm.length;i++){
     var r=rawForm[i];
+    if(hasTestFlag&&/^(true|1|да)$/i.test(cc(r[15])))continue;
     if(!r[1])continue;
     var crmUrl=cc(r[4]);
     var crmId=extractCrmId(crmUrl);
@@ -2310,8 +2312,10 @@ async function loadAll() {
   // Parse cancels
   // COLUMNS: 0=ts, 1=crm(AMO), 2=Причина, 3=Первичная(Да/Нет), 4=Как связались, 5=Возраст, 6=Комментарий, 7=МиМК(manager)
   cancelsList = [];
+  var hasBookingStatus = cc((rawCancels[0]||[])[9]).replace(/\s+/g,' ').toLowerCase()==='booking status';
   for(var i=1;i<rawCancels.length;i++){
     var r=rawCancels[i];
+    if(hasBookingStatus&&cc(r[9]).toLowerCase()==='restored')continue;
     if(!r[0])continue;
     cancelsList.push({
       ts:cc(r[0]), crm:cc(r[1]), reason:cc(r[2]),

@@ -64,7 +64,7 @@ test('issue details escape source text, reject executable CRM URLs and preserve 
 });
 
 test('manual retry uses CSRF and exact observation ID only for the approved issue codes',async()=>{
-  for(const code of ['UNKNOWN_STAFF_MAPPING','MIGRATION_LINK_REQUIRED','EXISTING_CAPACITY_CONFLICT','AMO_AUTHORITY']){
+  for(const code of ['UNKNOWN_STAFF_MAPPING','MIGRATION_LINK_REQUIRED','EXISTING_CAPACITY_CONFLICT','SOURCE_IDENTITY_CONFLICT','AMO_AUTHORITY']){
     let retried=false;
     const f=await fixture((url,init)=>{
       if(init.method==='POST'){retried=true;return {observation:{status:'pending'}};}

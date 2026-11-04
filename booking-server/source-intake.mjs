@@ -31,6 +31,7 @@ const columns=['date','time','starts_at','ends_at','student_name','parent_name',
 const bookingFingerprint=row=>hash(Object.fromEntries([...columns,'state','confirmation_status','confirmed_at','assigned_to','assignment_kind','cancel_reason','cancel_source','cancelled_at','started_at','completed_at','is_test','capacity_hold'].map(key=>[key,key==='date'?date(row[key]):key.endsWith('_at')?iso(row[key]):row[key]])));
 const result=row=>({observationId:row.id,status:row.status,code:row.code||null,bookingId:row.booking_id||null,revision:String(row.revision)});
 const crmKey=value=>{if(!value)return '';try{const u=new URL(value);return u.origin.toLowerCase()+u.pathname.replace(/\/$/,'');}catch{return '';}};
+const sameIdentity=(current,next)=>date(current.date)===next.date&&current.time===next.time&&current.phone.replace(/\D/g,'')===next.phone.replace(/\D/g,'')&&crmKey(current.crm_url)===crmKey(next.crm_url);
 
 function envelope(input){
   demand(object(input),'INVALID_OBSERVATION');id(input.accountId);id(input.recordId);revision(input.revision);
@@ -179,7 +180,9 @@ export function createSourceIntake({db,service,now=()=>new Date(),staffMap={}}={
         const manager=(await tx.query("SELECT id FROM eduson_booking.users WHERE id=$1 AND role='sales'",[managerId])).rows[0];
         if(!manager)return issue(tx,journal,'UNKNOWN_STAFF_MAPPING');
       }
-      if(await collision(tx,values,row?.id))return issue(tx,journal,'SOURCE_IDENTITY_CONFLICT');
+      // A bound, unchanged source identity can already share a household's hour.
+      // Ownership is checked above; new identities still require collision review.
+      if((!row||!sameIdentity(row,values))&&await collision(tx,values,row?.id))return issue(tx,journal,'SOURCE_IDENTITY_CONFLICT');
       const candidate={...row,...values,id:row?.id||`intake-${hash([journal.account_id,journal.record_id]).slice(0,40)}`,assigned_to:null,assignment_kind:null};
       let held=false;
       if(!values.history_only){const ctx=await service.context(tx,values.date,values.time,row?.id||null);if(!service.match(ctx))return issue(tx,journal,'EXISTING_CAPACITY_CONFLICT');held=!service.match(ctx,[candidate]);}
@@ -225,7 +228,7 @@ export function createSourceIntake({db,service,now=()=>new Date(),staffMap={}}={
   async function retryIssue({observationId}={}){
     id(observationId);return mutate(async tx=>{
       const row=(await tx.query('SELECT * FROM eduson_booking.source_intake_observations WHERE id=$1',[observationId])).rows[0];demand(row,'OBSERVATION_NOT_FOUND');
-      demand(row.status==='issue'&&['UNKNOWN_STAFF_MAPPING','MIGRATION_LINK_REQUIRED','EXISTING_CAPACITY_CONFLICT'].includes(row.code),'ISSUE_REQUIRES_REVIEW');
+      demand(row.status==='issue'&&['UNKNOWN_STAFF_MAPPING','MIGRATION_LINK_REQUIRED','EXISTING_CAPACITY_CONFLICT','SOURCE_IDENTITY_CONFLICT'].includes(row.code),'ISSUE_REQUIRES_REVIEW');
       const link=(await tx.query('SELECT latest_revision,latest_hash,revision_conflicted FROM eduson_booking.source_intake_records WHERE account_id=$1 AND record_id=$2',[row.account_id,row.record_id])).rows[0];
       demand(String(link.latest_revision)===String(row.revision)&&link.latest_hash===row.input_hash&&!link.revision_conflicted,'OBSERVATION_SUPERSEDED');
       await tx.query("UPDATE eduson_booking.source_intake_observations SET status='pending',code=NULL,retry_at=$1,processed_at=NULL WHERE id=$2",[instant().toISOString(),row.id]);
