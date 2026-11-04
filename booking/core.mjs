@@ -148,7 +148,7 @@ export function filterHourMetricBookings(bookings,{date,time,tag='',metric='all'
   return filterHourBookings(bookings,{time,tag}).filter(booking=>{
     if(date&&booking.date!==date)return false;
     const active=booking.state!=='cancelled';
-    if(metric==='total')return active;
+    if(metric==='total')return true;
     if(metric==='capacityHeld')return active&&booking.capacityHold===true;
     if(metric==='reserve')return active&&(allocatedReserve.has(booking.id)||booking.assignmentKind==='reserve');
     if(metric==='confirmed')return active&&booking.confirmationStatus==='confirmed';

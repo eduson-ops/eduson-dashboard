@@ -52,7 +52,7 @@ test('all four roles see unchanged physical capacity after a cancelled source re
   await intake.observe(cancellation({raw:{api:{id:'501',status:'4'}}}));
   for(const actor of [admin,caller,confirmation,sales])assert.deepEqual((await service.listSlots(actor,{date,age:10})).find(row=>row.time==='12:00'),before);
   const snapshot=await service.getSheetSnapshot(admin);assert.equal(snapshot.scheduleRows.length,1);assert.equal(snapshot.slotRows.length,2);assert.ok(snapshot.slotRows.every(row=>row.status==='wait'&&!row.bookingId));
-  const hour=(await service.stats(admin,{date})).hours.find(row=>row.time==='12:00');assert.deepEqual([hour.total,hour.confirmed,hour.allocations.length,hour.capacity],[0,0,0,2]);assert.equal(await count(db,'compensation_events'),0);
+  const hour=(await service.stats(admin,{date})).hours.find(row=>row.time==='12:00');assert.deepEqual([hour.total,hour.confirmed,hour.allocations.length,hour.capacity],[1,0,0,2]);assert.equal(await count(db,'compensation_events'),0);
 });
 
 test('historical proven cancellations remain SQL-only and still reach the cancellation analytics',async t=>{

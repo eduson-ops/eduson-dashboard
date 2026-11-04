@@ -740,7 +740,7 @@ export class BookingService {
         const ledger = this.matchResult(ctx);
         const allocations = ledger === null ? [] : ctx.slots.filter(slot => ledger.has(slot.key)).map(slot => ({ bookingId:ledger.get(slot.key), managerId:slot.user.id, managerName:slot.user.name, kind:slot.kind })).filter(allocation => active.some(booking => booking.id === allocation.bookingId));
         const reservedIds = new Set(allocations.filter(allocation => allocation.kind === 'reserve').map(allocation => allocation.bookingId));
-        hours.push({ time,managers:managers.length,managerList:managers,allocations,capacity,total:active.length,capacityHeld:active.filter(b=>b.capacity_hold).length,reserve:active.filter(b=>b.assignment_kind==='reserve' || reservedIds.has(b.id)).length,confirmed,
+        hours.push({ time,managers:managers.length,managerList:managers,allocations,capacity,total:bookings.length,activeTotal:active.length,capacityHeld:active.filter(b=>b.capacity_hold).length,reserve:active.filter(b=>b.assignment_kind==='reserve' || reservedIds.has(b.id)).length,confirmed,
           cancelledConfirmation:bookings.filter(b=>b.state==='cancelled' && ['confirmation','call_center','system'].includes(b.cancel_source)).length,
           cancelledSales:bookings.filter(b=>b.state==='cancelled' && b.cancel_source==='sales').length,
           completed:active.filter(b=>b.state==='completed').length,inProgress:active.filter(b=>b.state==='in_progress').length,

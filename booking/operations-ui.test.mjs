@@ -14,7 +14,7 @@ test('each hourly metric opens the facts counted by that cell, including pending
     {...base,id:'other-date',date:'2026-11-05',state:'completed'},
   ];
   const filter=metric=>filterHourMetricBookings(bookings,{...base,tag:'10-12',metric,allocations:[{bookingId:'pending',kind:'reserve'}]}).map(row=>row.id);
-  assert.deepEqual(filter('total'),['pending','confirmed','held']);
+  assert.deepEqual(filter('total'),['pending','confirmed','held','cc','sale','admin']);
   assert.deepEqual(filter('reserve'),['pending']);
   assert.deepEqual(filter('confirmed'),['confirmed','held']);
   assert.deepEqual(filter('cancelledConfirmation'),['cc']);

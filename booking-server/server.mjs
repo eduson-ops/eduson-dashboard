@@ -56,13 +56,15 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
   const auth = await createAuth(db, { now, validateUserChange: async tx => { await service.validateCapacity(tx); await service.markSheetsDirty(tx); } });
   const limiter = createLoginLimiter();
   const subscribers = new Set(); let revision = 0; let closing = false; let workerBusy = false; let notificationBusy = false;
-  let synchronizer = null; let scheduleSynchronizer = null; let googleQueueTurn = 0;
+  let synchronizer = null; let scheduleSynchronizer = null; let confirmationHistorySynchronizer = null; let confirmationHistoryNextAt = 0; let googleQueueTurn = 0;
   const operationalSynchronizer = createOperationalSynchronizer({ ...syncOptions, db, now, getPayment: id => payments.getPayment(id), getConfirmation: id => getConfirmation(db, id) });
   if (syncOptions?.enabled) {
     const { createSheetSynchronizer } = await import('./sheets-sync.mjs');
     const { createScheduleSheetSynchronizer } = await import('./sheet-schedule-sync.mjs');
+    const { createConfirmationHistorySynchronizer } = await import('./confirmation-history.mjs');
     synchronizer = createSheetSynchronizer({ ...syncOptions, db, getBooking: async id => (await service.listBookings(SYSTEM, { id, scope: 'all' }))[0] });
     scheduleSynchronizer = createScheduleSheetSynchronizer({ ...syncOptions, db, getSnapshot: () => service.getSheetSnapshot(SYSTEM) });
+    if (syncOptions.confirmationHistoryEnabled === true) confirmationHistorySynchronizer = createConfirmationHistorySynchronizer({ ...syncOptions, db, service, enabled: true });
   }
   function broadcast() {
     revision++;
@@ -98,6 +100,11 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       const recovered = await service.reconcileCapacityHolds();
       if (recovered.promoted > 0) broadcast();
       if (scheduleSynchronizer) await scheduleSynchronizer.runOnce();
+      if (confirmationHistorySynchronizer && Date.now() >= confirmationHistoryNextAt) {
+        const history = await confirmationHistorySynchronizer.runOnce();
+        confirmationHistoryNextAt = Date.now() + 30_000;
+        if (history.matched > 0) broadcast();
+      }
       if (synchronizer) {
         const started = Date.now();
         const queues = [synchronizer, operationalSynchronizer];
@@ -287,7 +294,7 @@ async function main() {
     try { intakeConfig=JSON.parse(await readFile(process.env.BOOKING_RUBITIME_CONFIG_PATH,'utf8'));if(!intakeConfig||Array.isArray(intakeConfig)||typeof intakeConfig!=='object')throw Error(); }
     catch { throw Error('BOOKING_RUBITIME_CONFIG_INVALID'); }
   }
-  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', slackOptions: {config: slackConfig}, intakeOptions:{config:intakeConfig}, syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID, enrollmentSpreadsheetId: process.env.BOOKING_ENROLLMENT_SHEET_ID, ...(process.env.BOOKING_SCHEDULE_SHEET_NAME ? {scheduleSheetName: process.env.BOOKING_SCHEDULE_SHEET_NAME} : {}), ...(process.env.BOOKING_SLOTS_SHEET_NAME ? {slotsSheetName: process.env.BOOKING_SLOTS_SHEET_NAME} : {}) } });
+  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', slackOptions: {config: slackConfig}, intakeOptions:{config:intakeConfig}, syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', confirmationHistoryEnabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID, enrollmentSpreadsheetId: process.env.BOOKING_ENROLLMENT_SHEET_ID, ...(process.env.BOOKING_SCHEDULE_SHEET_NAME ? {scheduleSheetName: process.env.BOOKING_SCHEDULE_SHEET_NAME} : {}), ...(process.env.BOOKING_SLOTS_SHEET_NAME ? {slotsSheetName: process.env.BOOKING_SLOTS_SHEET_NAME} : {}) } });
   if (process.env.BOOKING_ADMIN_EMAIL && process.env.BOOKING_ADMIN_PASSWORD) {
     const existing = await db.query("SELECT id FROM eduson_booking.users WHERE role='admin' AND active=true LIMIT 1");
     if (!existing.rows.length) await app.auth.createUser(SYSTEM, { name: process.env.BOOKING_ADMIN_NAME || 'Администратор', email: process.env.BOOKING_ADMIN_EMAIL, password: process.env.BOOKING_ADMIN_PASSWORD, role: 'admin' });
