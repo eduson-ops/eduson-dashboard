@@ -2,11 +2,13 @@ import http from 'node:http';
 import { readFile, stat, realpath } from 'node:fs/promises';
 import { resolve, dirname, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { timingSafeEqual } from 'node:crypto';
 import { openDatabase } from './db.mjs';
 import { BookingService } from './domain.mjs';
 import { CompensationService, getConfirmation } from './compensation.mjs';
 import { OperationalPaymentService, createOperationalSynchronizer } from './operational-reports.mjs';
 import { createSlackNotifications } from './slack-notifications.mjs';
+import { createSourceIntake } from './source-intake.mjs';
 import { createAuth, createLoginLimiter, readCookie, cookieHeader, requireCsrf, checkOrigin, requestAddress } from './auth.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -19,10 +21,10 @@ function json(res, value, status = 200) {
   res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
   res.end(JSON.stringify(value));
 }
-async function body(req) {
+async function body(req, {maxBytes = 64 * 1024} = {}) {
   if (!(req.headers['content-type'] || '').startsWith('application/json')) fail('Ожидается JSON', 415);
   const chunks = []; let bytes = 0;
-  for await (const part of req) { bytes += part.length; if (bytes > 64 * 1024) fail('Слишком большой запрос', 413); chunks.push(part); }
+  for await (const part of req) { bytes += part.length; if (bytes > maxBytes) fail('Слишком большой запрос', 413); chunks.push(part); }
   const text = Buffer.concat(chunks).toString('utf8');
   try { const value = JSON.parse(text || '{}'); if (!value || Array.isArray(value) || typeof value !== 'object') fail('Некорректный JSON'); return value; }
   catch { fail('Некорректный JSON'); }
@@ -39,11 +41,16 @@ function safePath(path) {
   return target.startsWith(ROOT + sep) ? { path: target, booking: trimmed.startsWith('/booking/') } : null;
 }
 
-export async function createApp({ db, now = () => new Date(), secureCookies = false, publicOrigin, trustProxy = false, demo = false, demoDate, enableWorkers = true, syncOptions, slackOptions } = {}) {
+export async function createApp({ db, now = () => new Date(), secureCookies = false, publicOrigin, trustProxy = false, demo = false, demoDate, enableWorkers = true, syncOptions, slackOptions, intakeOptions } = {}) {
   if (!db) throw Error('Database is required');
   const service = new BookingService(db, { now });
   const payments = new OperationalPaymentService(db, { now });
   const compensation = new CompensationService(db, { now });
+  const intakeConfig = intakeOptions?.config || {};
+  const intakeEnabled = intakeConfig.enabled === true;
+  const intakeAccounts = new Set(Array.isArray(intakeConfig.accountIds) ? intakeConfig.accountIds : []);
+  if (intakeEnabled && (typeof intakeConfig.token !== 'string' || !/^[A-Za-z0-9_-]{32,256}$/.test(intakeConfig.token) || !intakeAccounts.size || [...intakeAccounts].some(value => typeof value !== 'string' || !value.trim() || value.trim() !== value || /[\u0000-\u001f]/.test(value) || value.length > 128))) throw Error('RUBITIME_CONFIGURATION_INVALID');
+  const sourceIntake = createSourceIntake({db,service,now,staffMap:intakeConfig.staffMap || {}});
   const notifications = createSlackNotifications({ ...slackOptions, db, now, getStats: date => service.stats(SYSTEM, {date}) });
   await notifications.initialize();
   const auth = await createAuth(db, { now, validateUserChange: async tx => { await service.validateCapacity(tx); await service.markSheetsDirty(tx); } });
@@ -73,10 +80,19 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
     const errors = (counts.error || 0) + (projectionCounts.error || 0) + operations.error;
     return { enabled: Boolean(synchronizer), pending, errors, error: errors, lastError: schedule.lastError || status.lastError || operations.lastError || null, schedule, operations };
   }
+  async function intakeStatus() {
+    const status = await sourceIntake.status();
+    const last = (await db.query('SELECT MAX(received_at) AS last FROM eduson_booking.source_intake_observations')).rows[0]?.last;
+    return {enabled:intakeEnabled,...status,lastReceivedAt:last ? new Date(last).toISOString() : null};
+  }
   async function worker() {
     if (workerBusy || closing) return;
     workerBusy = true;
     try {
+      if (intakeEnabled) {
+        const received = await sourceIntake.runOnce();
+        if (Object.values(received).some(count => count > 0)) broadcast();
+      }
       const expired = await service.expireUnconfirmed(now());
       if (Array.isArray(expired) ? expired.length : Number(expired) > 0) broadcast();
       const recovered = await service.reconcileCapacityHolds();
@@ -133,6 +149,22 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
         return res.end(method === 'HEAD' ? undefined : content);
       }
       res.setHeader('cache-control', 'no-store');
+      if (path === '/api/integrations/rubitime/observations' && method === 'POST') {
+        if (!intakeEnabled) fail('Приём источника не включён',404);
+        const bearer = typeof req.headers.authorization === 'string' ? /^Bearer ([A-Za-z0-9_-]{32,256})$/i.exec(req.headers.authorization)?.[1] : null;
+        const expected = Buffer.from(intakeConfig.token), supplied = Buffer.from(bearer || '');
+        if (supplied.length !== expected.length || !timingSafeEqual(supplied,expected)) fail('Источник не авторизован',401);
+        const input = await body(req,{maxBytes:256*1024});
+        if (!intakeAccounts.has(input.accountId)) fail('Источник не разрешён',403);
+        try {
+          const observation = await sourceIntake.accept(input);
+          if (!observation.duplicate) broadcast();
+          return json(res,{accepted:true,observation},202);
+        } catch (error) {
+          if (error.name === 'SourceIntakeError') throw Object.assign(new Error('Некорректная запись источника'),{status:400,code:error.code});
+          throw error;
+        }
+      }
       if (path === '/api/session/login' && method === 'POST') {
         checkOrigin(req, publicOrigin);
         const ip = requestAddress(req, { trustProxy });
@@ -167,7 +199,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
         res.on('close', () => { clearInterval(heartbeat); subscribers.delete(stream); });
         return;
       }
-      if (path === '/api/bootstrap' && method === 'GET') return json(res, { ...session, managers: await service.managers(user), config: { timezone: 'Europe/Moscow', lessonMinutes: 60, hours: Array.from({ length: 12 }, (_, i) => `${i + 10}:00`), backofficeUrl: BACKOFFICE, dashboardUrl: '/dashboard/', demo, ...(demoDate ? { demoDate } : {}) }, sync: user.role === 'admin' ? await syncStatus() : { enabled: Boolean(synchronizer) }, ...(user.role === 'admin' ? {notifications: await notifications.status()} : {}) });
+      if (path === '/api/bootstrap' && method === 'GET') return json(res, { ...session, managers: await service.managers(user), config: { timezone: 'Europe/Moscow', lessonMinutes: 60, hours: Array.from({ length: 12 }, (_, i) => `${i + 10}:00`), backofficeUrl: BACKOFFICE, dashboardUrl: '/dashboard/', demo, ...(demoDate ? { demoDate } : {}) }, sync: user.role === 'admin' ? await syncStatus() : { enabled: Boolean(synchronizer) }, ...(user.role === 'admin' ? {notifications: await notifications.status(),sourceIntake: await intakeStatus()} : {}) });
       const filter = Object.fromEntries(url.searchParams);
       if (path === '/api/bookings' && method === 'GET') return json(res, { bookings: await service.listBookings(user, filter) });
       if (path === '/api/bookings' && method === 'POST') {
@@ -200,6 +232,23 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       if (path === '/api/audit' && method === 'GET') { admin(user); return json(res, { events: await service.listAudit(user, filter) }); }
       if (path === '/api/sync' && method === 'GET') { admin(user); return json(res, await syncStatus()); }
       if (path === '/api/notifications/status' && method === 'GET') { admin(user); return json(res, await notifications.status()); }
+      if (path === '/api/integrations/rubitime/status' && method === 'GET') { admin(user); return json(res,await intakeStatus()); }
+      if (path === '/api/integrations/rubitime/issues' && method === 'GET') {
+        admin(user);
+        const issues = await sourceIntake.listIssues();
+        const summaries = issues.length ? (await db.query('SELECT id,payload FROM eduson_booking.source_intake_observations WHERE id=ANY($1::text[])',[issues.map(issue=>issue.observation_id)])).rows : [];
+        const text = value => typeof value === 'string' ? value.slice(0,2048) : '';
+        return json(res,{issues:issues.map(issue=>{
+          const record=summaries.find(row=>row.id===issue.observation_id)?.payload?.record || {};
+          return {...issue,summary:Object.fromEntries(['studentName','parentName','phone','crmUrl','date','time','staffId'].map(key=>[key,text(record[key])]))};
+        })});
+      }
+      const issueRetry = path.match(/^\/api\/integrations\/rubitime\/issues\/([^/]+)\/retry$/);
+      if (issueRetry && method === 'POST') {
+        admin(user);
+        try { const observation=await sourceIntake.retryIssue({observationId:decodeURIComponent(issueRetry[1])});broadcast();return json(res,{observation}); }
+        catch (error) { if(error.name==='SourceIntakeError')throw Object.assign(new Error('Эта запись требует сверки данных источника'),{status:409,code:error.code});throw error; }
+      }
       if (path === '/api/analytics/lessons' && method === 'GET') { admin(user); return json(res, { lessons: await service.getAnalyticsLessons(user, filter) }); }
       if (path === '/api/analytics/cancellations' && method === 'GET') { admin(user); return json(res, { cancellations: await service.getAnalyticsCancellations(user, filter) }); }
       if (path === '/api/analytics/snapshot' && method === 'GET') {
@@ -217,7 +266,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
   });
   server.requestTimeout = 30_000; server.headersTimeout = 15_000;
   return {
-    server, auth, service, payments, compensation, notifications, worker,
+    server, auth, service, payments, compensation, notifications, sourceIntake, worker,
     async listen(port = 4180, host = '127.0.0.1') { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => { server.off('error', reject); resolve(); }); }); return server.address().port; },
     async close() { closing = true; if (timer) clearInterval(timer); if (notificationTimer) clearInterval(notificationTimer); for (const stream of subscribers) stream.res.end(); if (server.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } },
   };
@@ -233,7 +282,12 @@ async function main() {
       if (!slackConfig || Array.isArray(slackConfig) || typeof slackConfig !== 'object') throw Error();
     } catch { throw Error('BOOKING_SLACK_CONFIG_INVALID'); }
   }
-  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', slackOptions: {config: slackConfig}, syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID, enrollmentSpreadsheetId: process.env.BOOKING_ENROLLMENT_SHEET_ID, ...(process.env.BOOKING_SCHEDULE_SHEET_NAME ? {scheduleSheetName: process.env.BOOKING_SCHEDULE_SHEET_NAME} : {}), ...(process.env.BOOKING_SLOTS_SHEET_NAME ? {slotsSheetName: process.env.BOOKING_SLOTS_SHEET_NAME} : {}) } });
+  let intakeConfig = {};
+  if (process.env.BOOKING_RUBITIME_CONFIG_PATH) {
+    try { intakeConfig=JSON.parse(await readFile(process.env.BOOKING_RUBITIME_CONFIG_PATH,'utf8'));if(!intakeConfig||Array.isArray(intakeConfig)||typeof intakeConfig!=='object')throw Error(); }
+    catch { throw Error('BOOKING_RUBITIME_CONFIG_INVALID'); }
+  }
+  const app = await createApp({ db, secureCookies: process.env.BOOKING_SECURE_COOKIES === '1', publicOrigin: process.env.BOOKING_PUBLIC_ORIGIN, trustProxy: process.env.BOOKING_TRUST_PROXY === '1', slackOptions: {config: slackConfig}, intakeOptions:{config:intakeConfig}, syncOptions: { enabled: process.env.BOOKING_SHEETS_SYNC === '1', serviceAccountPath: process.env.GOOGLE_SERVICE_ACCOUNT_PATH, spreadsheetId: process.env.BOOKING_SHEET_ID, enrollmentSpreadsheetId: process.env.BOOKING_ENROLLMENT_SHEET_ID, ...(process.env.BOOKING_SCHEDULE_SHEET_NAME ? {scheduleSheetName: process.env.BOOKING_SCHEDULE_SHEET_NAME} : {}), ...(process.env.BOOKING_SLOTS_SHEET_NAME ? {slotsSheetName: process.env.BOOKING_SLOTS_SHEET_NAME} : {}) } });
   if (process.env.BOOKING_ADMIN_EMAIL && process.env.BOOKING_ADMIN_PASSWORD) {
     const existing = await db.query("SELECT id FROM eduson_booking.users WHERE role='admin' AND active=true LIMIT 1");
     if (!existing.rows.length) await app.auth.createUser(SYSTEM, { name: process.env.BOOKING_ADMIN_NAME || 'Администратор', email: process.env.BOOKING_ADMIN_EMAIL, password: process.env.BOOKING_ADMIN_PASSWORD, role: 'admin' });

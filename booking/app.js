@@ -5,7 +5,7 @@ const dialog = document.querySelector('#editor');
 const notices = document.querySelector('#notifications');
 const roles = {call_center:'Колл-центр',confirmation:'Подтверждение',sales:'Менеджер мастер-классов',admin:'Администратор'};
 const ageGroups = ['5-7','8-9','10-12','13-14'];
-const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,bookings:[],hours:[],users:[],view:'',search:'',date:'',completedFrom:'',completedTo:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,schedulePublished:null,scheduleSelectedDay:'',scheduleTab:0,compensation:null,compensationFrom:`${businessDate().slice(0,7)}-01`,compensationTo:businessDate(),compensationManager:'',wizard:null,loading:false,error:'',connected:false,events:null,refreshToken:0};
+const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,sourceIntake:null,sourceIntakeIssues:[],sourceIntakeRequest:0,bookings:[],hours:[],users:[],view:'',search:'',date:'',completedFrom:'',completedTo:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,schedulePublished:null,scheduleSelectedDay:'',scheduleTab:0,compensation:null,compensationFrom:`${businessDate().slice(0,7)}-01`,compensationTo:businessDate(),compensationManager:'',wizard:null,loading:false,error:'',connected:false,events:null,refreshToken:0};
 let drafts;
 let refreshTimer;
 let lastFocus;
@@ -23,6 +23,7 @@ const timeStamp = value => value ? new Date(value).toLocaleString('ru-RU',{timeZ
 const selected = (left,right) => String(left) === String(right) ? ' selected' : '';
 const checked = value => value ? ' checked' : '';
 const formError = error => `<div class="form-error" role="alert">${esc(error || '')}</div>`;
+const sourceRetryCodes = new Set(['UNKNOWN_STAFF_MAPPING','MIGRATION_LINK_REQUIRED','EXISTING_CAPACITY_CONFLICT']);
 
 function icon(name) {
   const paths = {
@@ -108,7 +109,7 @@ function renderLogin(error='') {
 
 async function bootstrap() {
   const result=await api('/bootstrap');
-  state.user=result.user;state.csrfToken=result.csrfToken;state.managers=result.managers||[];state.config=result.config||{};state.sync=result.sync;state.notifications=result.notifications||null;
+  state.user=result.user;state.csrfToken=result.csrfToken;state.managers=result.managers||[];state.config=result.config||{};state.sync=result.sync;state.notifications=result.notifications||null;state.sourceIntake=result.sourceIntake||null;state.sourceIntakeIssues=[];
   if(state.config.demoDate){state.adminDate=state.config.demoDate;state.date=state.config.demoDate;state.completedFrom=state.config.demoDate;state.completedTo=state.config.demoDate;state.week=state.config.demoDate;}
   state.bookings=[];state.hours=[];state.users=[];state.error='';state.scheduleDraft=null;
   drafts=makeDraftStore(sessionStorage,state.user.id);
@@ -159,6 +160,7 @@ async function refresh({quiet=false}={}) {
   const view=state.view;
   const syncRequest=isAdmin()?api('/sync').catch(error=>({...state.sync,loadError:error.message})):null;
   const notificationRequest=isAdmin()?api('/notifications/status').catch(()=>({...state.notifications,loadError:true})):null;
+  const sourceIntakeRequest=isAdmin()&&state.sourceIntake?.enabled?api('/integrations/rubitime/status').catch(error=>error.status===404?null:state.sourceIntake):null;
   try {
     if(view==='users') {const result=await api('/users');if(token!==state.refreshToken)return;state.users=result.users||[];}
     else if(view==='compensation') {
@@ -198,6 +200,7 @@ async function refresh({quiet=false}={}) {
     }
     if(syncRequest){const sync=await syncRequest;if(token===state.refreshToken)state.sync=sync;}
     if(notificationRequest){const status=await notificationRequest;if(token===state.refreshToken)state.notifications=status;}
+    if(sourceIntakeRequest){const status=await sourceIntakeRequest;if(token===state.refreshToken)state.sourceIntake=status;}
     if(token!==state.refreshToken)return;
     state.error='';
   } catch(error) {if(token===state.refreshToken)state.error=error.message;}
@@ -232,7 +235,7 @@ function renderContent() {
   else if(state.view==='compensation')content=renderCompensation();
   else if(state.view==='payments')content=renderPayments();
   else content=renderBookings();
-  main.innerHTML=`${state.error?`<div class="error-banner" role="alert">${esc(state.error)} <button class="subtle compact" data-action="refresh">Повторить</button></div>`:''}${state.loading?'<div class="loading-line" role="status">Загружаем данные…</div>':''}${content}${renderSync()}${renderNotificationStatus()}`;
+  main.innerHTML=`${state.error?`<div class="error-banner" role="alert">${esc(state.error)} <button class="subtle compact" data-action="refresh">Повторить</button></div>`:''}${state.loading?'<div class="loading-line" role="status">Загружаем данные…</div>':''}${renderSourceIntakeStatus()}${content}${renderSync()}${renderNotificationStatus()}`;
   if(savedFocus)document.getElementById(savedFocus)?.focus();
 }
 
@@ -255,6 +258,44 @@ function renderNotificationStatus() {
   if(status.blockedMapping){const names=(status.unmappedManagers||[]).map(person=>person.name).filter(Boolean);problems.push(`Не указан получатель Slack${names.length?`: ${names.join(', ')}`:''}.`);}
   if(status.configured&&(Number(status.error)>0||status.plannerError))problems.push('Часть уведомлений Slack задерживается. Записи и отчёты сохранены в букинге.');
   return problems.length?`<div class="error-banner" role="alert" style="margin-top:18px">${problems.map(esc).join(' ')}</div>`:'';
+}
+
+function renderSourceIntakeStatus() {
+  const status=state.sourceIntake;
+  if(!isAdmin()||!status?.enabled||!(Number(status.issues)>0||Number(status.errors)>0))return '';
+  const count=Number(status.issues);
+  const message=count>0?`Нужна проверка записей из Rubitime: ${count}.`:'Часть записей из Rubitime пока не обработана. Данные сохранены.';
+  return `<div class="error-banner" role="alert">${esc(message)} <button class="subtle compact" data-action="source-intake-issues">Проверить записи</button></div>`;
+}
+
+function sourceIssueExplanation(code) {
+  const reasons={UNKNOWN_STAFF_MAPPING:'Не найден методист из Rubitime.',MIGRATION_LINK_REQUIRED:'Не удалось связать запись с перенесённым занятием.',EXISTING_CAPACITY_CONFLICT:'На выбранный час не хватает подходящих открытых мест.',REVISION_HASH_CONFLICT:'Получены разные данные одной версии записи.',SOURCE_IDENTITY_CONFLICT:'Найдена другая запись с теми же контактами или ссылкой AmoCRM.',AMO_AUTHORITY:'В записи есть данные из AmoCRM.',BOOKING_MODIFIED:'Запись уже изменили в букинге.',BOOKING_PROTECTED:'По записи уже начали работу в букинге.',SOURCE_BOOKING_MISSING:'Запись не найдена в букинге.',INCOMPLETE_RECORD:'В записи не хватает обязательных данных.',INVALID_DATE:'Указана некорректная дата.',INVALID_PHONE:'Нужно проверить телефон.',INVALID_CRM:'Нужно проверить ссылку AmoCRM.',UNSUPPORTED_DURATION:'Продолжительность занятия отличается от 60 минут.',UNSUPPORTED_SLOT:'Время занятия не входит в рабочие часы.',INVALID_RECORD:'Нужно проверить данные записи.'};
+  const advice=code==='UNKNOWN_STAFF_MAPPING'?'Проверьте соответствие методиста, затем повторите обработку.':code==='MIGRATION_LINK_REQUIRED'?'Нужна сверка перенесённых записей.':code==='EXISTING_CAPACITY_CONFLICT'?'Проверьте открытые часы в расписании, затем повторите обработку.':['SOURCE_IDENTITY_CONFLICT','AMO_AUTHORITY','BOOKING_MODIFIED','BOOKING_PROTECTED','SOURCE_BOOKING_MISSING'].includes(code)?'Нужна сверка с AmoCRM.':'Исправьте данные в Rubitime.';
+  return {reason:reasons[code]||'Данные записи требуют проверки.',advice};
+}
+
+async function openSourceIntakeIssues() {
+  if(!isAdmin()||!state.sourceIntake?.enabled)return;
+  const request=++state.sourceIntakeRequest;
+  showDialog('Проверка записей', '<div class="dialog-body"><div class="loading-line" role="status">Загружаем записи…</div></div>', {name:'source-intake-issues'});
+  try {
+    const result=await api('/integrations/rubitime/issues');
+    if(!isAdmin()||request!==state.sourceIntakeRequest||!dialog.open||dialog.dataset.name!=='source-intake-issues')return;
+    state.sourceIntakeIssues=Array.isArray(result.issues)?result.issues:[];
+    const rows=state.sourceIntakeIssues.map(issue=>{
+      const summary=issue.summary||{},explanation=sourceIssueExplanation(issue.code);
+      const sourceDate=typeof summary.date==='string'?summary.date:'',parsedDate=new Date(`${sourceDate}T12:00:00Z`);
+      const validDate=/^\d{4}-\d{2}-\d{2}$/.test(sourceDate)&&Number.isFinite(+parsedDate)&&parsedDate.toISOString().slice(0,10)===sourceDate;
+      const when=validDate?dateText(sourceDate):sourceDate?`${sourceDate} · проверьте дату`:'Дата не указана';
+      const retry=sourceRetryCodes.has(issue.code)&&typeof issue.observation_id==='string'&&issue.observation_id.length>0&&issue.observation_id.length<=128;
+      return `<article class="drawer-booking"><div class="drawer-booking-top"><div><strong class="student-name">${esc(summary.studentName||'Имя ученика не указано')}</strong><div class="small">${esc(when)} · ${esc(summary.time||'Время не указано')}</div>${summary.parentName?`<div>Родитель: ${esc(summary.parentName)}</div>`:''}${summary.phone?`<div class="small">${esc(summary.phone)}</div>`:''}${externalLink(summary.crmUrl,'Открыть AmoCRM')}${issue.record_id?`<div class="small">№ в Rubitime: ${esc(issue.record_id)}</div>`:''}</div></div><p>${esc(explanation.reason)}</p><p class="field-hint">${esc(explanation.advice)}</p>${retry?`<div class="drawer-actions"><button class="outline compact" data-action="source-intake-retry" data-id="${esc(issue.observation_id)}">Повторить обработку</button></div>`:''}</article>`;
+    }).join('');
+    showDialog('Проверка записей',`<div class="dialog-body">${rows||'<div class="empty">Записей для проверки нет. Если запись ещё не появилась, обновите список позже.</div>'}</div>`,{name:'source-intake-issues',footer:'<button class="secondary" data-action="close-dialog">Закрыть</button><button class="primary" data-action="source-intake-issues">Обновить список</button>'});
+  } catch(error) {
+    if(request!==state.sourceIntakeRequest||!isAdmin()||!dialog.open||dialog.dataset.name!=='source-intake-issues')return;
+    if(error.status===404){state.sourceIntake=null;dialog.close();renderContent();notify('Проверка записей пока недоступна.');return;}
+    showDialog('Проверка записей','<div class="dialog-body"><p role="alert">Не удалось загрузить записи. Повторите проверку.</p></div>',{name:'source-intake-issues',footer:'<button class="secondary" data-action="close-dialog">Закрыть</button><button class="primary" data-action="source-intake-issues">Повторить</button>'});
+  }
 }
 
 function wizardDraft() {
@@ -714,6 +755,15 @@ async function handleAction(event) {
     if(action==='close-dialog'){dialog.close();return;}
     if(action==='logout'){await api('/session/logout',{method:'POST',body:{}});state.events?.close();state.user=null;state.csrfToken='';renderLogin();return;}
     if(action==='refresh'){await refresh();return;}
+    if(action==='source-intake-issues'){await openSourceIntakeIssues();return;}
+    if(action==='source-intake-retry'){
+      const issue=state.sourceIntakeIssues.find(item=>item.observation_id===id);
+      if(!isAdmin()||!state.sourceIntake?.enabled||!issue||!sourceRetryCodes.has(issue.code))return;
+      const oldText=target.textContent;target.disabled=true;target.textContent='Проверяем…';
+      try{await api(`/integrations/rubitime/issues/${encodeURIComponent(id)}/retry`,{method:'POST',body:{}});notify('Запись отправлена на повторную проверку');await refresh({quiet:true});if(dialog.open&&dialog.dataset.name==='source-intake-issues')await openSourceIntakeIssues();}
+      finally{target.disabled=false;target.textContent=oldText;}
+      return;
+    }
     if(action==='create'){if(state.user.role==='call_center')await navigate('booking');else openCreate();return;}
     if(action?.startsWith('wizard-')){
       const form=document.querySelector('#booking-wizard-form');if(form)persistForm(form);
