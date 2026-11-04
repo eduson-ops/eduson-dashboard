@@ -18,7 +18,7 @@ export function parseConfirmationTimestamp(value){
   const instant=new Date(iso);return Number.isFinite(+instant)?instant.toISOString():null;
 }
 const normalizeTime=value=>{const raw=text(value);const match=/^(\d{1,2}):(\d{2})/.exec(raw);return match?`${match[1].padStart(2,'0')}:${match[2]}`:'';};
-const managerWords=value=>text(value).toLocaleLowerCase('ru-RU').replace(/[^\p{L}\p{N}]+/gu,' ' ).trim();
+const managerWords=value=>text(value).normalize('NFC').toLocaleLowerCase('ru-RU').replaceAll('ё','е').replace(/[^\p{L}\p{N}]+/gu,' ').trim().split(/\s+/).filter(Boolean).sort().join(' ');
 
 /**
  * Matches Google Form confirmation rows without guessing a lesson date.

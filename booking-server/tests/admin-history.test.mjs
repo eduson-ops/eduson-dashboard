@@ -36,6 +36,11 @@ test('confirmation form row links to a future booking by CRM, slot and causal ti
   assert.deepEqual(result.matches,[{rowNumber:2,bookingId:'booking-1',confirmedAt:'2026-11-04T10:07:53.000Z',managerName:'Нина Виноградова'}]);
   assert.equal(result.unmatched,0);
   assert.equal(result.ambiguous,0);
+  const reordered=matchConfirmationRows([
+    ['Отметка времени','Вставь АМО ','Кто МИМК?','Во сколько слот? '],
+    ['04.11.2026 13:07:53',booking.crmUrl,'Нина Виноградова','18:00:00']
+  ],[{...booking,sourceManager:'Виноградова Нина'}]);
+  assert.equal(reordered.matches[0].bookingId,'booking-1');
 });
 
 test('confirmation history sync confirms the matching future booking once and assigns a primary slot',async t=>{
