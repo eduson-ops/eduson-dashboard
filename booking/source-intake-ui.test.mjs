@@ -92,3 +92,12 @@ test('booking UI marks stale data and exposes mobile card labels for lesson rows
   assert.match(source,/data-label="Ученик"/);
   assert.match(source,/data-label="Статус"/);
 });
+
+test('completed view exposes the creation-day filter and booking creation timestamp for retro review',()=>{
+  assert.match(source,/id="completed-created-from"/);
+  assert.match(source,/id="completed-created-to"/);
+  assert.match(source,/createdFrom/);
+  assert.match(source,/createdTo/);
+  assert.match(source,/createdAt/);
+  assert.match(source,/Записано в/);
+});

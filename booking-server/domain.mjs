@@ -496,6 +496,8 @@ export class BookingService {
     if (filters.date) add('b.date=?', validDate(filters.date));
     if (filters.from) add('b.date>=?', validDate(filters.from));
     if (filters.to) add('b.date<=?', validDate(filters.to));
+    if (filters.createdFrom) add("((b.created_at AT TIME ZONE 'Europe/Moscow')::date)>=?::date", validDate(filters.createdFrom));
+    if (filters.createdTo) add("((b.created_at AT TIME ZONE 'Europe/Moscow')::date)<=?::date", validDate(filters.createdTo));
     const scope = filters.scope || 'active';
     assert(['active', 'completed', 'trash', 'all'].includes(scope), 400, 'Неизвестный раздел занятий.', 'VALIDATION');
     if (scope === 'active') conditions.push("b.state IN ('scheduled','in_progress') AND b.history_only=false");

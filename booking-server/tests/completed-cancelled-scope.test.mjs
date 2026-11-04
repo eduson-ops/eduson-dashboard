@@ -68,6 +68,15 @@ test('date, range and exact ID constraints apply to every branch of completed sc
  assert.deepEqual(ids(await service.listBookings(caller,{scope:'completed',id:'unassigned-cancelled'})),[]);
 });
 
+test('completed scope can be filtered by the day when the booking was created',async t=>{
+ const f=await fixture(t);
+ await f.seed({id:'created-early',date:'2026-11-12',time:'18:00',state:'completed'});
+ await f.seed({id:'created-late',date:'2026-11-12',time:'19:00',state:'completed'});
+ await f.db.query("UPDATE eduson_booking.bookings SET created_at=CASE id WHEN 'created-early' THEN '2026-11-05T08:15:00Z'::timestamptz ELSE '2026-11-05T21:30:00Z'::timestamptz END WHERE id IN ('created-early','created-late')");
+ assert.deepEqual(ids(await f.service.listBookings(admin,{scope:'completed',createdFrom:'2026-11-05',createdTo:'2026-11-05'})),['created-early']);
+ assert.deepEqual(ids(await f.service.listBookings(admin,{scope:'completed',createdFrom:'2026-11-06',createdTo:'2026-11-06'})),['created-late']);
+});
+
 test('wider completed UI scope preserves the previous report analytics eligibility',async t=>{
  const {db,service}=await fixture(t,{dataset:true});
  for(const id of ['own-completed','own-cancelled','own-history'])await db.query('INSERT INTO eduson_booking.reports(booking_id,payload)VALUES($1,$2)',[id,JSON.stringify({practice:'Synthetic practice',recordingUrl:'https://example.invalid/recording'})]);
