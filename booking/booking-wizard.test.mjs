@@ -9,6 +9,15 @@ test('booking widget only offers actual free future slots for the selected Mosco
   assert.deepEqual(core.selectableBookingSlots?.(rows,'2026-11-04',now).map(s=>[s.time,s.remaining]),[['14:00',2]]);
 });
 
+test('booking selection expires immediately after the inclusive two-hour Moscow cutoff',()=>{
+  const rows=[{date:'2030-01-02',time:'14:00',remaining:2},{date:'2030-01-02',time:'15:00',remaining:1}];
+  for(const now of ['2030-01-02T08:59:59.999Z','2030-01-02T09:00:00.000Z'])assert.equal(core.isBookingSelectionAvailable(rows,'2030-01-02','14:00',new Date(now)),true);
+  const afterDue=new Date('2030-01-02T09:00:00.001Z');
+  assert.deepEqual(core.selectableBookingSlots(rows,'2030-01-02',afterDue).map(row=>row.time),['15:00']);
+  assert.equal(core.isBookingSelectionAvailable(rows,'2030-01-02','14:00',afterDue),false);
+  assert.deepEqual(rows.map(row=>row.remaining),[2,1]);
+});
+
 test('changing an age or an availability result cannot retain an unavailable booking selection',()=>{
   const now=new Date('2026-11-04T06:00:00Z');
   const rows=[{date:'2026-11-04',time:'12:00',remaining:1}];

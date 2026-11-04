@@ -2,7 +2,7 @@ import { readFile, mkdir } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
 import pg from 'pg';
 
-const schemas = ['schema.sql','compensation-schema.sql','operational-schema.sql','slack-schema.sql'].map(name=>new URL(name,import.meta.url));
+const schemas = ['schema.sql','compensation-schema.sql','operational-schema.sql','slack-schema.sql','source-intake-schema.sql'].map(name=>new URL(name,import.meta.url));
 const result = value => ({ ...value, rows: value.rows || [], rowCount: value.rowCount ?? value.affectedRows ?? value.rows?.length ?? 0 });
 
 /** PostgreSQL owns the data in both modes. Embedded mode uses a single queued connection. */

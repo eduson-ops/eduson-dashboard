@@ -113,7 +113,7 @@ export function selectableBookingSlots(rows,date,now=new Date()) {
     const remaining=Number(slot.remaining);
     if(!Number.isFinite(remaining)||remaining<=0)continue;
     const startsAt=new Date(`${date}T${slot.time}:00+03:00`);
-    if(!Number.isFinite(+startsAt)||startsAt<=now)continue;
+    if(!Number.isFinite(+startsAt)||+startsAt-+now<7200000)continue;
     if(!found.has(slot.time))found.set(slot.time,slot);
   }
   return [...found.values()].sort((a,b)=>a.time.localeCompare(b.time));

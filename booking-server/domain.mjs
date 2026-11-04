@@ -4,9 +4,30 @@ import { recordConfirmation, recordAttendance } from './compensation.mjs';
 const HOURS = Array.from({ length: 12 }, (_, i) => `${String(i + 10).padStart(2, '0')}:00`);
 const ROLES = ['admin', 'call_center', 'confirmation', 'sales'];
 const SYSTEM = { id: 'system', role: 'admin', name: 'Система' };
+// Scope is derived from a trusted append-only source event. The original import
+// remains the origin/manager evidence, and malformed JSON can never reach a cast.
+const SCOPE_VERSION_SQL = `CASE WHEN jsonb_typeof(scope.payload->'version')='number'
+  AND (scope.payload->>'version') ~ '^[1-9][0-9]{0,9}$'
+  THEN (scope.payload->>'version')::numeric ELSE NULL END`;
+const EFFECTIVE_LEGACY_UNKNOWN_SQL = `COALESCE(
+  (SELECT scope.payload->'elapsedUnknown'='true'::jsonb
+    FROM eduson_booking.audit_events scope
+    WHERE scope.booking_id=b.id AND scope.action='legacy_scope_changed'
+      AND scope.actor_id='source:rubitime' AND scope.actor_role='admin'
+      AND jsonb_typeof(scope.payload)='object'
+      AND jsonb_typeof(scope.payload->'historyOnly')='boolean'
+      AND jsonb_typeof(scope.payload->'elapsedUnknown')='boolean'
+      AND scope.payload->'historyOnly'=scope.payload->'elapsedUnknown'
+      AND scope.payload->'historyOnly'=to_jsonb(b.history_only)
+      AND (${SCOPE_VERSION_SQL})<=b.version
+      AND EXISTS(SELECT 1 FROM eduson_booking.audit_events origin WHERE origin.booking_id=b.id AND origin.action='legacy_imported')
+    ORDER BY (${SCOPE_VERSION_SQL}) DESC,scope.created_at DESC,scope.id DESC LIMIT 1),
+  (SELECT origin.payload->'elapsedUnknown'='true'::jsonb FROM eduson_booking.audit_events origin
+    WHERE origin.booking_id=b.id AND origin.action='legacy_imported' ORDER BY origin.created_at,origin.id LIMIT 1),false)`;
 const BOOKING_SELECT = `SELECT b.*,u.name AS assigned_name,r.payload AS report_payload,
   (SELECT (e.payload-'raw') || jsonb_build_object('actorId',e.actor_id,'actorRole',e.actor_role) FROM eduson_booking.audit_events e WHERE e.booking_id=b.id AND e.action IN ('cancelled','expired','legacy_cancelled') ORDER BY (e.payload->>'version')::int DESC,e.created_at DESC LIMIT 1) AS cancellation_payload
   ,(SELECT e.payload FROM eduson_booking.audit_events e WHERE e.booking_id=b.id AND e.action='legacy_imported' ORDER BY e.created_at,e.id LIMIT 1) AS legacy_payload
+  ,${EFFECTIVE_LEGACY_UNKNOWN_SQL} AS legacy_elapsed_unknown
   FROM eduson_booking.bookings b LEFT JOIN eduson_booking.users u ON u.id=b.assigned_to LEFT JOIN eduson_booking.reports r ON r.booking_id=b.id`;
 const iso = value => value == null ? null : new Date(value).toISOString();
 const dateString = value => typeof value === 'string' ? value.slice(0, 10) : new Date(value).toISOString().slice(0, 10);
@@ -117,7 +138,7 @@ function legacyObject(row) {
   for(const [field,column] of [['studentName','student_name'],['parentName','parent_name'],['phone','phone'],['crmUrl','crm_url']])if(!row[column]?.trim())missingFields.push(field);
   for(const [field,column] of [['hasPc','has_pc'],['parentPresent','parent_present']])if(row[column]===null)missingFields.push(field);
   const resolved=['completed','cancelled'].includes(row.state);
-  const elapsedUnknown=!resolved && row.legacy_payload.elapsedUnknown===true;
+  const elapsedUnknown=!resolved && row.legacy_elapsed_unknown===true;
   return {source:row.legacy_payload.source,managerName:row.legacy_payload.managerName,elapsedUnknown,missingFields,needsReview:!resolved && (missingFields.length>0 || elapsedUnknown)};
 }
 function bookingObject(row) {
@@ -291,6 +312,7 @@ export class BookingService {
       }
       const now = this.instant();
       assert(startsAt > now, 400, 'Нельзя записать новое занятие в прошлое.', 'VALIDATION');
+      assert(+startsAt - +now >= 7200000, 409, 'Записать на урок можно не позднее чем за 2 часа до начала. Выберите другое время.', 'BOOKING_CUTOFF_PASSED');
       const id = randomUUID();
       const ctx = await this.context(tx, date, input.time);
       assert(this.match(ctx, [{ id, age: values.age }]), 409, 'На это время нет свободных мест для выбранного возраста.', 'CAPACITY_FULL');
@@ -445,7 +467,7 @@ export class BookingService {
     if(input.outcome==='completed')assert(typeof input.managerId==='string'&&input.managerId,400,'Укажите менеджера, который провёл занятие.','VALIDATION');
     return this.mutation(async tx=>{
       let row=await this.get(tx,id);versionCheck(row,input);
-      assert(row.legacy_payload?.elapsedUnknown===true && row.state==='scheduled' && new Date(row.ends_at)<=this.instant(),409,'Решение доступно только для прошедшей перенесённой записи с неизвестным исходом.','INVALID_STATE');
+      assert(row.legacy_elapsed_unknown===true && row.state==='scheduled' && new Date(row.ends_at)<=this.instant(),409,'Решение доступно только для прошедшей перенесённой записи с неизвестным исходом.','INVALID_STATE');
       if(input.outcome==='cancelled') {
         row=await this.change(tx,row,{state:'cancelled',cancel_reason:reason,cancel_source:actor.role,cancelled_at:this.instant().toISOString()});
         await this.record(tx,actor,row,'cancelled',{reason,source:actor.role,resolvedLegacy:true},'cancel');
@@ -671,7 +693,7 @@ export class BookingService {
   }
   async expireUnconfirmed() {
     return this.mutation(async tx => {
-      const rows = (await tx.query(`${BOOKING_SELECT} WHERE b.confirmation_status='pending' AND b.state='scheduled' AND b.history_only=false AND b.ends_at<=$1 AND NOT EXISTS(SELECT 1 FROM eduson_booking.audit_events legacy WHERE legacy.booking_id=b.id AND legacy.action='legacy_imported' AND legacy.payload->>'elapsedUnknown'='true') ORDER BY b.ends_at,b.id`,[this.instant().toISOString()])).rows;
+      const rows = (await tx.query(`${BOOKING_SELECT} WHERE b.confirmation_status='pending' AND b.state='scheduled' AND b.history_only=false AND b.ends_at<=$1 AND NOT (${EFFECTIVE_LEGACY_UNKNOWN_SQL}) ORDER BY b.ends_at,b.id`,[this.instant().toISOString()])).rows;
       for (const original of rows) {
         const row = await this.change(tx,original,{ state:'cancelled',cancel_reason:'Занятие не подтверждено и не состоялось',cancel_source:'system',cancelled_at:this.instant().toISOString(),capacity_hold:false });
         await this.record(tx,SYSTEM,row,'expired',{ reason:row.cancel_reason,source:'system' },'cancel');
