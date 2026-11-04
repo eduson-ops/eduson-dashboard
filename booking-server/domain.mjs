@@ -312,6 +312,7 @@ export class BookingService {
       }
       const now = this.instant();
       assert(startsAt > now, 400, 'Нельзя записать новое занятие в прошлое.', 'VALIDATION');
+      assert(+startsAt - +now >= 7200000, 409, 'Записать на урок можно не позднее чем за 2 часа до начала. Выберите другое время.', 'BOOKING_CUTOFF_PASSED');
       const id = randomUUID();
       const ctx = await this.context(tx, date, input.time);
       assert(this.match(ctx, [{ id, age: values.age }]), 409, 'На это время нет свободных мест для выбранного возраста.', 'CAPACITY_FULL');
