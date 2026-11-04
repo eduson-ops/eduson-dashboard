@@ -731,8 +731,8 @@ export class BookingService {
     const range = tag ? ageRange(tag) : null;
     const inTag = age => !range || age >= range[0] && age <= range[1];
     return this.db.transaction(async tx => {
-      const all = (await tx.query('SELECT * FROM eduson_booking.bookings WHERE date=$1',[date])).rows.filter(b => inTag(b.age));
-      const recorded = (await tx.query("SELECT * FROM eduson_booking.bookings WHERE ((created_at AT TIME ZONE 'Europe/Moscow')::date)=$1::date",[date])).rows.filter(b => inTag(b.age));
+      const all = (await tx.query('SELECT * FROM eduson_booking.bookings WHERE date=$1 AND is_test=false',[date])).rows.filter(b => inTag(b.age));
+      const recorded = (await tx.query("SELECT * FROM eduson_booking.bookings WHERE ((created_at AT TIME ZONE 'Europe/Moscow')::date)=$1::date AND is_test=false",[date])).rows.filter(b => inTag(b.age));
       const hours = [];
       for (const time of HOURS) {
         const ctx = await this.context(tx,date,time,null,{ historical:+new Date(`${date}T${time}:00+03:00`)+3600000<=+this.instant() });
@@ -758,12 +758,17 @@ export class BookingService {
           bookingIds:bookings.map(b=>b.id),lessonDates:[...new Set(bookings.map(b=>b.date instanceof Date?b.date.toISOString().slice(0,10):String(b.date)))].sort()};
       });
       const recordedFields=['total','confirmed','cancelledConfirmation','cancelledSales','completed'];
-      const bookingIds=all.map(row=>row.id);
+      const businessRows=all.filter(row=>!row.history_only);
+      const bookingIds=businessRows.map(row=>row.id);
       const reportedIds=new Set(bookingIds.length?(await tx.query('SELECT booking_id FROM eduson_booking.reports WHERE booking_id=ANY($1::text[])',[bookingIds])).rows.map(row=>row.booking_id):[]);
       const paidIds=new Set(bookingIds.length?(await tx.query('SELECT booking_id FROM eduson_booking.payments WHERE booking_id=ANY($1::text[]) AND booking_id IS NOT NULL',[bookingIds])).rows.map(row=>row.booking_id):[]);
-      const funnel={booked:all.length,confirmed:all.filter(row=>row.confirmation_status==='confirmed').length,assigned:all.filter(row=>row.assigned_to).length,started:all.filter(row=>row.started_at||['in_progress','completed'].includes(row.state)).length,completed:all.filter(row=>row.state==='completed').length,reported:all.filter(row=>reportedIds.has(row.id)).length,paid:all.filter(row=>paidIds.has(row.id)).length};
+      const funnel={booked:businessRows.length,confirmed:businessRows.filter(row=>row.confirmation_status==='confirmed').length,assigned:businessRows.filter(row=>row.assigned_to).length,started:businessRows.filter(row=>row.started_at||['in_progress','completed'].includes(row.state)).length,completed:businessRows.filter(row=>row.state==='completed').length,reported:businessRows.filter(row=>reportedIds.has(row.id)).length,paid:businessRows.filter(row=>paidIds.has(row.id)).length};
+      const recordedBusinessRows=recorded.filter(row=>!row.history_only),recordedBookingIds=recordedBusinessRows.map(row=>row.id);
+      const recordedReportedIds=new Set(recordedBookingIds.length?(await tx.query('SELECT booking_id FROM eduson_booking.reports WHERE booking_id=ANY($1::text[])',[recordedBookingIds])).rows.map(row=>row.booking_id):[]);
+      const recordedPaidIds=new Set(recordedBookingIds.length?(await tx.query('SELECT booking_id FROM eduson_booking.payments WHERE booking_id=ANY($1::text[]) AND booking_id IS NOT NULL',[recordedBookingIds])).rows.map(row=>row.booking_id):[]);
+      const recordedFunnel={booked:recordedBusinessRows.length,confirmed:recordedBusinessRows.filter(row=>row.confirmation_status==='confirmed').length,assigned:recordedBusinessRows.filter(row=>row.assigned_to).length,started:recordedBusinessRows.filter(row=>row.started_at||['in_progress','completed'].includes(row.state)).length,completed:recordedBusinessRows.filter(row=>row.state==='completed').length,reported:recordedBusinessRows.filter(row=>recordedReportedIds.has(row.id)).length,paid:recordedBusinessRows.filter(row=>recordedPaidIds.has(row.id)).length};
       const fields = ['capacity','total','capacityHeld','reserve','confirmed','cancelledConfirmation','cancelledSales','completed','inProgress','assigned','unassigned','deficit'];
-      return { hours,totals:Object.fromEntries(fields.map(field=>[field,hours.reduce((sum,h)=>sum+h[field],0)])),funnel,recordedHours,
+      return { hours,totals:Object.fromEntries(fields.map(field=>[field,hours.reduce((sum,h)=>sum+h[field],0)])),funnel,recordedFunnel,recordedHours,
         recordedTotals:Object.fromEntries(recordedFields.map(field=>[field,recordedHours.reduce((sum,h)=>sum+h[field],0)])) };
     });
   }

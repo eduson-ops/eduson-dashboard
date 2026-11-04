@@ -107,6 +107,7 @@ test('admin stats expose bookings created on the selected day across future less
   assert.deepEqual(noon.bookingIds.sort(),[todaySlot.id,futureSlot.id].sort());
   assert.deepEqual(noon.lessonDates.sort(),['2026-11-10','2026-11-11']);
   assert.equal(stats.recordedTotals.total,2);
+  assert.equal(stats.recordedFunnel.booked,2);
 });
 
 test('admin stats expose one process funnel for the selected lesson day',async t=>{
@@ -117,6 +118,16 @@ test('admin stats expose one process funnel for the selected lesson day',async t
   assert.equal(confirmed.assignmentKind,'primary');
   const funnel=(await service.stats(admin,{date:day})).funnel;
   assert.deepEqual(funnel,{booked:2,confirmed:1,assigned:1,started:0,completed:0,reported:0,paid:0});
+});
+
+test('admin business stats exclude test lessons from hourly and retro counters',async t=>{
+  const {service}=await fixture(t);
+  await service.createBooking(admin,booking({isTest:true,idempotencyKey:'stats-test'}));
+  const stats=await service.stats(admin,{date:day});
+  const hour=stats.hours.find(item=>item.time==='12:00');
+  assert.equal(hour.total,0);
+  assert.equal(stats.funnel.booked,0);
+  assert.equal(stats.recordedHours.find(item=>item.time==='12:00').total,0);
 });
 
 test('canonical allocation maximizes primary places across constrained age groups',async t=>{

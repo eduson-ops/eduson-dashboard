@@ -89,6 +89,21 @@ test('Russian JSON survives a UTF-8 character split between HTTP chunks', async 
   assert.equal(result.body.user.name, 'Ученик');
 });
 
+test('confirmation history repair endpoint is admin-only and retry needs CSRF', async t => {
+  const db = await openDatabase({ memory: true });
+  const app = await createApp({ db, enableWorkers: false, syncOptions: { enabled: true, confirmationHistoryEnabled: true, client: { request: async () => ({ values: [] }) } } });
+  t.after(async () => { await app.close(); await db.close(); });
+  const port = await app.listen(0); const base = `http://127.0.0.1:${port}`; const password = 'History endpoint password 2030'; const system = { id: 'system', role: 'admin' };
+  const admin = await app.auth.createUser(system, { name: 'Администратор', email: 'history-endpoint-admin@test.local', role: 'admin', password });
+  await app.auth.createUser(system, { name: 'Сейл', email: 'history-endpoint-sales@test.local', role: 'sales', password });
+  async function login(email){const response=await fetch(base+'/api/session/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password})});const body=await response.json();return{...body,cookie:response.headers.get('set-cookie').split(';')[0]};}
+  const a=await login(admin.email),s=await login('history-endpoint-sales@test.local');
+  const issues=await fetch(base+'/api/confirmation-history/issues',{headers:{cookie:a.cookie}});assert.equal(issues.status,200);assert.deepEqual((await issues.json()).issues,[]);
+  assert.equal((await fetch(base+'/api/confirmation-history/issues',{headers:{cookie:s.cookie}})).status,403);
+  assert.equal((await fetch(base+'/api/confirmation-history/retry',{method:'POST',headers:{cookie:a.cookie}})).status,403);
+  const retry=await fetch(base+'/api/confirmation-history/retry',{method:'POST',headers:{cookie:a.cookie,'x-csrf-token':a.csrfToken}});assert.equal(retry.status,200);assert.equal((await retry.json()).processed,0);
+});
+
 test('existing same-origin material demos can still be embedded', async t => {
   const db = await openDatabase({ memory: true });
   const app = await createApp({ db, enableWorkers: false });
