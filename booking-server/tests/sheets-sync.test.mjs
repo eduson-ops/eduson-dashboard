@@ -97,6 +97,20 @@ async function fixture(t, options = {}) {
 test('synchronizer export exists', () => {
   assert.equal(typeof module.createSheetSynchronizer, 'function', 'Durable Google Sheets synchronizer must be implemented');
 });
+
+test('an older pending booking job cannot publish an unresolved archive, while a later factual resolution can', async t => {
+  const f=await fixture(t);
+  f.setBooking(snapshot({historyOnly:true,legacy:{elapsedUnknown:true}}));
+  await enqueue(f.db);
+  assert.equal((await f.sync.runOnce()).status,'done');
+  assert.equal(f.google.requests.length,0);
+  assert.equal((await f.db.query("SELECT status FROM eduson_booking.sync_jobs WHERE id='job-1'")).rows[0].status,'done');
+  f.setBooking(snapshot({historyOnly:true,legacy:{elapsedUnknown:false},state:'completed',version:2}));
+  await enqueue(f.db,{id:'resolved-job',version:2});
+  assert.equal((await f.sync.runOnce()).status,'done');
+  assert.equal(f.google.tabs.get('Booking VDS').length,2);
+  assert.equal(f.google.tabs.get('Booking VDS')[1][0],'booking-1');
+});
 test('disabled synchronizer leaves jobs untouched without reading keys or calling Google', {skip: !available}, async t => {
   const db = await database(t);
   await enqueue(db);
