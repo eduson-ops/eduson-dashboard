@@ -87,25 +87,39 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
     const last = (await db.query('SELECT MAX(received_at) AS last FROM eduson_booking.source_intake_observations')).rows[0]?.last;
     return {enabled:intakeEnabled,...status,lastReceivedAt:last ? new Date(last).toISOString() : null};
   }
+  async function workerPhase(name, action) {
+    try { return await action(); }
+    catch (error) {
+      const code=/^[A-Z0-9_]{2,40}$/.test(error.code || '') ? error.code : 'WORKER_ERROR';
+      console.error(`Booking background phase failed: ${name}`, code);
+      return null;
+    }
+  }
   async function worker() {
     if (workerBusy || closing) return;
     workerBusy = true;
     try {
-      if (intakeEnabled) {
+      await workerPhase('rubitime', async () => {
+        if (!intakeEnabled) return;
         const received = await sourceIntake.runOnce();
         if (Object.values(received).some(count => count > 0)) broadcast();
-      }
-      const expired = await service.expireUnconfirmed(now());
-      if (Array.isArray(expired) ? expired.length : Number(expired) > 0) broadcast();
-      const recovered = await service.reconcileCapacityHolds();
-      if (recovered.promoted > 0) broadcast();
-      if (scheduleSynchronizer) await scheduleSynchronizer.runOnce();
-      if (confirmationHistorySynchronizer && Date.now() >= confirmationHistoryNextAt) {
-        const history = await confirmationHistorySynchronizer.runOnce();
-        confirmationHistoryNextAt = Date.now() + 30_000;
-        if (history.matched > 0) broadcast();
-      }
-      if (synchronizer) {
+      });
+      await workerPhase('expiry', async () => {
+        const expired = await service.expireUnconfirmed(now());
+        if (Array.isArray(expired) ? expired.length : Number(expired) > 0) broadcast();
+        const recovered = await service.reconcileCapacityHolds();
+        if (recovered.promoted > 0) broadcast();
+      });
+      await workerPhase('schedule', async () => { if (scheduleSynchronizer) await scheduleSynchronizer.runOnce(); });
+      await workerPhase('confirmation-history', async () => {
+        if (!confirmationHistorySynchronizer || Date.now() < confirmationHistoryNextAt) return;
+        try {
+          const history = await confirmationHistorySynchronizer.runOnce();
+          if (history.matched > 0) broadcast();
+        } finally { confirmationHistoryNextAt = Date.now() + 30_000; }
+      });
+      await workerPhase('google-queues', async () => {
+        if (!synchronizer) return;
         const started = Date.now();
         const queues = [synchronizer, operationalSynchronizer];
         // One shared budget avoids doubling Google request bursts across the two queues.
@@ -114,8 +128,8 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
           const first = await queues[turn].runOnce();
           if (!first.processed && !(await queues[1 - turn].runOnce()).processed) break;
         }
-      }
-    } catch (error) { console.error('Booking background operation failed', /^[A-Z0-9_]{2,40}$/.test(error.code || '') ? error.code : 'WORKER_ERROR'); }
+      });
+    } catch (error) { console.error('Booking background worker failed', /^[A-Z0-9_]{2,40}$/.test(error.code || '') ? error.code : 'WORKER_ERROR'); }
     finally { workerBusy = false; await notificationWorker(); }
   }
   async function notificationWorker() {

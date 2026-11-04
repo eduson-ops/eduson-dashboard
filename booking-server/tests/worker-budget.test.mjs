@@ -25,3 +25,17 @@ test('a provider failure storm uses one combined four-job budget and advances bo
 test('an empty operational queue leaves the entire four-job budget available for booking reports',async t=>{
   const f=await fixture(t,{operations:false});await f.app.worker();assert.deepEqual(await f.attempts(),{bookings:4,operations:0});
 });
+
+test('a Rubitime phase failure does not block expiry or durable Google queues',async t=>{
+  const db=await openDatabase({memory:true}),now=()=>new Date('2030-01-01T06:00Z');
+  const app=await createApp({db,now,enableWorkers:false,intakeOptions:{config:{enabled:true,token:'synthetic-rubitime-token-123456789012345678901234567890',accountIds:['synthetic-account'],staffMap:{}}},syncOptions:{enabled:true,serviceAccountPath:'missing-synthetic-account.json',spreadsheetId:'synthetic-main',enrollmentSpreadsheetId:'synthetic-enrollment',fetchImpl:async()=>assert.fail('No real provider request is allowed')}});
+  t.after(async()=>{await app.close();await db.close();});
+  const id='isolated-phase';
+  await db.query(`INSERT INTO eduson_booking.bookings(id,date,time,starts_at,ends_at,student_name,parent_name,phone,crm_url,age,has_pc,parent_present,confirmation_due_at,created_by)VALUES($1,'2030-01-02','12:00','2030-01-02T09:00Z','2030-01-02T10:00Z','Синтетический ученик','Родитель','+79990000000','',10,true,true,'2030-01-02T07:00Z','system')`,[id]);
+  await db.query("INSERT INTO eduson_booking.sync_jobs(id,booking_id,kind,version)VALUES($1,$1,'booking',1)",[id]);
+  await db.query("INSERT INTO eduson_booking.operation_jobs(id,entity_id,kind,version)VALUES($1,$1,'payment',1)",[id]);
+  app.sourceIntake.runOnce=async()=>{throw Object.assign(new Error('synthetic source failure'),{code:'SOURCE_PHASE_FAILED'});};
+  await app.worker();
+  assert.equal((await db.query('SELECT sum(attempts)::int AS count FROM eduson_booking.sync_jobs')).rows[0].count,1);
+  assert.equal((await db.query('SELECT sum(attempts)::int AS count FROM eduson_booking.operation_jobs')).rows[0].count,1);
+});

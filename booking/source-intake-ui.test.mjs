@@ -85,3 +85,10 @@ test('missing issue endpoint hides the optional integration alert without breaki
   const f=await fixture(()=>({status:404,body:{error:'not found'}}));
   await f.openSourceIntakeIssues();assert.equal(f.renderSourceIntakeStatus(),'');assert.equal(f.dialog.open,false);
 });
+
+test('booking UI marks stale data and exposes mobile card labels for lesson rows',()=>{
+  assert.match(source,/function renderFreshness\(\)/);
+  assert.match(source,/state\.dataStale/);
+  assert.match(source,/data-label="Ученик"/);
+  assert.match(source,/data-label="Статус"/);
+});

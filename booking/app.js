@@ -5,7 +5,7 @@ const dialog = document.querySelector('#editor');
 const notices = document.querySelector('#notifications');
 const roles = {call_center:'Колл-центр',confirmation:'Подтверждение',sales:'Менеджер мастер-классов',admin:'Администратор'};
 const ageGroups = ['5-7','8-9','10-12','13-14'];
-const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,sourceIntake:null,sourceIntakeIssues:[],sourceIntakeRequest:0,bookings:[],hours:[],users:[],view:'',search:'',date:'',completedFrom:'',completedTo:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,schedulePublished:null,scheduleSelectedDay:'',scheduleTab:0,compensation:null,compensationFrom:`${businessDate().slice(0,7)}-01`,compensationTo:businessDate(),compensationManager:'',wizard:null,loading:false,error:'',connected:false,events:null,refreshToken:0};
+const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,sourceIntake:null,sourceIntakeIssues:[],sourceIntakeRequest:0,bookings:[],hours:[],users:[],view:'',search:'',date:'',completedFrom:'',completedTo:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,schedulePublished:null,scheduleSelectedDay:'',scheduleTab:0,compensation:null,compensationFrom:`${businessDate().slice(0,7)}-01`,compensationTo:businessDate(),compensationManager:'',wizard:null,loading:false,error:'',lastLoadError:'',lastLoadedAt:0,dataStale:false,connected:false,events:null,refreshToken:0};
 let drafts;
 let refreshTimer;
 let lastFocus;
@@ -111,7 +111,7 @@ async function bootstrap() {
   const result=await api('/bootstrap');
   state.user=result.user;state.csrfToken=result.csrfToken;state.managers=result.managers||[];state.config=result.config||{};state.sync=result.sync;state.notifications=result.notifications||null;state.sourceIntake=result.sourceIntake||null;state.sourceIntakeIssues=[];
   if(state.config.demoDate){state.adminDate=state.config.demoDate;state.date=state.config.demoDate;state.completedFrom=state.config.demoDate;state.completedTo=state.config.demoDate;state.week=state.config.demoDate;}
-  state.bookings=[];state.hours=[];state.users=[];state.error='';state.scheduleDraft=null;
+  state.bookings=[];state.hours=[];state.users=[];state.error='';state.lastLoadError='';state.lastLoadedAt=0;state.dataStale=false;state.scheduleDraft=null;
   drafts=makeDraftStore(sessionStorage,state.user.id);
   resetBookingWizard();
   const requested=location.hash.slice(1);
@@ -202,8 +202,8 @@ async function refresh({quiet=false}={}) {
     if(notificationRequest){const status=await notificationRequest;if(token===state.refreshToken)state.notifications=status;}
     if(sourceIntakeRequest){const status=await sourceIntakeRequest;if(token===state.refreshToken)state.sourceIntake=status;}
     if(token!==state.refreshToken)return;
-    state.error='';
-  } catch(error) {if(token===state.refreshToken)state.error=error.message;}
+    state.error='';state.lastLoadError='';state.lastLoadedAt=Date.now();state.dataStale=false;
+  } catch(error) {if(token===state.refreshToken){state.error=error.message;state.lastLoadError=error.message;state.dataStale=Boolean(state.lastLoadedAt);}}
   finally {if(token===state.refreshToken){state.loading=false;renderContent();}}
 }
 
@@ -235,8 +235,14 @@ function renderContent() {
   else if(state.view==='compensation')content=renderCompensation();
   else if(state.view==='payments')content=renderPayments();
   else content=renderBookings();
-  main.innerHTML=`${state.error?`<div class="error-banner" role="alert">${esc(state.error)} <button class="subtle compact" data-action="refresh">Повторить</button></div>`:''}${state.loading?'<div class="loading-line" role="status">Загружаем данные…</div>':''}${renderSourceIntakeStatus()}${content}${renderSync()}${renderNotificationStatus()}`;
+  main.innerHTML=`${state.error?`<div class="error-banner" role="alert">${esc(state.error)} <button class="subtle compact" data-action="refresh">Повторить</button></div>`:''}${state.loading?'<div class="loading-line" role="status">Загружаем данные…</div>':''}${renderFreshness()}${renderSourceIntakeStatus()}${content}${renderSync()}${renderNotificationStatus()}`;
   if(savedFocus)document.getElementById(savedFocus)?.focus();
+}
+
+function renderFreshness() {
+  if(!state.dataStale||!state.lastLoadedAt)return '';
+  const loaded=new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Moscow',hour:'2-digit',minute:'2-digit'}).format(new Date(state.lastLoadedAt));
+  return `<div class="stale-banner" role="status"><strong>Показаны последние сохранённые данные</strong><span>Обновление не удалось · загружено в ${loaded} по Москве</span><button class="outline compact" data-action="refresh">Повторить</button></div>`;
 }
 
 function renderSync() {
@@ -257,12 +263,16 @@ function renderNotificationStatus() {
   if(status.uncertain)problems.push(`Нужно проверить доставку уведомлений в Slack: ${Number(status.uncertain)}. Повторная отправка остановлена, чтобы избежать дублей.`);
   if(status.blockedMapping){const names=(status.unmappedManagers||[]).map(person=>person.name).filter(Boolean);problems.push(`Не указан получатель Slack${names.length?`: ${names.join(', ')}`:''}.`);}
   if(status.configured&&(Number(status.error)>0||status.plannerError))problems.push('Часть уведомлений Slack задерживается. Записи и отчёты сохранены в букинге.');
+  const pendingDue=Date.parse(status.oldestPendingDueAt||''),lastAttempt=Date.parse(status.lastAttemptAt||'');
+  if(status.configured&&Number(status.pending||0)>0&&Number.isFinite(pendingDue)&&pendingDue<=Date.now()&&(!Number.isFinite(lastAttempt)||Date.now()-lastAttempt>120000))problems.push('Очередь Slack давно не обрабатывалась. Проверьте worker и подключение.');
   return problems.length?`<div class="error-banner" role="alert" style="margin-top:18px">${problems.map(esc).join(' ')}</div>`:'';
 }
 
 function renderSourceIntakeStatus() {
   const status=state.sourceIntake;
-  if(!isAdmin()||!status?.enabled||!(Number(status.issues)>0||Number(status.errors)>0))return '';
+  if(!isAdmin()||!status?.enabled)return '';
+  if(!(Number(status.issues)>0||Number(status.errors)>0)&&status.lastReceivedAt){const received=new Date(status.lastReceivedAt);const label=Number.isFinite(+received)?new Intl.DateTimeFormat('ru-RU',{timeZone:'Europe/Moscow',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(received):'время неизвестно';return `<div class="connection-note source-freshness" role="status">Rubitime подключён · последняя принятая запись: ${esc(label)} по Москве</div>`;}
+  if(!(Number(status.issues)>0||Number(status.errors)>0))return '';
   const count=Number(status.issues);
   const message=count>0?`Нужна проверка записей из Rubitime: ${count}.`:'Часть записей из Rubitime пока не обработана. Данные сохранены.';
   return `<div class="error-banner" role="alert">${esc(message)} <button class="subtle compact" data-action="source-intake-issues">Проверить записи</button></div>`;
@@ -475,7 +485,7 @@ function bookingRow(booking) {
   const timing=confirmationTiming(booking);
   const deadline=booking.confirmationStatus!=='confirmed'&&!cancelled&&!completed&&!legacyOutcomeUnknown(booking)?`<div class="status-note"${timing.overdue?' style="color:#c3656e"':''}>${timing.overdue?'Срок подтверждения истёк':'Подтвердить до'} ${timeStamp(booking.confirmationDueAt)}</div>`:'';
   const phone=String(booking.phone||'').replace(/[^+\d]/g,'');
-  return `<tr><td><span class="student-name">${esc(studentName(booking))}</span>${legacyBadges(booking)}<div class="booking-extra">${esc(bookingEquipment(booking))}</div>${booking.age==null?'<div class="status-note">Возраст не указан</div>':ageBadge(booking.age)}${booking.comment?`<div class="booking-note">${esc(booking.comment)}</div>`:''}</td><td class="lesson-date-cell"><div class="lesson-datetime"><span class="lesson-date">${dateText(booking.date)}</span><strong class="lesson-time">${esc(booking.time)}</strong></div><div class="status-note">60 минут</div>${booking.assignmentKind==='reserve'?'<div class="status-note reserve-caption">Резерв</div>':''}</td><td>${externalLink(booking.backofficeUrl||state.config.backofficeUrl,'Перейти в Backoffice')}${externalLink(booking.crmUrl,'Перейти в Amo CRM')}<div>Родитель: ${esc(booking.parentName||'Не указано')}</div>${phone?`<a class="link-line" href="tel:${esc(phone)}">${esc(booking.phone)}</a>`:'<div class="status-note">Телефон не указан</div>'}${booking.assignedName?`<div class="status-note">МИМК: ${esc(booking.assignedName)}</div>`:booking.legacy?.managerName?`<div class="status-note">МИМК в прежнем букинге: ${esc(booking.legacy.managerName)}</div>`:''}${detailsButton(booking)}${canAssignBooking(state.user,booking)?`<button class="subtle compact" data-action="assignment" data-id="${esc(booking.id)}">${booking.assignedTo?'Сменить МИМК':'Назначить'}</button>`:''}</td><td><div class="button-stack">${actions}</div>${deadline}</td><td>${canReport()&&completed?`<button class="report-button" data-action="report" data-id="${esc(booking.id)}" aria-label="${booking.report?'Открыть':'Заполнить'} отчёт о занятии ${esc(studentName(booking))}">${icon('document')}</button><div class="status-note">${booking.report?'Заполнен':'Не заполнен'}</div>`:booking.report?'<span class="status-note">Заполнен</span>':'<span class="muted">—</span>'}</td></tr>`;
+  return `<tr><td data-label="Ученик"><span class="student-name">${esc(studentName(booking))}</span>${legacyBadges(booking)}<div class="booking-extra">${esc(bookingEquipment(booking))}</div>${booking.age==null?'<div class="status-note">Возраст не указан</div>':ageBadge(booking.age)}${booking.comment?`<div class="booking-note">${esc(booking.comment)}</div>`:''}</td><td data-label="Дата и время" class="lesson-date-cell"><div class="lesson-datetime"><span class="lesson-date">${dateText(booking.date)}</span><strong class="lesson-time">${esc(booking.time)}</strong></div><div class="status-note">60 минут</div>${booking.assignmentKind==='reserve'?'<div class="status-note reserve-caption">Резерв</div>':''}</td><td data-label="Дополнительно">${externalLink(booking.backofficeUrl||state.config.backofficeUrl,'Перейти в Backoffice')}${externalLink(booking.crmUrl,'Перейти в Amo CRM')}<div>Родитель: ${esc(booking.parentName||'Не указано')}</div>${phone?`<a class="link-line" href="tel:${esc(phone)}">${esc(booking.phone)}</a>`:'<div class="status-note">Телефон не указан</div>'}${booking.assignedName?`<div class="status-note">МИМК: ${esc(booking.assignedName)}</div>`:booking.legacy?.managerName?`<div class="status-note">МИМК в прежнем букинге: ${esc(booking.legacy.managerName)}</div>`:''}${detailsButton(booking)}${canAssignBooking(state.user,booking)?`<button class="subtle compact" data-action="assignment" data-id="${esc(booking.id)}">${booking.assignedTo?'Сменить МИМК':'Назначить'}</button>`:''}</td><td data-label="Статус"><div class="button-stack">${actions}</div>${deadline}</td><td data-label="Отчёт">${canReport()&&completed?`<button class="report-button" data-action="report" data-id="${esc(booking.id)}" aria-label="${booking.report?'Открыть':'Заполнить'} отчёт о занятии ${esc(studentName(booking))}">${icon('document')}</button><div class="status-note">${booking.report?'Заполнен':'Не заполнен'}</div>`:booking.report?'<span class="status-note">Заполнен</span>':'<span class="muted">—</span>'}</td></tr>`;
 }
 
 function renderAdmin() {
@@ -841,7 +851,7 @@ async function handleAction(event) {
       persistSchedule();renderContent();return;
     }
     if(['confirm','start','complete','restore','cancel','no-show','report','assignment','details','resolve-legacy'].includes(action)) {target.disabled=true;try {await performBookingAction(id,action);}finally {target.disabled=false;}}
-  } catch(error) {notify(error.message,true);if(error.status===409)await refresh({quiet:true});}
+  } catch(error) {if(error.status===409){dialog.close();notify('Запись изменилась. Данные обновлены, повторите действие.',true);await refresh({quiet:true});return;}notify(error.message,true);}
 }
 
 async function openAudit(id) {
