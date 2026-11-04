@@ -283,3 +283,74 @@ test('legacy unknown PC and parent attendance map to blank cells while known boo
   assert.deepEqual(module.mapBookingRow(snapshot({hasPc: false, parentPresent: false})).slice(6, 8), ['Нет', 'Нет']);
   assert.deepEqual(module.mapBookingRow(snapshot({hasPc: true, parentPresent: true})).slice(6, 8), ['Да', 'Да']);
 });
+
+test('booking test metadata keeps the original twelve mapped business values unchanged', () => {
+  const booking=snapshot({isTest:true});
+  assert.deepEqual(module.mapBookingRow(booking),[booking.id,booking.date,booking.time,booking.assignedName,booking.crmUrl,booking.age,'Да','Нет',booking.comment,'confirmed',booking.createdAt,booking.updatedAt]);
+  assert.equal(module.mapBookingRow(booking).length,12);
+});
+
+test('booking test metadata appends typed flags after twelve original business cells', async t => {
+  const f=await fixture(t);
+  for(const [index,isTest] of [true,false].entries()){
+    const booking=snapshot({id:`booking-metadata-${index}`,isTest});f.setBooking(booking);
+    await enqueue(f.db,{id:`metadata-job-${index}`,bookingId:booking.id});
+    assert.equal((await f.sync.runOnce()).status,'done');
+    const row=f.google.tabs.get('Booking VDS')[index+1];
+    assert.deepEqual(row.slice(0,12),module.mapBookingRow(booking));assert.equal(row.length,13);assert.equal(row[12],isTest);assert.equal(typeof row[12],'boolean');
+  }
+  assert.deepEqual(f.google.tabs.get('Booking VDS')[0],[...BOOKING_HEADERS,'Test flag']);
+});
+
+test('booking test metadata claims only an empty M column while preserving legacy ID and later columns', async t => {
+  const f=await fixture(t),booking=snapshot({isTest:true}),rows=f.google.tabs.get('Booking VDS');f.setBooking(booking);
+  rows[0][13]='Foreign N workflow';rows.push([...module.mapBookingRow(booking),'','Foreign N note']);
+  rows.push(['anonymous-legacy',...Array(11).fill(''),'','Another N note']);const before=structuredClone(rows);
+  await enqueue(f.db);assert.equal((await f.sync.runOnce()).status,'done');
+  assert.deepEqual(rows[0].slice(0,12),before[0].slice(0,12));assert.equal(rows[0][12],'Test flag');assert.equal(rows[0][13],'Foreign N workflow');
+  assert.deepEqual(rows[1].slice(0,12),before[1].slice(0,12));assert.equal(rows[1][12],true);assert.equal(rows[1][13],'Foreign N note');assert.deepEqual(rows[2],before[2]);assert.equal(rows.length,3);
+  const headerWrites=f.google.requests.filter(request=>request.method==='PUT'&&decodeURIComponent(request.url).includes("'Booking VDS'!M1:M1"));assert.equal(headerWrites.length,1);
+  assert.ok(f.google.requests.some(request=>decodeURIComponent(request.url).includes("'Booking VDS'!M2:M")));
+  assert.ok(f.google.requests.some(request=>decodeURIComponent(request.url).includes("'Booking VDS'!A2:A")));
+});
+
+test('booking test metadata updates the named owned flag by stable ID without moving business or later cells', async t => {
+  const f=await fixture(t),booking=snapshot({isTest:false}),rows=f.google.tabs.get('Booking VDS');f.setBooking(booking);
+  rows[0].push('Test flag','Foreign N workflow');rows.push([...module.mapBookingRow(booking),true,'Foreign N note']);
+  await enqueue(f.db);assert.equal((await f.sync.runOnce()).status,'done');assert.equal(rows[1][12],false);
+  f.setBooking({...booking,isTest:true,version:2});await enqueue(f.db,{id:'second-metadata-job',version:2});assert.equal((await f.sync.runOnce()).status,'done');
+  assert.equal(rows.length,2);assert.deepEqual(rows[1].slice(0,12),module.mapBookingRow(booking));assert.equal(rows[1][12],true);assert.equal(rows[1][13],'Foreign N note');
+  assert.equal(f.google.requests.filter(request=>request.method==='POST'&&request.url.includes(':append')).length,0);
+  assert.equal(f.google.requests.filter(request=>request.method==='PUT'&&decodeURIComponent(request.url).includes('M1:M1')).length,0);
+});
+
+test('booking test metadata rejects a foreign M header before any sheet write', async t => {
+  const f=await fixture(t),rows=f.google.tabs.get('Booking VDS');rows[0].push('Foreign production column');const before=structuredClone(rows);
+  f.setBooking(snapshot({isTest:true}));await enqueue(f.db);assert.equal((await f.sync.runOnce()).error,'SHEET_HEADER_MISMATCH');
+  assert.deepEqual(rows,before);assert.equal(f.google.requests.filter(request=>request.url.includes('sheets.googleapis.com')&&request.method&&request.method!=='GET').length,0);
+});
+
+for(const occupied of ['Foreign existing value',false,0,' '])test(`booking test metadata rejects an unclaimed occupied M value ${JSON.stringify(occupied)}`,async t=>{
+  const f=await fixture(t),rows=f.google.tabs.get('Booking VDS');rows.push(['legacy-existing-id',...Array(11).fill(''),occupied,'Foreign N note']);const before=structuredClone(rows);
+  f.setBooking(snapshot({isTest:true}));await enqueue(f.db);assert.equal((await f.sync.runOnce()).error,'SHEET_HEADER_MISMATCH');
+  assert.deepEqual(rows,before);assert.equal(f.google.requests.filter(request=>request.url.includes('sheets.googleapis.com')&&request.method&&request.method!=='GET').length,0);
+});
+
+test('booking test metadata survives a lost append and retries the same stable ID once', async t => {
+  const f=await fixture(t),booking=snapshot({isTest:true});f.setBooking(booking);await enqueue(f.db);f.google.loseNextAppend();
+  assert.equal((await f.sync.runOnce()).status,'error');f.advance(10000);assert.equal((await f.sync.runOnce()).status,'done');
+  const rows=f.google.tabs.get('Booking VDS');assert.equal(rows.length,2);assert.equal(rows[0][12],'Test flag');assert.equal(rows[1][12],true);assert.deepEqual(rows[1].slice(0,12),module.mapBookingRow(booking));
+  assert.equal(f.google.requests.filter(request=>request.method==='POST'&&request.url.includes(':append')).length,1);
+});
+
+test('booking test metadata preserves the duplicate stable ID guard before a business update', async t => {
+  const f=await fixture(t),booking=snapshot({isTest:true}),rows=f.google.tabs.get('Booking VDS');f.setBooking(booking);
+  rows[0].push('Test flag');rows.push([...module.mapBookingRow(booking),true],[...module.mapBookingRow(booking),true]);const before=structuredClone(rows);
+  await enqueue(f.db);assert.equal((await f.sync.runOnce()).error,'SHEET_DUPLICATE_ID');assert.deepEqual(rows,before);
+  assert.equal(f.google.requests.filter(request=>request.url.includes('sheets.googleapis.com')&&request.method&&request.method!=='GET').length,0);
+});
+
+test('booking test metadata never exports an unresolved historical archive or claims its header', async t => {
+  const f=await fixture(t);f.setBooking(snapshot({isTest:true,historyOnly:true,legacy:{elapsedUnknown:true}}));await enqueue(f.db);
+  assert.equal((await f.sync.runOnce()).status,'done');assert.equal(f.google.requests.length,0);assert.deepEqual(f.google.tabs.get('Booking VDS'),[BOOKING_HEADERS]);
+});

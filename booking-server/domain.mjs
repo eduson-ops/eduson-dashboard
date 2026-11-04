@@ -499,7 +499,7 @@ export class BookingService {
     const scope = filters.scope || 'active';
     assert(['active', 'completed', 'trash', 'all'].includes(scope), 400, 'Неизвестный раздел занятий.', 'VALIDATION');
     if (scope === 'active') conditions.push("b.state IN ('scheduled','in_progress') AND b.history_only=false");
-    if (scope === 'completed') conditions.push("(b.state='completed' OR b.history_only=true)");
+    if (scope === 'completed') conditions.push("(b.state IN ('completed','cancelled') OR b.history_only=true)");
     if (scope === 'trash') conditions.push("b.state='cancelled'");
     return (await this.db.query(`${BOOKING_SELECT}${conditions.length ? ` WHERE ${conditions.join(' AND ')}` : ''} ORDER BY b.date,b.time,b.created_at,b.id`, values)).rows.map(bookingObject);
   }
@@ -709,7 +709,7 @@ export class BookingService {
   async getAnalyticsLessons(actor, filters = {}) {
     authorized(actor,['admin']);
     const bookings = await this.listBookings(actor,{ ...filters,scope:'completed' });
-    return bookings.filter(b => b.report && !b.isTest).map(b => ({ ...b.report,bookingId:b.id,assignedTo:b.assignedTo,state:b.state,completedAt:b.completedAt,version:b.version }));
+    return bookings.filter(b => (b.state==='completed'||b.historyOnly) && b.report && !b.isTest).map(b => ({ ...b.report,bookingId:b.id,assignedTo:b.assignedTo,state:b.state,completedAt:b.completedAt,version:b.version }));
   }
   async getAnalyticsCancellations(actor, filters = {}) {
     authorized(actor,['admin']);

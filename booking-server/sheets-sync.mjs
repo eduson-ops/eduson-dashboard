@@ -5,7 +5,7 @@ const BOOKING_HEADERS = ['ID', 'Дата', 'Время', 'Менеджер', 'Am
 const REPORT_HEADERS = [']', 'Кто провёл урок?', 'Дата МК', 'Время МК', 'Ссылка на CRM', 'Ссылка на запись урока', 'Практика', 'Возраст', 'Какой пакет предложил/оплатили', 'Вариант оплаты', 'Договорённости с клиентом', 'Итоговое возражение', 'С какого канала пришли (смотри скрин)', 'Сумма оплаты (после комиссий банка) без копеек'];
 const CANCEL_HEADERS = ['Отметка времени', 'Ссылка на AMO', 'Причина отмены', 'Первичная отмена или нет?', 'Как пробовали связаться?', 'Возраст', 'Комментарий', 'МИМК'];
 const TARGETS = {
-  booking: {tab: 'Booking VDS', headers: BOOKING_HEADERS, lastColumn: 'L', idColumn: 'A'},
+  booking: {tab: 'Booking VDS', headers: BOOKING_HEADERS, lastColumn: 'M', idColumn: 'A', metadataColumn: 'M', extraHeaders: ['Test flag']},
   report: {tab: 'Ответы формы', headers: REPORT_HEADERS, lastColumn: 'P', idColumn: 'O', extraHeaders: ['Booking ID', 'Test flag']},
   cancel: {tab: 'Отмены', headers: CANCEL_HEADERS, lastColumn: 'J', idColumn: 'I', extraHeaders: ['Booking ID', 'Booking status']},
 };
@@ -58,13 +58,14 @@ export function createSheetSynchronizer({db, getBooking, serviceAccountPath, spr
     }
     if (needsMetadata) {
       // A blank header does not make an occupied column safe to take over.
-      const metadata = (await sheetRequest(rangeFor(target, `${target.idColumn}2:${target.lastColumn}`))).values || [];
+      const metadataColumn = target.metadataColumn || target.idColumn;
+      const metadata = (await sheetRequest(rangeFor(target, `${metadataColumn}2:${target.lastColumn}`))).values || [];
       for (const [offset] of target.extraHeaders.entries()) {
         if (!normalizeHeader(actual[target.headers.length + offset]) && metadata.some(row => cell(row[offset]) !== '')) {
           throw new SyncError('SHEET_HEADER_MISMATCH');
         }
       }
-      await sheetRequest(rangeFor(target, `${target.idColumn}1:${target.lastColumn}1`), {method: 'PUT', values: [target.extraHeaders]});
+      await sheetRequest(rangeFor(target, `${metadataColumn}1:${target.lastColumn}1`), {method: 'PUT', values: [target.extraHeaders]});
     }
   }
   async function project(job, booking) {
@@ -79,7 +80,7 @@ export function createSheetSynchronizer({db, getBooking, serviceAccountPath, spr
     if (matches.length > 1) throw new SyncError('SHEET_DUPLICATE_ID');
     const rowNumber = matches[0];
     let values;
-    if (job.kind === 'booking') values = mapBookingRow(booking);
+    if (job.kind === 'booking') values = [...mapBookingRow(booking), booking.isTest === true];
     if (job.kind === 'report') values = [...mapReportRow(booking), booking.id, booking.isTest === true];
     if (job.kind === 'cancel') {
       const cancelled = booking.state === 'cancelled';

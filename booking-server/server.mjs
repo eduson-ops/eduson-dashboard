@@ -13,7 +13,7 @@ import { createAuth, createLoginLimiter, readCookie, cookieHeader, requireCsrf, 
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SYSTEM = { id: 'system', name: 'Система', role: 'admin' };
-const BACKOFFICE = 'https://docs.google.com/spreadsheets/d/1U5L4zrFcqPAy4_6VXA5xHxqM2xAKPkWW-At2neINj18/edit?gid=1367593612#gid=1367593612';
+const BACKOFFICE = 'https://docs.google.com/spreadsheets/d/1U5L4zrFcqPAy4_6VXA5xHxqM2xAKPkWW-At2neINj18/edit?gid=201207937#gid=201207937';
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.woff2': 'font/woff2', '.pdf': 'application/pdf' };
 function fail(message, status = 400) { throw Object.assign(new Error(message), { status }); }
 function admin(user) { if (user.role !== 'admin') fail('Доступ только администратору', 403); }
