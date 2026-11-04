@@ -101,3 +101,8 @@ test('completed view exposes the creation-day filter and booking creation timest
   assert.match(source,/createdAt/);
   assert.match(source,/Записано в/);
 });
+
+test('admin view exposes the creation-day retro slice',()=>{
+  assert.match(source,/Записано в этот день/);
+  assert.match(source,/data-action="retro-hour"/);
+});

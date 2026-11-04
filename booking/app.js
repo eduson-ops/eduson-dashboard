@@ -5,7 +5,7 @@ const dialog = document.querySelector('#editor');
 const notices = document.querySelector('#notifications');
 const roles = {call_center:'Колл-центр',confirmation:'Подтверждение',sales:'Менеджер мастер-классов',admin:'Администратор'};
 const ageGroups = ['5-7','8-9','10-12','13-14'];
-const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,sourceIntake:null,sourceIntakeIssues:[],sourceIntakeRequest:0,bookings:[],hours:[],users:[],view:'',search:'',date:'',completedFrom:'',completedTo:'',completedCreatedFrom:'',completedCreatedTo:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,schedulePublished:null,scheduleSelectedDay:'',scheduleTab:0,compensation:null,compensationFrom:`${businessDate().slice(0,7)}-01`,compensationTo:businessDate(),compensationManager:'',wizard:null,loading:false,error:'',lastLoadError:'',lastLoadedAt:0,dataStale:false,connected:false,events:null,refreshToken:0};
+const state = {user:null,csrfToken:'',managers:[],config:{},sync:null,sourceIntake:null,sourceIntakeIssues:[],sourceIntakeRequest:0,bookings:[],retroBookings:[],hours:[],retroHours:[],users:[],view:'',search:'',date:'',completedFrom:'',completedTo:'',completedCreatedFrom:'',completedCreatedTo:'',adminDate:businessDate(),tag:'',week:businessDate(),managerId:'',scheduleDraft:null,scheduleConflict:false,schedulePublished:null,scheduleSelectedDay:'',scheduleTab:0,compensation:null,compensationFrom:`${businessDate().slice(0,7)}-01`,compensationTo:businessDate(),compensationManager:'',wizard:null,loading:false,error:'',lastLoadError:'',lastLoadedAt:0,dataStale:false,connected:false,events:null,refreshToken:0};
 let drafts;
 let refreshTimer;
 let lastFocus;
@@ -192,11 +192,15 @@ async function refresh({quiet=false}={}) {
       else if(state.date && view!=='admin')params.set('date',state.date);
       if(view==='admin')params.set('date',state.adminDate);
       const requests=[api(`/bookings?${params}`)];
-      if(view==='admin')requests.push(api(`/admin/stats?${new URLSearchParams({date:state.adminDate,...(state.tag?{tag:state.tag}:{})})}`));
+      if(view==='admin'){
+        requests.push(api(`/admin/stats?${new URLSearchParams({date:state.adminDate,...(state.tag?{tag:state.tag}:{})})}`));
+        requests.push(api(`/bookings?${new URLSearchParams({scope:'all',createdFrom:state.adminDate,createdTo:state.adminDate})}`));
+      }
       const results=await Promise.all(requests);
       if(token!==state.refreshToken)return;
       state.bookings=results[0].bookings||[];
-      if(results[1]){state.hours=results[1].hours||[];state.totals=results[1].totals||{};}
+      if(results[1]){state.hours=results[1].hours||[];state.totals=results[1].totals||{};state.retroHours=results[1].recordedHours||[];}
+      state.retroBookings=results[2]?.bookings||[];
     }
     if(syncRequest){const sync=await syncRequest;if(token===state.refreshToken)state.sync=sync;}
     if(notificationRequest){const status=await notificationRequest;if(token===state.refreshToken)state.notifications=status;}
@@ -491,8 +495,16 @@ function bookingRow(booking) {
 function renderAdmin() {
   const headers=['Время слота','Количество МИМК','Количество слотов с Overbooking','Записано всего лидов на слот',"Записано лидов по правилу Overbooking’a",'МК Подтверждённые за час','МК отменённые М1','МК отменённые МИМК','Успешные МК'];
   const hours=state.hours.length?state.hours:Array.from({length:12},(_,i)=>({time:`${String(i+10).padStart(2,'0')}:00`}));
+  const retroHours=state.retroHours.length?state.retroHours:Array.from({length:12},(_,i)=>({time:`${String(i+10).padStart(2,'0')}:00`}));
   const cell=(hour,metric,label,className='')=>`<td class="${className}"><button class="stats-cell-button" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="${metric}" aria-label="${esc(label)} на ${esc(hour.time)}: ${Number(hour[metric]||0)}">${Number(hour[metric]||0)}</button>${metric==='total'&&Number(hour.capacityHeld)>0?`<button class="capacity-hold-link" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="capacityHeld">Нужен МИМК: ${Number(hour.capacityHeld)}</button>`:''}</td>`;
-  return `<div class="toolbar"><input type="date" id="admin-date" aria-label="Дата статистики" value="${esc(state.adminDate)}"><select id="admin-tag" aria-label="Фильтр по возрастному тегу"><option value="">Теги</option>${ageGroups.map(group=>`<option${selected(state.tag,group)}>${group}</option>`).join('')}</select><span class="spacer"></span><button class="primary" data-action="create">+ Записать на мастер-класс</button><button class="icon-button" data-action="refresh" aria-label="Обновить статистику">${icon('refresh')}</button></div><div class="table-wrap"><table class="stats-table"><thead><tr>${headers.map(header=>`<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${hours.map(hour=>`<tr><td><button class="hour-button" data-action="hour" data-time="${esc(hour.time)}" aria-label="Все записи на ${esc(hour.time)}">${esc(hour.time)}</button></td>${cell(hour,'managers','Открытые МИМК')}${cell(hour,'capacity','Все открытые места')}${cell(hour,'total','Записанные ученики',Number((hour.activeTotal??hour.total)||0)>Number(hour.capacity||0)?'over':Number(hour.total||0)>0?'within':'')}${cell(hour,'reserve','Резервные записи')}${cell(hour,'confirmed','Подтверждённые уроки',isHourOverloaded(hour)?'over':'')}${cell(hour,'cancelledConfirmation','Отмены КЦ и подтверждения')}${cell(hour,'cancelledSales','Отмены МИМК')}${cell(hour,'completed','Проведённые уроки')}</tr>`).join('')}</tbody></table></div><div class="stats-footer"><span>Нажмите на число, чтобы увидеть состав показателя.</span><span>Записано: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.total||0),0)}</strong></span><span>Подтверждено: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.confirmed||0),0)}</strong></span></div>`;
+  const retroCell=(hour,field,label)=>`<td><button class="stats-cell-button" data-action="retro-hour" data-time="${esc(hour.time)}" aria-label="${esc(label)} в ${esc(hour.time)}: ${Number(hour[field]||0)}">${Number(hour[field]||0)}</button></td>`;
+  return `<div class="toolbar"><input type="date" id="admin-date" aria-label="Дата статистики" value="${esc(state.adminDate)}"><select id="admin-tag" aria-label="Фильтр по возрастному тегу"><option value="">Теги</option>${ageGroups.map(group=>`<option${selected(state.tag,group)}>${group}</option>`).join('')}</select><span class="spacer"></span><button class="primary" data-action="create">+ Записать на мастер-класс</button><button class="icon-button" data-action="refresh" aria-label="Обновить статистику">${icon('refresh')}</button></div><div class="table-wrap"><table class="stats-table"><thead><tr>${headers.map(header=>`<th>${esc(header)}</th>`).join('')}</tr></thead><tbody>${hours.map(hour=>`<tr><td><button class="hour-button" data-action="hour" data-time="${esc(hour.time)}" aria-label="Все записи на ${esc(hour.time)}">${esc(hour.time)}</button></td>${cell(hour,'managers','Открытые МИМК')}${cell(hour,'capacity','Все открытые места')}${cell(hour,'total','Записанные ученики',Number((hour.activeTotal??hour.total)||0)>Number(hour.capacity||0)?'over':Number(hour.total||0)>0?'within':'')}${cell(hour,'reserve','Резервные записи')}${cell(hour,'confirmed','Подтверждённые уроки',isHourOverloaded(hour)?'over':'')}${cell(hour,'cancelledConfirmation','Отмены КЦ и подтверждения')}${cell(hour,'cancelledSales','Отмены МИМК')}${cell(hour,'completed','Проведённые уроки')}</tr>`).join('')}</tbody></table></div><div class="stats-footer"><span>Нажмите на число, чтобы увидеть состав показателя.</span><span>Записано: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.total||0),0)}</strong></span><span>Подтверждено: <strong>${hours.reduce((sum,hour)=>sum+Number(hour.confirmed||0),0)}</strong></span></div><section class="retro-stats"><div class="retro-stats-heading"><div><h2>Ретро: записи, созданные в этот день</h2><p>Показывает, на какие часы уроков записали учеников ${dateText(state.adminDate)}. Нажмите на число для списка.</p></div><strong>${retroHours.reduce((sum,hour)=>sum+Number(hour.total||0),0)} записей</strong></div><div class="table-wrap"><table class="stats-table retro-stats-table"><thead><tr><th>Время урока</th><th>Записано</th><th>Подтверждено</th><th>Отменено</th><th>Проведено</th></tr></thead><tbody>${retroHours.map(hour=>`<tr><td>${esc(hour.time)}</td>${retroCell(hour,'total','Записано в этот день')}${retroCell(hour,'confirmed','Подтверждено')}${retroCell(hour,'cancelledConfirmation','Отменено КЦ')}${retroCell(hour,'completed','Проведено')}</tr>`).join('')}</tbody></table></div></section>`;
+}
+
+function openRetroHour(time) {
+  const bookings=state.retroBookings.filter(booking=>booking.time===time);
+  const rows=bookings.map(booking=>`<article class="drawer-booking"><div class="drawer-booking-top"><div><span class="student-name">${esc(studentName(booking))}</span><div class="small">Урок: ${dateText(booking.date)} · ${esc(booking.time)} · записано: ${timeStamp(booking.createdAt)}</div><div class="booking-extra">${esc(booking.parentName||'Родитель не указан')} · ${esc(booking.phone||'Телефон не указан')}</div>${externalLink(booking.crmUrl,'Перейти в Amo CRM')}${externalLink(booking.backofficeUrl||state.config.backofficeUrl,'Перейти в Backoffice')}</div><div>${statusBadge(booking)}<div class="status-note">${esc(booking.assignedName||'МИМК не назначен')}</div></div></div></article>`).join('');
+  showDialog(`Записано в этот день · ${time}`,`<div class="dialog-body"><div class="hour-detail-summary"><strong>${dateText(state.adminDate)}</strong><span>Уроков на ${esc(time)}: ${bookings.length}</span></div>${rows||'<div class="empty">В этот день на данный час записей не было.</div>'}</div>`,{name:'retro-hour'});
 }
 
 function renderCompensation() {
@@ -804,6 +816,7 @@ async function handleAction(event) {
     if(action==='today'){state.date=businessDate();await refresh();return;}
     if(action==='hour'){openHour(target.dataset.time);return;}
     if(action==='hour-metric'){openHour(target.dataset.time,null,target.dataset.metric);return;}
+    if(action==='retro-hour'){openRetroHour(target.dataset.time);return;}
     if(action==='payment'){openPayment(id?getBooking(id):null);return;}
     if(action==='create-user'){openUser();return;}
     if(action==='edit-user'){openUser(state.users.find(user=>user.id===id));return;}

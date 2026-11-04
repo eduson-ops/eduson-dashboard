@@ -732,6 +732,7 @@ export class BookingService {
     const inTag = age => !range || age >= range[0] && age <= range[1];
     return this.db.transaction(async tx => {
       const all = (await tx.query('SELECT * FROM eduson_booking.bookings WHERE date=$1',[date])).rows.filter(b => inTag(b.age));
+      const recorded = (await tx.query("SELECT * FROM eduson_booking.bookings WHERE ((created_at AT TIME ZONE 'Europe/Moscow')::date)=$1::date",[date])).rows.filter(b => inTag(b.age));
       const hours = [];
       for (const time of HOURS) {
         const ctx = await this.context(tx,date,time,null,{ historical:+new Date(`${date}T${time}:00+03:00`)+3600000<=+this.instant() });
@@ -748,8 +749,18 @@ export class BookingService {
           completed:active.filter(b=>b.state==='completed').length,inProgress:active.filter(b=>b.state==='in_progress').length,
           assigned:active.filter(b=>b.assigned_to).length,unassigned:active.filter(b=>!b.assigned_to).length,deficit:this.primaryDeficit(ctx,active.filter(b=>b.confirmation_status==='confirmed')) });
       }
+      const recordedHours = HOURS.map(time => {
+        const bookings = recorded.filter(b => b.time === time);
+        return {time,total:bookings.length,confirmed:bookings.filter(b=>b.confirmation_status==='confirmed').length,
+          cancelledConfirmation:bookings.filter(b=>b.state==='cancelled' && ['confirmation','call_center','system'].includes(b.cancel_source)).length,
+          cancelledSales:bookings.filter(b=>b.state==='cancelled' && b.cancel_source==='sales').length,
+          completed:bookings.filter(b=>b.state==='completed').length,
+          bookingIds:bookings.map(b=>b.id),lessonDates:[...new Set(bookings.map(b=>b.date instanceof Date?b.date.toISOString().slice(0,10):String(b.date)))].sort()};
+      });
+      const recordedFields=['total','confirmed','cancelledConfirmation','cancelledSales','completed'];
       const fields = ['capacity','total','capacityHeld','reserve','confirmed','cancelledConfirmation','cancelledSales','completed','inProgress','assigned','unassigned','deficit'];
-      return { hours,totals:Object.fromEntries(fields.map(field=>[field,hours.reduce((sum,h)=>sum+h[field],0)])) };
+      return { hours,totals:Object.fromEntries(fields.map(field=>[field,hours.reduce((sum,h)=>sum+h[field],0)])),recordedHours,
+        recordedTotals:Object.fromEntries(recordedFields.map(field=>[field,recordedHours.reduce((sum,h)=>sum+h[field],0)])) };
     });
   }
 }

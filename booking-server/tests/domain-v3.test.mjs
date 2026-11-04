@@ -94,6 +94,21 @@ test('pending allocation uses all eligible primary places before a reserve and e
   assert.equal(hour.managerList.length,2);
 });
 
+test('admin stats expose bookings created on the selected day across future lesson dates',async t=>{
+  const {db,service}=await fixture(t);
+  await service.saveSchedule(other,{date:'2026-11-11',intervals:[{start:'12:00',end:'13:00'}]});
+  const todaySlot=await service.createBooking(caller,booking({idempotencyKey:'retro-today'}));
+  const futureSlot=await service.createBooking(caller,booking({date:'2026-11-11',idempotencyKey:'retro-future'}));
+  await db.query('UPDATE eduson_booking.bookings SET created_at=$1 WHERE id=$2',["2026-11-09T21:30:00Z",todaySlot.id]);
+  await db.query('UPDATE eduson_booking.bookings SET created_at=$1 WHERE id=$2',["2026-11-10T20:30:00Z",futureSlot.id]);
+  const stats=await service.stats(admin,{date:'2026-11-10'});
+  const noon=stats.recordedHours.find(hour=>hour.time==='12:00');
+  assert.equal(noon.total,2);
+  assert.deepEqual(noon.bookingIds.sort(),[todaySlot.id,futureSlot.id].sort());
+  assert.deepEqual(noon.lessonDates.sort(),['2026-11-10','2026-11-11']);
+  assert.equal(stats.recordedTotals.total,2);
+});
+
 test('canonical allocation maximizes primary places across constrained age groups',async t=>{
   const {db,service}=await fixture(t);
   const third={id:'v3-third',name:'Третий менеджер',role:'sales'};
