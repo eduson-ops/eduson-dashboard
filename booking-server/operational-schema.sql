@@ -30,3 +30,24 @@ CREATE TABLE IF NOT EXISTS eduson_booking.operation_jobs (
   UNIQUE(kind,entity_id,version)
 );
 CREATE INDEX IF NOT EXISTS operation_jobs_status ON eduson_booking.operation_jobs(status,created_at);
+
+CREATE TABLE IF NOT EXISTS eduson_booking.confirmation_history_issues (
+  id TEXT PRIMARY KEY,
+  sheet_row INT NOT NULL CHECK (sheet_row>1),
+  fingerprint TEXT NOT NULL,
+  code TEXT NOT NULL,
+  crm_url TEXT NOT NULL DEFAULT '',
+  slot_time TEXT NOT NULL DEFAULT '',
+  confirmed_at TIMESTAMPTZ,
+  manager_name TEXT NOT NULL DEFAULT '',
+  booking_id TEXT REFERENCES eduson_booking.bookings(id),
+  payload JSONB NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(payload)='object'),
+  attempts INT NOT NULL DEFAULT 1 CHECK (attempts>=1),
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','resolved')),
+  last_error TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ,
+  UNIQUE(sheet_row,fingerprint)
+);
+CREATE INDEX IF NOT EXISTS confirmation_history_issues_status ON eduson_booking.confirmation_history_issues(status,updated_at DESC);

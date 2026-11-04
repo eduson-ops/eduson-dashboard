@@ -1,6 +1,6 @@
 import {recordConfirmation} from './compensation.mjs';
 import {createGoogleSheetsClient} from './google-sheets-client.mjs';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 
 const MOSCOW_OFFSET='+03:00';
 const SYSTEM={id:'system',name:'Система',role:'admin'};
@@ -25,25 +25,26 @@ const managerWords=value=>text(value).normalize('NFC').toLocaleLowerCase('ru-RU'
  * A row is causal only when CRM, hour, creation time and lesson start agree.
  */
 export function matchConfirmationRows(values=[],bookings=[]){
-  const rows=Array.isArray(values)?values:[];const matches=[];const usedBookingIds=new Set();let unmatched=0,ambiguous=0,skipped=0;
+  const rows=Array.isArray(values)?values:[];const matches=[];const issues=[];const usedBookingIds=new Set();let unmatched=0,ambiguous=0,skipped=0;
   for(let index=1;index<rows.length;index++){
     const row=rows[index]||[];if(row.every(value=>text(value)===''))continue;
-    const confirmedAt=parseConfirmationTimestamp(row[0]);const crm=normalizeCrmUrl(row[1]);const time=normalizeTime(row[3]);
-    if(!confirmedAt||!crm||!time){skipped++;continue;}
+    const rowNumber=index+1;const confirmedAt=parseConfirmationTimestamp(row[0]);const crm=normalizeCrmUrl(row[1]);const time=normalizeTime(row[3]);const managerName=text(row[2]);
+    const issue=(code,extra={})=>issues.push({rowNumber,code,crmUrl:crm,slotTime:time,confirmedAt,managerName,payload:{source:'google-form',rowNumber,...extra}});
+    if(!confirmedAt||!crm||!time){skipped++;issue('INVALID_ROW');continue;}
     const candidates=bookings.filter(booking=>normalizeCrmUrl(booking.crmUrl||booking.crm_url)===crm&&normalizeTime(booking.time)===time&&new Date(booking.createdAt||booking.created_at)<=new Date(confirmedAt)&&new Date(confirmedAt)<new Date(booking.startsAt||booking.starts_at));
-    const manager=managerWords(row[2]);
+    const manager=managerWords(managerName);
     const managerCandidates=candidates.filter(booking=>{const known=managerWords(booking.sourceManager||booking.managerName||booking.assignedName||booking.manager_name);return !known||known===manager;});
-    if(managerCandidates.length!==1){if(managerCandidates.length>1)ambiguous++;else unmatched++;continue;}
-    const booking=managerCandidates[0];if(usedBookingIds.has(String(booking.id))){ambiguous++;continue;}usedBookingIds.add(String(booking.id));matches.push({rowNumber:index+1,bookingId:String(booking.id),confirmedAt,managerName:text(row[2])});
+    if(managerCandidates.length!==1){if(managerCandidates.length>1){ambiguous++;issue('AMBIGUOUS_BOOKING_MATCH',{candidateCount:managerCandidates.length});}else{unmatched++;issue('NO_BOOKING_MATCH');}continue;}
+    const booking=managerCandidates[0];if(usedBookingIds.has(String(booking.id))){ambiguous++;issue('DUPLICATE_BOOKING_MATCH',{bookingId:String(booking.id)});continue;}usedBookingIds.add(String(booking.id));matches.push({rowNumber,bookingId:String(booking.id),confirmedAt,managerName});
   }
-  return{matches,unmatched,ambiguous,skipped};
+  return{matches,issues,unmatched,ambiguous,skipped};
 }
 
 function actorWords(value){return managerWords(value);}
 
 /** Reads the legacy confirmation form and upgrades only causally matched bookings. */
 export function createConfirmationHistorySynchronizer({db,service,client,serviceAccountPath,spreadsheetId,enabled=false,fetchImpl=fetch,now=()=>new Date()}={}){
-  let running=false;
+  let running=false,lastRun={unmatched:0,ambiguous:0,skipped:0};
   const reader=client||(serviceAccountPath&&spreadsheetId?createGoogleSheetsClient({serviceAccountPath,spreadsheetId,fetchImpl,now}):null);
   async function read(){return reader?reader.request("'Подтверждения'!A1:F"):({values:[]});}
   const instant=()=>new Date(typeof now==='function'?now():now);
@@ -68,15 +69,30 @@ export function createConfirmationHistorySynchronizer({db,service,client,service
       return true;
     });
   }
+  const fingerprint=issue=>createHash('sha256').update(JSON.stringify([issue.rowNumber,issue.code,issue.crmUrl,issue.slotTime,issue.confirmedAt,issue.managerName,issue.payload])).digest('hex');
+  async function persistIssues(issues,{resolved=[]}={}){
+    const at=instant().toISOString();
+    await db.transaction(async tx=>{
+      for(const issue of issues){
+        const id=randomUUID(),hash=fingerprint(issue);
+        await tx.query(`INSERT INTO eduson_booking.confirmation_history_issues(id,sheet_row,fingerprint,code,crm_url,slot_time,confirmed_at,manager_name,payload,attempts,status,last_error,created_at,updated_at)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,1,'open',NULL,$10,$10)
+          ON CONFLICT(sheet_row,fingerprint) DO UPDATE SET code=EXCLUDED.code,crm_url=EXCLUDED.crm_url,slot_time=EXCLUDED.slot_time,confirmed_at=EXCLUDED.confirmed_at,manager_name=EXCLUDED.manager_name,payload=EXCLUDED.payload,attempts=confirmation_history_issues.attempts+1,status='open',last_error=NULL,updated_at=EXCLUDED.updated_at,resolved_at=NULL`,[id,issue.rowNumber,hash,issue.code,issue.crmUrl,issue.slotTime,issue.confirmedAt,issue.managerName,JSON.stringify(issue.payload),at]);
+      }
+      for(const match of resolved)await tx.query("UPDATE eduson_booking.confirmation_history_issues SET status='resolved',booking_id=$2,resolved_at=$3,updated_at=$3 WHERE sheet_row=$1 AND status='open'",[match.rowNumber,match.bookingId,at]);
+    });
+  }
   async function runOnce(){
     if(!enabled)return{processed:0,matched:0,ambiguous:0,unmatched:0,skipped:0,reason:'disabled'};
     if(running)return{processed:0,matched:0,ambiguous:0,unmatched:0,skipped:0,reason:'busy'};
     running=true;
     try{
-      const values=(await read()).values||[];const bookings=await service.listBookings(SYSTEM,{scope:'all'});const result=matchConfirmationRows(values,bookings);let applied=0;
-      for(const match of result.matches)try{if(await apply(match,bookings))applied++;}catch{result.unmatched++;}
+      const values=(await read()).values||[];const bookings=await service.listBookings(SYSTEM,{scope:'all'});const result=matchConfirmationRows(values,bookings);let applied=0;const resolved=[];
+      for(const match of result.matches)try{if(await apply(match,bookings)){applied++;resolved.push(match);}}catch(error){result.unmatched++;result.issues.push({...match,code:'APPLY_ERROR',crmUrl:normalizeCrmUrl(bookings.find(row=>row.id===match.bookingId)?.crmUrl),slotTime:normalizeTime(bookings.find(row=>row.id===match.bookingId)?.time),payload:{source:'google-form',rowNumber:match.rowNumber,bookingId:match.bookingId},lastError:/^[A-Z0-9_]{2,40}$/.test(error?.code||'')?error.code:'APPLY_ERROR'});}
+      await persistIssues(result.issues,{resolved});lastRun={unmatched:result.unmatched,ambiguous:result.ambiguous,skipped:result.skipped};
       return{processed:applied,matched:applied,ambiguous:result.ambiguous,unmatched:result.unmatched,skipped:result.skipped};
     }finally{running=false;}
   }
-  return{runOnce};
+  async function status(){const rows=(await db.query("SELECT status,count(*)::int AS n FROM eduson_booking.confirmation_history_issues GROUP BY status")).rows;const counts=Object.fromEntries(rows.map(row=>[row.status,Number(row.n)]));return{open:counts.open||0,resolved:counts.resolved||0,lastRun};}
+  return{runOnce,status};
 }

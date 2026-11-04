@@ -78,9 +78,10 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
     const status = synchronizer ? await synchronizer.status() : {};
     const schedule = scheduleSynchronizer ? await scheduleSynchronizer.status() : {};
     const operations = await operationalSynchronizer.status();
-    const pending = (counts.pending || 0) + (counts.processing || 0) + (projectionCounts.pending || 0) + (projectionCounts.processing || 0) + operations.pending;
+    const confirmationHistory = confirmationHistorySynchronizer ? await confirmationHistorySynchronizer.status() : {};
+    const pending = (counts.pending || 0) + (counts.processing || 0) + (projectionCounts.pending || 0) + (projectionCounts.processing || 0) + operations.pending + (confirmationHistory.open || 0);
     const errors = (counts.error || 0) + (projectionCounts.error || 0) + operations.error;
-    return { enabled: Boolean(synchronizer), pending, errors, error: errors, lastError: schedule.lastError || status.lastError || operations.lastError || null, schedule, operations };
+    return { enabled: Boolean(synchronizer), pending, errors, error: errors, lastError: schedule.lastError || status.lastError || operations.lastError || null, schedule, operations, confirmationHistory };
   }
   async function intakeStatus() {
     const status = await sourceIntake.status();
@@ -252,6 +253,15 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
       if (userMatch && method === 'PATCH') { const updated = await auth.updateUser(user, decodeURIComponent(userMatch[1]), await body(req)); broadcast(); return json(res, { user: updated }); }
       if (path === '/api/audit' && method === 'GET') { admin(user); return json(res, { events: await service.listAudit(user, filter) }); }
       if (path === '/api/sync' && method === 'GET') { admin(user); return json(res, await syncStatus()); }
+      if (path === '/api/confirmation-history/issues' && method === 'GET') {
+        admin(user);
+        const issues=(await db.query("SELECT id,sheet_row,code,crm_url,slot_time,confirmed_at,manager_name,booking_id,status,attempts,last_error,updated_at FROM eduson_booking.confirmation_history_issues WHERE status='open' ORDER BY updated_at DESC,id DESC LIMIT 500")).rows;
+        return json(res,{issues});
+      }
+      if (path === '/api/confirmation-history/retry' && method === 'POST') {
+        admin(user);if(!confirmationHistorySynchronizer)return json(res,{processed:0,reason:'disabled'});
+        const result=await confirmationHistorySynchronizer.runOnce();if(result.matched>0)broadcast();return json(res,result);
+      }
       if (path === '/api/notifications/status' && method === 'GET') { admin(user); return json(res, await notifications.status()); }
       if (path === '/api/integrations/rubitime/status' && method === 'GET') { admin(user); return json(res,await intakeStatus()); }
       if (path === '/api/integrations/rubitime/issues' && method === 'GET') {

@@ -66,6 +66,18 @@ test('confirmation history backfills the confirmer fact for an already confirmed
   assert.equal((await db.query('SELECT actor_role,source FROM eduson_booking.booking_confirmations WHERE booking_id=$1',[row.id])).rows[0].source,'google-form');
 });
 
+test('confirmation history keeps unmatched form rows as durable repair issues',async t=>{
+  const {db,service}=await fixture(t);
+  const client={request:async()=>({values:[['Отметка времени','Вставь АМО ','Кто МИМК?','Во сколько слот? ','Booking ID','Кто подтвердил'],['04.11.2026 12:30:00','https://eduson.amocrm.ru/leads/detail/9999','Нина Виноградова','12:00:00','','']]})};
+  const sync=createConfirmationHistorySynchronizer({db,service,client,enabled:true,now:()=>new Date('2026-11-04T10:00:00Z')});
+  assert.deepEqual(await sync.runOnce(),{processed:0,matched:0,ambiguous:0,unmatched:1,skipped:0});
+  const issue=(await db.query('SELECT sheet_row,code,crm_url,slot_time,status,attempts FROM eduson_booking.confirmation_history_issues')).rows[0];
+  assert.deepEqual(issue,{sheet_row:2,code:'NO_BOOKING_MATCH',crm_url:'https://eduson.amocrm.ru/leads/detail/9999',slot_time:'12:00',status:'open',attempts:1});
+  assert.deepEqual(await sync.status(),{open:1,resolved:0,lastRun:{unmatched:1,ambiguous:0,skipped:0}});
+  await sync.runOnce();
+  assert.equal((await db.query('SELECT attempts FROM eduson_booking.confirmation_history_issues')).rows[0].attempts,2);
+});
+
 test('historical stats retain a confirmation event after the lesson is cancelled',async t=>{
   const {db,service}=await fixture(t);
   const row=await service.createBooking(caller,{date:'2026-11-10',time:'12:00',studentName:'Отменённый ученик',parentName:'Родитель',phone:'+79990000003',crmUrl:'https://eduson.amocrm.ru/leads/detail/9105',age:10,hasPc:true,parentPresent:true,comment:'',idempotencyKey:'history-cancelled-confirmation'});

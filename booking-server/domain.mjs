@@ -758,8 +758,12 @@ export class BookingService {
           bookingIds:bookings.map(b=>b.id),lessonDates:[...new Set(bookings.map(b=>b.date instanceof Date?b.date.toISOString().slice(0,10):String(b.date)))].sort()};
       });
       const recordedFields=['total','confirmed','cancelledConfirmation','cancelledSales','completed'];
+      const bookingIds=all.map(row=>row.id);
+      const reportedIds=new Set(bookingIds.length?(await tx.query('SELECT booking_id FROM eduson_booking.reports WHERE booking_id=ANY($1::text[])',[bookingIds])).rows.map(row=>row.booking_id):[]);
+      const paidIds=new Set(bookingIds.length?(await tx.query('SELECT booking_id FROM eduson_booking.payments WHERE booking_id=ANY($1::text[]) AND booking_id IS NOT NULL',[bookingIds])).rows.map(row=>row.booking_id):[]);
+      const funnel={booked:all.length,confirmed:all.filter(row=>row.confirmation_status==='confirmed').length,assigned:all.filter(row=>row.assigned_to).length,started:all.filter(row=>row.started_at||['in_progress','completed'].includes(row.state)).length,completed:all.filter(row=>row.state==='completed').length,reported:all.filter(row=>reportedIds.has(row.id)).length,paid:all.filter(row=>paidIds.has(row.id)).length};
       const fields = ['capacity','total','capacityHeld','reserve','confirmed','cancelledConfirmation','cancelledSales','completed','inProgress','assigned','unassigned','deficit'];
-      return { hours,totals:Object.fromEntries(fields.map(field=>[field,hours.reduce((sum,h)=>sum+h[field],0)])),recordedHours,
+      return { hours,totals:Object.fromEntries(fields.map(field=>[field,hours.reduce((sum,h)=>sum+h[field],0)])),funnel,recordedHours,
         recordedTotals:Object.fromEntries(recordedFields.map(field=>[field,recordedHours.reduce((sum,h)=>sum+h[field],0)])) };
     });
   }

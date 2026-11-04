@@ -109,6 +109,16 @@ test('admin stats expose bookings created on the selected day across future less
   assert.equal(stats.recordedTotals.total,2);
 });
 
+test('admin stats expose one process funnel for the selected lesson day',async t=>{
+  const {service}=await fixture(t);
+  const first=await service.createBooking(caller,booking({idempotencyKey:'funnel-first'}));
+  await service.createBooking(caller,booking({idempotencyKey:'funnel-second'}));
+  const confirmed=await service.confirmBooking(confirmer,first.id,{version:first.version});
+  assert.equal(confirmed.assignmentKind,'primary');
+  const funnel=(await service.stats(admin,{date:day})).funnel;
+  assert.deepEqual(funnel,{booked:2,confirmed:1,assigned:1,started:0,completed:0,reported:0,paid:0});
+});
+
 test('canonical allocation maximizes primary places across constrained age groups',async t=>{
   const {db,service}=await fixture(t);
   const third={id:'v3-third',name:'Третий менеджер',role:'sales'};
