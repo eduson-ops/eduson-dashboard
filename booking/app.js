@@ -254,7 +254,7 @@ function renderSync() {
   const sync=state.sync;
   if(sync.loadError)return `<div class="connection-note" role="status">Не удалось проверить синхронизацию: ${esc(sync.loadError)}</div>`;
   const historyOpen=Number(sync.confirmationHistory?.open||0);
-  if(historyOpen>0)return `<div class="error-banner" role="alert" style="margin-top:18px">Не связались подтверждения из Google Form: ${historyOpen}. Причина сохранена для повторной сверки. <button class="outline compact" data-action="retry-confirmation-history">Повторить сверку</button></div>`;
+  if(historyOpen>0)return `<div class="error-banner" role="alert" style="margin-top:18px">Не связались подтверждения из Google Form: ${historyOpen}. Причина сохранена для повторной сверки. <button class="outline compact" data-action="confirmation-history-issues">Показать причины</button><button class="outline compact" data-action="retry-confirmation-history">Повторить сверку</button></div>`;
   if(Number(sync.errors||sync.error)>0)return `<div class="error-banner" role="alert" style="margin-top:18px">Изменения сохранены в базе букинга. Ошибок синхронизации Google Sheets: ${Number(sync.errors||sync.error)}.${sync.lastError?` ${esc(sync.lastError)}`:''}</div>`;
   if(!sync.enabled)return '<div class="connection-note">Бэкофис не подключён. Записи сохранены в букинге.</div>';
   return '';
@@ -820,6 +820,7 @@ async function handleAction(event) {
     if(action==='hour'){openHour(target.dataset.time);return;}
     if(action==='hour-metric'){openHour(target.dataset.time,null,target.dataset.metric);return;}
     if(action==='retro-hour'){openRetroHour(target.dataset.time);return;}
+    if(action==='confirmation-history-issues'){const result=await api('/confirmation-history/issues');const rows=(result.issues||[]).map(issue=>`<article class="drawer-booking"><div class="drawer-booking-top"><div><strong>Строка ${Number(issue.sheet_row)}</strong><div class="small">${esc(issue.code)} · ${esc(issue.slot_time||'Время не распознано')} · ${issue.confirmed_at?timeStamp(issue.confirmed_at):'Дата не распознана'}</div>${issue.crm_url?externalLink(issue.crm_url,'Открыть Amo CRM'):''}<div class="booking-extra">Подтверждал: ${esc(issue.manager_name||'Не указан')} · Попыток: ${Number(issue.attempts||0)}</div></div><span class="status pending">Требует сверки</span></div></article>`).join('');showDialog('Подтверждения требуют сверки',`<div class="dialog-body">${rows||'<div class="empty">Открытых строк нет.</div>'}</div>`,{name:'confirmation-history-issues'});return;}
     if(action==='retry-confirmation-history'){target.disabled=true;try{const result=await api('/confirmation-history/retry',{method:'POST'});notify(result.unmatched||result.ambiguous?'Есть строки для сверки':'Сверка завершена');await refresh({quiet:true});}finally{target.disabled=false;}return;}
     if(action==='payment'){openPayment(id?getBooking(id):null);return;}
     if(action==='create-user'){openUser();return;}

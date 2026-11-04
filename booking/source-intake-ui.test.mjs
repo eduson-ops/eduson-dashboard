@@ -106,4 +106,5 @@ test('admin view exposes the creation-day retro slice',()=>{
   assert.match(source,/Записано в этот день/);
   assert.match(source,/data-action="retro-hour"/);
   assert.match(source,/Воронка дня/);
+  assert.match(source,/confirmation-history-issues/);
 });
