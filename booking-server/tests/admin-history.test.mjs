@@ -65,3 +65,15 @@ test('confirmation history backfills the confirmer fact for an already confirmed
   assert.equal((await sync.runOnce()).matched,1);
   assert.equal((await db.query('SELECT actor_role,source FROM eduson_booking.booking_confirmations WHERE booking_id=$1',[row.id])).rows[0].source,'google-form');
 });
+
+test('historical stats retain a confirmation event after the lesson is cancelled',async t=>{
+  const {db,service}=await fixture(t);
+  const row=await service.createBooking(caller,{date:'2026-11-10',time:'12:00',studentName:'Отменённый ученик',parentName:'Родитель',phone:'+79990000003',crmUrl:'https://eduson.amocrm.ru/leads/detail/9105',age:10,hasPc:true,parentPresent:true,comment:'',idempotencyKey:'history-cancelled-confirmation'});
+  await service.cancelBooking(caller,row.id,{reason:'Отмена после подтверждения',version:row.version});
+  const client={request:async()=>({values:[['Отметка времени','Вставь АМО ','Кто МИМК?','Во сколько слот? ','Booking ID','Кто подтвердил'],['04.11.2026 12:30:00',row.crmUrl,'Нина Виноградова','12:00:00','','']]})};
+  const sync=createConfirmationHistorySynchronizer({db,service,client,enabled:true,now:()=>new Date('2026-11-04T10:00:00Z')});
+  await sync.runOnce();
+  const hour=(await service.stats(admin,{date:'2026-11-10'})).hours.find(item=>item.time==='12:00');
+  assert.equal(hour.total,1);
+  assert.equal(hour.confirmed,1);
+});

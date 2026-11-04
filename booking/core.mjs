@@ -151,7 +151,7 @@ export function filterHourMetricBookings(bookings,{date,time,tag='',metric='all'
     if(metric==='total')return true;
     if(metric==='capacityHeld')return active&&booking.capacityHold===true;
     if(metric==='reserve')return active&&(allocatedReserve.has(booking.id)||booking.assignmentKind==='reserve');
-    if(metric==='confirmed')return active&&booking.confirmationStatus==='confirmed';
+    if(metric==='confirmed')return booking.confirmationStatus==='confirmed';
     if(metric==='cancelledConfirmation')return !active&&['confirmation','call_center','system'].includes(booking.cancelSource);
     if(metric==='cancelledSales')return !active&&booking.cancelSource==='sales';
     if(metric==='completed')return booking.state==='completed';

@@ -736,7 +736,7 @@ export class BookingService {
         const managers = ctx.users.filter(u => !range || Array.from({length:range[1]-range[0]+1},(_,i)=>range[0]+i).some(a=>eligible(u,a))).map(u => ({id:u.id,name:u.name,ageGroups:u.age_groups,reserveCapacity:u.reserve_capacity}));
         const bookings = all.filter(b => b.time === time), active = bookings.filter(b => b.state !== 'cancelled');
         const capacity = managers.reduce((sum,m)=>sum+1+m.reserveCapacity,0);
-        const confirmed = active.filter(b=>b.confirmation_status==='confirmed').length;
+        const confirmed = bookings.filter(b=>b.confirmation_status==='confirmed').length;
         const ledger = this.matchResult(ctx);
         const allocations = ledger === null ? [] : ctx.slots.filter(slot => ledger.has(slot.key)).map(slot => ({ bookingId:ledger.get(slot.key), managerId:slot.user.id, managerName:slot.user.name, kind:slot.kind })).filter(allocation => active.some(booking => booking.id === allocation.bookingId));
         const reservedIds = new Set(allocations.filter(allocation => allocation.kind === 'reserve').map(allocation => allocation.bookingId));
