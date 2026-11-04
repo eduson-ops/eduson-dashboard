@@ -1852,6 +1852,7 @@ const URLS = {
   targets:  GVZ + '325926893',
   managers: GVZ + '1534781490',
   slots:    GVZ + '1587702885',
+  bookingVds: GVZ + '201207937',
   schedule: GVZ + '462545215',
   cancels:  GVZ + '901678043',    // Отмены МК
 };
@@ -2073,8 +2074,8 @@ async function loadAll() {
   var loader = document.getElementById('loader');
   if (loader) loader.classList.add('visible');
   try {
-  var [rawForm,rawPayments,rawMgrs,rawTar,rawSlots,rawSched,rawCancels] = await Promise.all([
-    fetchCSV('form'),fetchCSV('payments'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule'),fetchCSV('cancels')
+  var [rawForm,rawPayments,rawMgrs,rawTar,rawSlots,rawSched,rawCancels,rawBookingVds] = await Promise.all([
+    fetchCSV('form'),fetchCSV('payments'),fetchCSV('managers'),fetchCSV('targets'),fetchCSV('slots'),fetchCSV('schedule'),fetchCSV('cancels'),fetchCSV('bookingVds')
   ]);
 
   // Build canonical-manager list early so we can normalize free-text manager fields
@@ -2284,6 +2285,20 @@ async function loadAll() {
     }
 
     allSlots.push({date:slotDate||todayStr, time, who, status});
+  }
+
+  // Post-cutover business calendar comes from Booking VDS. Empty capacity places
+  // do not have a stable Booking ID and stay outside the business appointment list.
+  if(rawBookingVds && rawBookingVds.length>1){
+    var managedIds=new Set(),bookingSlots=[];
+    for(var bi=1;bi<rawBookingVds.length;bi++){
+      var br=rawBookingVds[bi]||[], id=cc(br[0]), bd=normDate(cc(br[1])), bt=cc(br[2]), bm=cc(br[3]);
+      var isTest=/^(true|1|да)$/i.test(cc(br[12]));
+      if(!id||managedIds.has(id)||!bd||!bt||!bm||isTest)continue;
+      managedIds.add(id);
+      bookingSlots.push({date:bd,time:bt,who:bm,status:cc(br[9])||'scheduled',bookingId:id});
+    }
+    if(bookingSlots.length)allSlots=bookingSlots;
   }
 
   // Build today/tomorrow for backward compat
