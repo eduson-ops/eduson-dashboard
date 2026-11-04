@@ -153,10 +153,23 @@ export function createSourceIntake({db,service,now=()=>new Date(),staffMap={}}={
     if(!row&&await migrationExists(tx))if((await tx.query("SELECT booking_id FROM eduson_booking.migration_v3_sources WHERE source='rubitime' AND source_id=$1",[journal.record_id])).rows.length)return issue(tx,journal,'MIGRATION_LINK_REQUIRED');
     if(row){const code=await protectedCode(tx,link,row);if(code)return issue(tx,{...journal,booking_id:row.id},code);}
     if(journal.event!=='upsert'){
-      if(!row)return issue(tx,journal,'SOURCE_BOOKING_MISSING');
       const reason=journal.event==='cancel'?'Отменён в Rubitime':'Удалён в Rubitime';
-      row=await service.change(tx,row,{state:'cancelled',cancel_reason:reason,cancel_source:'rubitime',cancelled_at:at.toISOString(),capacity_hold:false});
-      await recordSource(tx,row,'cancelled',{sourceObservation:{accountId:journal.account_id,recordId:journal.record_id,revision:String(journal.revision),event:journal.event,raw:journal.raw}},'cancel');
+      if(!row){
+        if(journal.event!=='cancel')return issue(tx,journal,'SOURCE_BOOKING_MISSING');
+        const api=journal.raw?.api;
+        if(!object(api)||![4,'4'].includes(api.status)||!['string','number'].includes(typeof api.id)||String(api.id)!==journal.record_id)return issue(tx,journal,'CANCELLATION_EVIDENCE_REQUIRED');
+        let values;try{values=facts(input.record,at);}catch(error){if(error.name==='SourceIntakeError')return issue(tx,journal,'SOURCE_BOOKING_MISSING');throw error;}
+        if(await collision(tx,values))return issue(tx,journal,'SOURCE_IDENTITY_CONFLICT');
+        // A documented cancellation is already an outcome; it never claims calendar capacity.
+        const bookingId=`intake-${hash([journal.account_id,journal.record_id]).slice(0,40)}`;
+        const fields=['id',...columns,'state','cancel_reason','cancel_source','cancelled_at','capacity_hold','created_by','idempotency_key','created_at','updated_at'];
+        const params=[bookingId,...columns.map(key=>values[key]),'cancelled',reason,'rubitime',at.toISOString(),false,ACTOR.id,hash([journal.account_id,journal.record_id]),at.toISOString(),at.toISOString()];
+        await tx.query(`INSERT INTO eduson_booking.bookings(${fields.join(',')})VALUES(${params.map((_,index)=>'$'+(index+1)).join(',')})`,params);row=await service.get(tx,bookingId);
+        await recordSource(tx,row,'cancelled',{firstSeen:true,sourceObservedAt:iso(journal.observed_at),sourceObservation:{accountId:journal.account_id,recordId:journal.record_id,observationId:journal.id,revision:String(journal.revision),event:journal.event,raw:journal.raw}},'cancel');
+      }else{
+        row=await service.change(tx,row,{state:'cancelled',cancel_reason:reason,cancel_source:'rubitime',cancelled_at:at.toISOString(),capacity_hold:false});
+        await recordSource(tx,row,'cancelled',{sourceObservation:{accountId:journal.account_id,recordId:journal.record_id,revision:String(journal.revision),event:journal.event,raw:journal.raw}},'cancel');
+      }
     }else{
       let values;try{values=facts(input.record,at,row);}catch(error){if(error.name==='SourceIntakeError')return issue(tx,journal,error.code);throw error;}
       if(input.record.staffId!=null){
