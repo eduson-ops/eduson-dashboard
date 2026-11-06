@@ -2295,10 +2295,23 @@ select::placeholder {
   background: var(--y-bg) !important;
   color: var(--y) !important;
 }
-.nav-dashboard-link .ext-badge {
-  margin-left: auto !important;
-  font-size: 10px !important;
+.nav-dashboard-link svg {
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0 !important;
   color: var(--y) !important;
+}
+.theme-toggle-btn .theme-icon svg {
+  width: 15px !important;
+  height: 15px !important;
+  display: block !important;
+  flex-shrink: 0 !important;
+}
+.sidebar .nav-link svg,
+.sidebar .prototype-nav-item svg {
+  width: 17px !important;
+  height: 17px !important;
+  flex-shrink: 0 !important;
 }
 .theme-toggle-btn {
   font-family: var(--sans) !important;
@@ -2372,27 +2385,89 @@ select::placeholder {
 }
 
 /* 5. Toned down, solid, crisp amber buttons (ZERO neon blinding glow) */
+html[data-ui-mode="new"] .primary,
+html[data-ui-mode="new"] .new-admin-button,
+html[data-ui-mode="new"] .new-action.primary,
+html[data-ui-mode="new"] .tower-row-btn:not(.secondary),
+html[data-ui-mode="new"] .wizard-contact-actions .primary,
+html[data-theme="dark"] .primary,
+html[data-theme="dark"] .new-admin-button,
+html[data-theme="dark"] .new-action.primary,
 .primary,
 .new-admin-button,
 .new-action.primary,
 .wizard-contact-actions .primary,
 .tower-row-btn:not(.secondary) {
-  background: var(--y) !important;
-  color: #0a0a0a !important;
-  border: 1px solid var(--y-3) !important;
+  background: #deb035 !important;
+  color: #0c0d10 !important;
+  border: 1px solid #c29724 !important;
   font-weight: 700 !important;
   border-radius: var(--r6) !important;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+  text-shadow: none !important;
   transition: background var(--dur) var(--ease), transform var(--dur) var(--ease) !important;
 }
+
+html[data-ui-mode="new"] .primary:hover,
+html[data-ui-mode="new"] .new-admin-button:hover,
+html[data-ui-mode="new"] .new-action.primary:hover,
+html[data-ui-mode="new"] .tower-row-btn:not(.secondary):hover,
+html[data-ui-mode="new"] .wizard-contact-actions .primary:hover,
+html[data-theme="dark"] .primary:hover,
+html[data-theme="dark"] .new-admin-button:hover,
+html[data-theme="dark"] .new-action.primary:hover,
 .primary:hover,
 .new-admin-button:hover,
 .new-action.primary:hover,
 .wizard-contact-actions .primary:hover {
-  background: var(--y-2) !important;
-  color: #0a0a0a !important;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35) !important;
+  background: #ebbf42 !important;
+  color: #0c0d10 !important;
+  border-color: #cda22b !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
   transform: translateY(-1px) !important;
+}
+
+html[data-ui-mode="new"] .primary *,
+html[data-ui-mode="new"] .new-admin-button *,
+html[data-ui-mode="new"] .new-action.primary *,
+html[data-theme="dark"] .primary *,
+html[data-theme="dark"] .new-admin-button *,
+html[data-theme="dark"] .new-action.primary *,
+.primary *,
+.new-admin-button *,
+.new-action.primary * {
+  color: #0c0d10 !important;
+}
+
+html[data-ui-mode="new"] .new-action.primary .action-hint,
+html[data-theme="dark"] .new-action.primary .action-hint,
+.new-action.primary .action-hint {
+  color: rgba(12, 13, 16, 0.72) !important;
+  font-weight: 600 !important;
+}
+
+html[data-ui-mode="new"] .new-action.secondary,
+html[data-theme="dark"] .new-action.secondary,
+.new-action.secondary {
+  background: var(--bg3) !important;
+  border: 1px solid var(--border-s) !important;
+  color: var(--text) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15) !important;
+}
+
+html[data-ui-mode="new"] .new-action.secondary:hover,
+html[data-theme="dark"] .new-action.secondary:hover,
+.new-action.secondary:hover {
+  background: var(--bg4) !important;
+  border-color: var(--border) !important;
+  color: #ffffff !important;
+}
+
+html[data-ui-mode="new"] .new-action.secondary .action-hint,
+html[data-theme="dark"] .new-action.secondary .action-hint,
+.new-action.secondary .action-hint {
+  color: var(--muted) !important;
+  font-weight: 500 !important;
 }
 .pill-total {
   background: var(--bg3) !important;

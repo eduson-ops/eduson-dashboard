@@ -60,15 +60,26 @@ const themeLabels = {classic:'Classic',modern:'Modern',dark:'Dark'};
 const uiModeLabels = {new:'NEW'};
 
 function applyTheme(theme) {
-  const value = 'dark';
-  state.theme = 'dark';
-  document.documentElement.dataset.theme = 'dark';
+  const value = theme === 'light' ? 'light' : 'dark';
+  state.theme = value;
+  document.documentElement.dataset.theme = value;
   document.documentElement.dataset.uiMode = 'new';
-  if(state.user) localStorage.setItem(`booking.theme.${state.user.id}`, 'dark');
+  const userKey = state.user?.id || 'default';
+  try {
+    localStorage.setItem(`booking.theme.${userKey}`, value);
+    localStorage.setItem('booking.theme', value);
+  } catch(e){}
+  renderShell();
+  renderContent();
 }
 
 function initTheme() {
-  applyTheme('dark');
+  const userKey = state.user?.id || 'default';
+  let saved = null;
+  try {
+    saved = localStorage.getItem(`booking.theme.${userKey}`) || localStorage.getItem('booking.theme');
+  } catch(e){}
+  applyTheme(saved === 'light' ? 'light' : 'dark');
 }
 
 function applyUiMode() {
@@ -111,7 +122,10 @@ function icon(name) {
     plus:'<path d="M12 4v16M4 12h16"/>',
     arrow:'<path d="M5 12h14m-5-5 5 5-5 5"/>',
     clock:'<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>',
-    sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4m0-14.2-1.4 1.4M6.3 17.7l-1.4 1.4"/>'
+    sun:'<circle cx="12" cy="12" r="3.5"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4m0-14.2-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
+    moon:'<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    briefcase:'<rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+    external:'<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6m4-3h6v6m-11 5L21 3"/>'
   };
   return `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${paths[name] || paths.calendar}</svg>`;
 }
@@ -212,13 +226,13 @@ function renderPrototypeShell() {
   const system=isAdmin()?`<div class="nav-label">Управление</div>${nav('users','users','Сотрудники')}${nav('trash','trash','Отмены')}`:'';
   app.innerHTML=`<div class="app"><aside class="sidebar" aria-label="Основная навигация"><a class="brand brand-booking" href="#${esc(defaultView())}"><span class="brand-title">BOOKING</span><small class="brand-sub">EDUSON OPERATIONS</small></a><nav class="nav" aria-label="Разделы">${primary.join('')}${formats}${system}</nav><div class="sidebar-nav-extra">
   <a class="nav-link nav-dashboard-link" href="/dashboard" target="_blank" rel="noopener" title="Перейти в дашборд аналитики">
-    <span class="nav-emoji" aria-hidden="true">📊</span>
+    ${icon('chart')}
     <span>Аналитика</span>
     <span class="ext-badge">↗</span>
   </a>
   <button type="button" class="theme-toggle-btn" data-action="toggle-theme" title="Сменить тему оформления">
-    <span class="theme-icon" aria-hidden="true">${state.theme==='light'?'🌙':'☀️'}</span>
-    <span>${state.theme==='light'?'Тёмная тема':'Светлая тема'}</span>
+    <span class="theme-icon" aria-hidden="true">${state.theme==='light' ? icon('moon') : icon('sun')}</span>
+    <span>${state.theme==='light' ? 'Тёмная тема' : 'Светлая тема'}</span>
   </button>
 </div>
 <div class="sidebar-bottom">${renderStaffAvatar(state.user.name,'avatar')}<div class="profile-text"><strong>${esc(state.user.name)}</strong><span>${esc(roles[state.user.role])}</span></div><button class="icon-btn logout-btn" data-action="logout" title="Выйти">${icon('trash')}</button></div></aside><main class="main"><header class="topbar"><div class="topbar-left"><span class="eyebrow">Eduson Operations</span><span class="page-title">${esc(newPageTitle())}</span></div><div class="topbar-actions"><span class="live" title="Время в Москве"><span id="moscow-clock"></span></span><button class="icon-btn" data-action="prototype-reset" aria-label="Сбросить экран">${icon('refresh')}</button></div></header>${state.config.demo?'<div class="demo-banner">Демонстрационная среда · боевые записи</div>':''}<div id="main" tabindex="-1"></div></main></div>`;
@@ -232,13 +246,10 @@ function updateMoscowClock() {
 setInterval(updateMoscowClock,1000);
 
 function navItem(view, name, label) {
-  const emoji = VIEW_EMOJIS[view] || '';
-  return `<a class="nav-link${state.view===view?' selected':''}" href="#${view}" data-view="${view}">${emoji ? `<span class="nav-emoji" aria-hidden="true">${emoji}</span>` : icon(name)}<span>${label}</span></a>`;
+  return `<a class="nav-link${state.view===view?' selected':''}" href="#${view}" data-view="${view}">${icon(name)}<span>${label}</span></a>`;
 }
-const VIEW_EMOJIS = {admin:'⚡',booking:'➕',confirmation:'⏰',active:'▶️',schedule:'📅',report:'📊',users:'👥',trash:'🗑️',compensation:'💳',completed:'📁',payments:'💳',overview:'⚡'};
 function prototypeNavItem(view,name,label) {
-  const emoji = VIEW_EMOJIS[view] || '';
-  return `<a class="prototype-nav-item${state.view===view?' active':''}" href="#${view}" data-view="${view}">${emoji ? `<span class="nav-emoji" aria-hidden="true">${emoji}</span>` : icon(name)}<span>${label}</span></a>`;
+  return `<a class="prototype-nav-item${state.view===view?' active':''}" href="#${view}" data-view="${view}">${icon(name)}<span>${label}</span></a>`;
 }
 
 function renderTabs() {
@@ -517,7 +528,7 @@ function renderNewAdminExact() {
     </div>
     <div class="new-metric-grid">
       ${bentoKpi({
-        label: '● Записано',
+        label: 'Записано',
         value: booked,
         note: 'на выбранный день',
         badge: isToday ? 'Сегодня' : state.adminDate,
@@ -527,7 +538,7 @@ function renderNewAdminExact() {
         subnote: totalSlots ? `${Math.round(booked / totalSlots * 100)}% от емкости (${totalSlots} мест)` : 'Нет открытых мест'
       })}
       ${bentoKpi({
-        label: '✓ Подтверждено',
+        label: 'Подтверждено',
         value: confirmed,
         note: 'SLA за 2 часа',
         badge: booked ? `${Math.round(confirmed / booked * 100)}%` : '0%',
@@ -537,7 +548,7 @@ function renderNewAdminExact() {
         subnote: pending > 0 ? `${pending} ждут подтверждения` : 'Все записи подтверждены'
       })}
       ${bentoKpi({
-        label: '👥 МИМК на смене',
+        label: 'МИМК на смене',
         value: assigned || hours.reduce((s, h) => s + (h.managerList?.length || Number(h.managers || 0)), 0),
         note: capacityHeld > 0 ? `${capacityHeld} без МИМК` : 'слоты закрыты',
         badge: capacityHeld > 0 ? 'Дефицит' : 'В норме',
@@ -547,7 +558,7 @@ function renderNewAdminExact() {
         subnote: capacityHeld > 0 ? 'Требуется ручное назначение' : 'Все слоты обеспечены МИМК'
       })}
       ${bentoKpi({
-        label: '⚡ Резерв и риски',
+        label: 'Резерв и риски',
         value: reserve,
         note: reserve > 0 ? `${reserve} в резерве` : 'перегрузов нет',
         badge: reserve > 0 ? 'Внимание' : 'Ок',
@@ -1098,15 +1109,15 @@ function renderScheduleOverview(dates) {
     const total=dates.reduce((dSum,date)=>dSum+scheduleHourEntries(days.find(day=>day.managerId===manager.id&&day.date===date)).size,0);
     const warnStyle=total===0?'background:var(--r-bg);border-color:var(--r-bd)':'';
     const valColor=total===0?'color:var(--r)':'';
-    return `<div class="hms-card" style="${warnStyle}"><div class="hms-name">💼 ${esc(manager.name)}</div><div class="hms-val" style="${valColor}">${total}</div><div class="hms-sub">${total===0?'⚠ не заполнил':'слотов на 14 дней'}</div></div>`;
+    return `<div class="hms-card" style="${warnStyle}"><div class="hms-name">${icon('briefcase')} ${esc(manager.name)}</div><div class="hms-val" style="${valColor}">${total}</div><div class="hms-sub">${total===0?'⚠ не заполнил':'слотов на 14 дней'}</div></div>`;
   }).join('');
 
   // 1:1 Pre-October Grid Header (Row 1: Days with colspan=12, Row 2: Hours 10..21)
-  let tableHeader='<thead><tr><th class="mgr-h" rowspan="2">💼 Менеджер</th>';
+  let tableHeader=`<thead><tr><th class="mgr-h" rowspan="2">${icon('briefcase')} Менеджер</th>`;
   dates.forEach(dStr=>{
     const d=new Date(dStr+'T12:00:00Z');
     const isWknd=d.getDay()===0||d.getDay()===6;
-    const label=(isWknd?'🟡 ':'')+dn[d.getDay()]+' '+d.getDate()+'.'+String(d.getMonth()+1).padStart(2,'0');
+    const label=dn[d.getDay()]+' '+d.getDate()+'.'+String(d.getMonth()+1).padStart(2,'0');
     tableHeader+=`<th colspan="${hoursList.length}" class="day-hdr${isWknd?' weekend-hdr':''}">${label}</th>`;
   });
   tableHeader+='<th rowspan="2" class="total-hdr">Всего</th></tr><tr>';
@@ -1117,11 +1128,11 @@ function renderScheduleOverview(dates) {
   });
   tableHeader+='</tr></thead>';
 
-  // Table Body: Each manager has 12 hourly cells per day with briefcase 💼
+  // Table Body: Each manager has 12 hourly cells per day with briefcase
   let tableBody='<tbody>';
   state.managers.forEach(manager=>{
     let mgrTotal=0;
-    tableBody+=`<tr class="hm-row"><td class="mgr-td">💼 ${esc(manager.name)}</td>`;
+    tableBody+=`<tr class="hm-row"><td class="mgr-td">${icon('briefcase')} ${esc(manager.name)}</td>`;
     dates.forEach(dStr=>{
       const dayEntry=days.find(day=>day.managerId===manager.id&&day.date===dStr);
       const entries=scheduleHourEntries(dayEntry);
@@ -1129,7 +1140,7 @@ function renderScheduleOverview(dates) {
       hoursList.forEach(hr=>{
         const hasSlot=entries.has(hr);
         const colClass=hasSlot?`slot-${hourColors[hr]}`:'slot-0';
-        tableBody+=`<td class="${colClass}" title="${esc(manager.name)} · ${dStr} · ${hr}:00">${hasSlot?'<span class="slot-num">💼</span>':''}</td>`;
+        tableBody+=`<td class="${colClass}" title="${esc(manager.name)} · ${dStr} · ${hr}:00">${hasSlot?`<span class="slot-num">${icon('briefcase')}</span>`:''}</td>`;
       });
     });
     tableBody+=`<td class="mgr-total-cell"><strong>${mgrTotal}</strong></td></tr>`;
@@ -1147,7 +1158,7 @@ function renderScheduleOverview(dates) {
           </div>
           <div style="font-size:11px;color:var(--muted);margin-top:4px">${state.managers.length} менеджеров · потенциал ≈ <span style="color:var(--g);font-weight:600">${new Intl.NumberFormat('ru-RU').format(potentialRub)} ₽</span></div>
         </div>
-        <div style="font-size:42px;opacity:.2">🕐</div>
+        <div style="opacity:.25;width:40px;height:40px;display:grid;place-items:center">${icon('clock')}</div>
       </div>
     </div>
     <div class="hm-summary">${summaryCards}</div>
@@ -1174,8 +1185,8 @@ function renderSchedule() {
     const entries=scheduleHourEntries(schedule.days.find(day=>day.date===date));
     const active=entries.has(hour);
     const timeTone=hour<14?'time-morning':hour<17?'time-day':'time-prime';
-    return `<td class="${index===7?'week-boundary':''}"><button class="schedule-hour-cell ${timeTone}${active?' selected':''}${date===pickedDay.date?' selected-day':''}" data-action="schedule-hour" data-date="${date}" data-hour="${hour}" aria-pressed="${active}" aria-label="${dateText(date)}, ${String(hour).padStart(2,'0')}:00, ${active?'открыто':'закрыто'}">${active?'💼':''}${active&&entries.get(hour)>0?'<i title="Есть резервное место"></i>':''}</button></td>`;
-  }).join('')}</tr>`).join('')}</tbody><tfoot><tr><th>Всего</th>${dates.map(date=>`<td>${scheduleHourEntries(schedule.days.find(day=>day.date===date)).size||'—'}</td>`).join('')}</tr></tfoot></table></div><div class="schedule-mobile-editor"><div class="schedule-day-pills">${dates.slice(state.scheduleTab*7,state.scheduleTab*7+7).map(date=>dayButton(date)).join('')}</div><div class="schedule-mobile-hours">${hours.map(hour=>{const timeTone=hour<14?'time-morning':hour<17?'time-day':'time-prime';return `<button class="schedule-mobile-hour ${timeTone}${pickedHours.has(hour)?' selected':''}" data-action="schedule-hour" data-date="${pickedDay.date}" data-hour="${hour}" aria-pressed="${pickedHours.has(hour)}">${String(hour).padStart(2,'0')}:00${pickedHours.has(hour)?'💼':''}</button>`;}).join('')}</div></div><div class="schedule-day-tools"><strong>${dateText(pickedDay.date)}</strong><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="17">Прайм 17–21</button><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="14">День 14–21</button><button class="subtle compact" data-action="schedule-clear-day" data-date="${pickedDay.date}">Снять день</button><span class="spacer"></span><button class="subtle compact" data-action="schedule-clear-range">Очистить 14 дней</button></div><details class="schedule-interval-details"><summary>Интервалы и резерв · ${dateText(pickedDay.date)}</summary><div class="intervals">${pickedDay.intervals.map((interval,index)=>scheduleInterval(interval,index,pickedDay)).join('')}<button class="add-hours" data-action="add-interval" data-date="${pickedDay.date}">Добавить часы</button></div>${pickedDay.intervals.length?`<label class="reserve-field">Резерв во всех интервалах дня<select data-schedule-date="${pickedDay.date}" data-field="reserveCapacity" aria-label="Установить резерв во всех интервалах ${dateText(pickedDay.date)}"><option value="0"${selected(pickedDay.reserveCapacity??1,0)}>0</option><option value="1"${selected(pickedDay.reserveCapacity??1,1)}>1</option></select></label>`:''}</details><div class="schedule-description">Нажмите на час, чтобы открыть или закрыть его. Последний урок — 21:00–22:00. Точка в ячейке означает резервное место.</div><div class="schedule-save"><div><strong>${selectedCount} ч.</strong><span class="dirty-note" id="schedule-dirty">${drafts.read(scheduleDraftKey()).days?'Есть сохранённый черновик':'Опубликованное расписание'}</span></div><button class="primary" data-action="save-schedule"${state.scheduleConflict?' disabled':''}>Сохранить расписание</button></div></section>`;
+    return `<td class="${index===7?'week-boundary':''}"><button class="schedule-hour-cell ${timeTone}${active?' selected':''}${date===pickedDay.date?' selected-day':''}" data-action="schedule-hour" data-date="${date}" data-hour="${hour}" aria-pressed="${active}" aria-label="${dateText(date)}, ${String(hour).padStart(2,'0')}:00, ${active?'открыто':'закрыто'}">${active?icon('briefcase'):''}${active&&entries.get(hour)>0?'<i title="Есть резервное место"></i>':''}</button></td>`;
+  }).join('')}</tr>`).join('')}</tbody><tfoot><tr><th>Всего</th>${dates.map(date=>`<td>${scheduleHourEntries(schedule.days.find(day=>day.date===date)).size||'—'}</td>`).join('')}</tr></tfoot></table></div><div class="schedule-mobile-editor"><div class="schedule-day-pills">${dates.slice(state.scheduleTab*7,state.scheduleTab*7+7).map(date=>dayButton(date)).join('')}</div><div class="schedule-mobile-hours">${hours.map(hour=>{const timeTone=hour<14?'time-morning':hour<17?'time-day':'time-prime';return `<button class="schedule-mobile-hour ${timeTone}${pickedHours.has(hour)?' selected':''}" data-action="schedule-hour" data-date="${pickedDay.date}" data-hour="${hour}" aria-pressed="${pickedHours.has(hour)}">${String(hour).padStart(2,'0')}:00${pickedHours.has(hour)?` ${icon('briefcase')}`:''}</button>`;}).join('')}</div></div><div class="schedule-day-tools"><strong>${dateText(pickedDay.date)}</strong><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="17">Прайм 17–21</button><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="14">День 14–21</button><button class="subtle compact" data-action="schedule-clear-day" data-date="${pickedDay.date}">Снять день</button><span class="spacer"></span><button class="subtle compact" data-action="schedule-clear-range">Очистить 14 дней</button></div><details class="schedule-interval-details"><summary>Интервалы и резерв · ${dateText(pickedDay.date)}</summary><div class="intervals">${pickedDay.intervals.map((interval,index)=>scheduleInterval(interval,index,pickedDay)).join('')}<button class="add-hours" data-action="add-interval" data-date="${pickedDay.date}">Добавить часы</button></div>${pickedDay.intervals.length?`<label class="reserve-field">Резерв во всех интервалах дня<select data-schedule-date="${pickedDay.date}" data-field="reserveCapacity" aria-label="Установить резерв во всех интервалах ${dateText(pickedDay.date)}"><option value="0"${selected(pickedDay.reserveCapacity??1,0)}>0</option><option value="1"${selected(pickedDay.reserveCapacity??1,1)}>1</option></select></label>`:''}</details><div class="schedule-description">Нажмите на час, чтобы открыть или закрыть его. Последний урок — 21:00–22:00. Точка в ячейке означает резервное место.</div><div class="schedule-save"><div><strong>${selectedCount} ч.</strong><span class="dirty-note" id="schedule-dirty">${drafts.read(scheduleDraftKey()).days?'Есть сохранённый черновик':'Опубликованное расписание'}</span></div><button class="primary" data-action="save-schedule"${state.scheduleConflict?' disabled':''}>Сохранить расписание</button></div></section>`;
 }
 
 function renderUsers() {
@@ -1389,6 +1400,7 @@ async function handleAction(event) {
     if(action==='close-dialog'){dialog.close();return;}
     if(action==='logout'){await api('/session/logout',{method:'POST',body:{}});state.events?.close();state.user=null;state.csrfToken='';renderLogin();return;}
     if(action==='theme'){applyTheme(target.dataset.themeChoice);return;}
+    if(action==='toggle-theme'){applyTheme(state.theme==='light'?'dark':'light');return;}
     if(action==='theme-cycle'){const values=Object.keys(themeLabels);applyTheme(values[(values.indexOf(state.theme)+1)%values.length]);return;}
     if(action==='prototype-reset'){state.view=defaultView();state.drawerHour='';state.error='';location.hash=state.view;await refresh();return;}
     if(action==='ui-mode'){applyUiMode();renderTabs();renderContent();return;}
