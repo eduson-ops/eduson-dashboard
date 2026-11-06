@@ -475,16 +475,17 @@ html[data-theme="dark"] .topbar .page-title {
 /* Primary and secondary buttons */
 html[data-theme="dark"] .primary,
 html[data-theme="dark"] .new-admin-button {
-  background: var(--y) !important;
-  color: #fff !important;
+  background: #deb035 !important;
+  color: #0c0d10 !important;
   border-radius: 6px !important;
-  box-shadow: 0 4px 16px var(--y-glow) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
   transition: all .15s ease !important;
 }
 html[data-theme="dark"] .primary:hover,
 html[data-theme="dark"] .new-admin-button:hover {
-  background: var(--y-2) !important;
-  box-shadow: 0 6px 20px var(--y-glow) !important;
+  background: #ebbf42 !important;
+  color: #0c0d10 !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
 }
 html[data-theme="dark"] .secondary,
 html[data-theme="dark"] .new-action.secondary,
@@ -1483,7 +1484,7 @@ html[data-ui-mode="new"][data-theme="dark"] .new-admin-button,
 html[data-ui-mode="new"][data-theme="dark"] .new-action.primary,
 html[data-ui-mode="new"][data-theme="dark"] .primary {
   background: var(--primary) !important;
-  box-shadow: 0 8px 22px var(--y-glow), var(--double-bezel) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
   transition: transform .18s var(--motion-ease), box-shadow .18s var(--motion-ease), background-color .18s var(--motion-ease) !important;
 }
 html[data-ui-mode="new"][data-theme="dark"] .new-admin-button:hover,
@@ -1823,7 +1824,7 @@ select::placeholder {
   border: 1px solid var(--y-2) !important;
   font-weight: 700 !important;
   border-radius: var(--r6) !important;
-  box-shadow: 0 4px 14px var(--y-glow), var(--double-bezel) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
   transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), background var(--dur) var(--ease) !important;
 }
 
@@ -1834,7 +1835,7 @@ select::placeholder {
   background: var(--y-2) !important;
   color: #000000 !important;
   transform: translateY(-1px) !important;
-  box-shadow: 0 6px 20px var(--y-glow) !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
 }
 
 .primary:active:not(:disabled),
