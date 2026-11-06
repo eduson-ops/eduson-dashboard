@@ -163,7 +163,7 @@ function operationalBooking(row) { assert(!row.history_only, 409, 'Исход а
 
 /** Persistent business operations. Every capacity-changing transaction uses one database lock. */
 export class BookingService {
-  constructor(db, { now = () => new Date(), random = Math.random } = {}) { this.db = db; this.now = now; this.random = random; }
+  constructor(db, { now = () => new Date(), random = Math.random, amocrm = null } = {}) { this.db = db; this.now = now; this.random = random; this.amocrm = amocrm; }
   instant() { const value = new Date(this.now()); assert(Number.isFinite(+value), 500, 'Некорректное время сервера.'); return value; }
   async mutation(fn) {
     return this.db.transaction(async tx => {
@@ -187,6 +187,9 @@ export class BookingService {
     for (const projectionKind of kind === 'booking' ? ['booking'] : [kind,'booking']) {
       await tx.query('INSERT INTO eduson_booking.sync_jobs(id,booking_id,kind,version,status,attempts,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,0,$6,$6) ON CONFLICT(booking_id,kind,version) DO NOTHING', [randomUUID(), row.id, projectionKind, row.version, 'pending', at]);
     }
+    const actionMap={created:'created',confirmed:'confirmed',cancelled:'cancelled',expired:'cancelled'};
+    const crmAction=actionMap[action];
+    if (crmAction && this.amocrm?.enqueue) await this.amocrm.enqueue(tx,{booking:row,event:null,action:crmAction,reason:payload.reason||row.cancel_reason||null});
     await this.markSheetsDirty(tx);
   }
   async markSheetsDirty(tx) {
@@ -427,6 +430,7 @@ export class BookingService {
       const at = this.instant().toISOString();
       const payload = { ...report, bookingId: row.id, timestamp: previous?.timestamp || at, teacher: row.assigned_name, date: dateString(row.date), time: row.time, crmUrl: row.crm_url, age: row.age };
       await tx.query('INSERT INTO eduson_booking.reports(booking_id,payload,version,created_at,updated_at) VALUES ($1,$2,$3,$4,$4) ON CONFLICT(booking_id) DO UPDATE SET payload=EXCLUDED.payload,version=EXCLUDED.version,updated_at=EXCLUDED.updated_at', [row.id, JSON.stringify(payload), row.version, at]);
+      if(this.amocrm?.enqueue) await this.amocrm.enqueue(tx,{booking:row,event:null,action:'completed'});
       await this.record(tx, actor, row, 'report_saved', {}, 'report');
       return bookingObject(await this.get(tx, id));
     });

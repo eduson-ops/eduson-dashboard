@@ -9,6 +9,7 @@ import { CompensationService, getConfirmation } from './compensation.mjs';
 import { OperationalPaymentService, createOperationalSynchronizer } from './operational-reports.mjs';
 import { createSlackNotifications } from './slack-notifications.mjs';
 import { createSourceIntake } from './source-intake.mjs';
+import { createAmoCrmStageSync } from './amocrm-stage-sync.mjs';
 import { createAuth, createLoginLimiter, readCookie, cookieHeader, requireCsrf, checkOrigin, requestAddress } from './auth.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -33,7 +34,7 @@ function safePath(path) {
   if (path === '/' || path === '/booking' || path === '/booking/') return { path: resolve(ROOT, 'booking/index.html'), booking: true };
   if (path === '/dashboard' || path === '/dashboard/') return { path: resolve(ROOT, 'index.html'), dashboard: true };
   const trimmed = path.startsWith('/dashboard/') ? path.slice('/dashboard'.length) : path;
-  const permitted = /^\/booking\/[a-zA-Z0-9_.-]+\.(?:html|js|mjs|css|svg|png|woff2)$/.test(trimmed)
+  const permitted = /^\/booking\/[a-zA-Z0-9_./-]+\.(?:html|js|mjs|css|svg|png|jpg|jpeg|webp|woff2)$/.test(trimmed)
     || /^\/materials\/[a-zA-Z0-9_./-]+$/.test(trimmed)
     || ['/booking-ui.js', '/booking-analytics-adapter.js'].includes(trimmed);
   if (!permitted || trimmed.includes('..') || trimmed.includes('\\')) return null;
@@ -43,8 +44,9 @@ function safePath(path) {
 
 export async function createApp({ db, now = () => new Date(), secureCookies = false, publicOrigin, trustProxy = false, demo = false, demoDate, enableWorkers = true, syncOptions, slackOptions, intakeOptions } = {}) {
   if (!db) throw Error('Database is required');
-  const service = new BookingService(db, { now });
-  const payments = new OperationalPaymentService(db, { now });
+  const amocrm = createAmoCrmStageSync({db,now,endpoint:process.env.BOOKING_AMOCRM_STAGE_ENDPOINT,token:process.env.BOOKING_AMOCRM_STAGE_TOKEN});
+  const service = new BookingService(db, { now, amocrm });
+  const payments = new OperationalPaymentService(db, { now, amocrm });
   const compensation = new CompensationService(db, { now });
   const intakeConfig = intakeOptions?.config || {};
   const intakeEnabled = intakeConfig.enabled === true;
@@ -130,6 +132,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
           if (!first.processed && !(await queues[1 - turn].runOnce()).processed) break;
         }
       });
+      await workerPhase('amocrm-stage', async () => { await amocrm.runOnce(); });
     } catch (error) { console.error('Booking background worker failed', /^[A-Z0-9_]{2,40}$/.test(error.code || '') ? error.code : 'WORKER_ERROR'); }
     finally { workerBusy = false; await notificationWorker(); }
   }
@@ -166,7 +169,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
           const source = content.toString('utf8');
           content = Buffer.from(source.replace('<head>', '<head>\n<script src="/booking-analytics-adapter.js"></script>'));
         }
-        if (asset.booking) res.setHeader('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
+        if (asset.booking) res.setHeader('content-security-policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self'; img-src 'self' data:; font-src 'self' data: https://fonts.gstatic.com; base-uri 'self'; form-action 'self'; frame-ancestors 'none'");
         res.writeHead(200, { 'content-type': MIME[extname(asset.path)] || 'application/octet-stream', 'cache-control': asset.path.endsWith('.html') ? 'no-store' : 'public,max-age=300' });
         return res.end(method === 'HEAD' ? undefined : content);
       }
@@ -297,7 +300,7 @@ export async function createApp({ db, now = () => new Date(), secureCookies = fa
   });
   server.requestTimeout = 30_000; server.headersTimeout = 15_000;
   return {
-    server, auth, service, payments, compensation, notifications, sourceIntake, worker,
+    server, auth, service, payments, compensation, notifications, sourceIntake, amocrm, worker,
     async listen(port = 4180, host = '127.0.0.1') { await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, host, () => { server.off('error', reject); resolve(); }); }); return server.address().port; },
     async close() { closing = true; if (timer) clearInterval(timer); if (notificationTimer) clearInterval(notificationTimer); for (const stream of subscribers) stream.res.end(); if (server.listening) { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } },
   };

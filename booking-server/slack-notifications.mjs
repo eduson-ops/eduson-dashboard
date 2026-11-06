@@ -5,7 +5,7 @@ import {createHash,randomUUID} from 'node:crypto';
  * Opt-in booking notifications. No provider access occurs during construction or disabled runs.
  * initializeSlackSchema(db) must run after the base booking schema.
  * createSlackNotifications({db,getStats(date),config,now,fetchImpl}) returns {runOnce,status}.
- * config: {enabled,token,teamId,summaryChannelId,staffMap:{[bookingUserId]:slackUserId},baseUrl,activationAt?}.
+ * config: {enabled,token,teamId,summaryChannelId?,summaryUserId?,staffMap:{[bookingUserId]:slackUserId},baseUrl,activationAt?}.
  * The first enabled run silently baselines existing audit/completed facts. Persisted activation never rewinds.
  * Prime this run before admitting new production traffic. Mapping is explicit and checked against Slack.
  * Each run plans durable work and processes at most one job. Admin status never exposes credentials/content.
@@ -38,7 +38,8 @@ export function createSlackNotifications({db,getStats,config={},now=()=>new Date
   const staff=config.staffMap||{},ids=Object.keys(staff),slackIds=Object.values(staff);
   let baseUrl;try{const u=new URL(config.baseUrl);if(u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash)baseUrl=u.href.replace(/\/$/,'');}catch{}
   const validMap=staff&&typeof staff==='object'&&!Array.isArray(staff)&&ids.every(id=>id&&id.length<=128&&typeof staff[id]==='string'&&USER.test(staff[id]))&&new Set(slackIds).size===slackIds.length;
-  const configured=Boolean(typeof config.token==='string'&&config.token&&/^T[A-Z0-9]+$/.test(config.teamId||'')&&CHANNEL.test(config.summaryChannelId||'')&&baseUrl&&validMap&&(config.activationAt===undefined||Number.isFinite(+new Date(config.activationAt))));
+  const summaryTarget=config.summaryUserId||config.summaryChannelId;
+  const configured=Boolean(typeof config.token==='string'&&config.token&&/^T[A-Z0-9]+$/.test(config.teamId||'')&&(USER.test(config.summaryUserId||'')||CHANNEL.test(config.summaryChannelId||''))&&baseUrl&&validMap&&(config.activationAt===undefined||Number.isFinite(+new Date(config.activationAt))));
   let busy=false,identity=null,summaryVerifiedUntil=0;
   const people=new Map();
 
@@ -119,7 +120,7 @@ export function createSlackNotifications({db,getStats,config={},now=()=>new Date
       const counts={managers:hour.managers,capacity:hour.capacity,total:active.length,confirmed:active.filter(b=>b.confirmation_status==='confirmed').length,pending:active.filter(b=>b.state==='scheduled'&&b.confirmation_status!=='confirmed').length,
         reserve:active.filter(b=>b.assignment_kind==='reserve'||reserves.has(b.id)).length,unassigned:active.filter(b=>!b.assigned_to).length,inProgress:active.filter(b=>b.state==='in_progress').length,
         completed:active.filter(b=>b.state==='completed').length,cancelled:rows.filter(b=>b.state==='cancelled').length,missingReport:active.filter(b=>b.state==='completed'&&!b.has_report).length};
-      const logicalKey=`hour:${day}:${window.time}:${config.summaryChannelId}`;
+      const logicalKey=`hour:${day}:${window.time}:${summaryTarget}`;
       if((await db.query("SELECT logical_key FROM eduson_booking.slack_notification_messages WHERE logical_key=$1 AND status='uncertain'",[logicalKey])).rows.length)continue;
       await insertJob(db,{key:logicalKey+':'+bucket,logicalKey,kind:'hour',payload:{date:day,time:window.time,bucket,endAt:iso(window.start+76*MINUTE),counts},dueAt:at});
     }
@@ -188,9 +189,11 @@ export function createSlackNotifications({db,getStats,config={},now=()=>new Date
     await verifyIdentity();
     if(job.kind==='hour'){
       if(summaryVerifiedUntil<=+clock()){
-        const result=await api('conversations.info',{channel:config.summaryChannelId});
-        if(result.channel?.id!==config.summaryChannelId||result.channel.is_archived!==false||result.channel.is_member!==true)fail('SLACK_CHANNEL_INVALID');summaryVerifiedUntil=+clock()+5*MINUTE;
+        if(config.summaryUserId){const result=await api('users.info',{user:config.summaryUserId});if(!result.user||result.user.id!==config.summaryUserId||result.user.team_id!==config.teamId||result.user.deleted!==false||result.user.is_bot!==false)fail('SLACK_MEMBER_INVALID');}
+        else {const result=await api('conversations.info',{channel:config.summaryChannelId});if(result.channel?.id!==config.summaryChannelId||result.channel.is_archived!==false||result.channel.is_member!==true)fail('SLACK_CHANNEL_INVALID');}
+        summaryVerifiedUntil=+clock()+5*MINUTE;
       }
+      if(config.summaryUserId){let row=(await db.query('SELECT * FROM eduson_booking.slack_notification_destinations WHERE team_id=$1 AND slack_user_id=$2',[config.teamId,config.summaryUserId])).rows[0];if(!row){await renew(job);const result=await api('conversations.open',{users:config.summaryUserId,return_im:true}),channel=result.channel;if(!DM.test(channel?.id||''))fail('SLACK_CHANNEL_INVALID');await db.query('INSERT INTO eduson_booking.slack_notification_destinations(team_id,slack_user_id,channel_id,verified_at)VALUES($1,$2,$3,$4)ON CONFLICT(team_id,slack_user_id)DO UPDATE SET channel_id=EXCLUDED.channel_id,verified_at=EXCLUDED.verified_at',[config.teamId,config.summaryUserId,channel.id,clock()]);row={channel_id:channel.id};}return row.channel_id;}
       return config.summaryChannelId;
     }
     const recipient=staff[job.manager_id];

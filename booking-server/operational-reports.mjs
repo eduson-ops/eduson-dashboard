@@ -71,7 +71,7 @@ export async function enqueueOperationalJob(tx,{kind,entityId,version,payload={}
 }
 
 export class OperationalPaymentService{
-  constructor(db,{now=()=>new Date()}={}){this.db=db;this.now=now;}
+  constructor(db,{now=()=>new Date(),amocrm=null}={}){this.db=db;this.now=now;this.amocrm=amocrm;}
   async createPayment(actor,input){
     authorized(actor);const normalized=normalizedInput(input);
     if(actor.role==='sales')demand(!normalized.managerId||normalized.managerId===actor.id,403,'Нельзя оформить оплату на другого менеджера.','FORBIDDEN');
@@ -93,6 +93,7 @@ export class OperationalPaymentService{
       const payload={...facts,managerName:manager.name,currency:'RUB'};const id=randomUUID(),at=new Date(this.now());
       const inserted=await tx.query('INSERT INTO eduson_booking.payments(id,booking_id,manager_id,created_by,idempotency_key,input_fingerprint,payload,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$8) RETURNING *',[id,normalized.bookingId,managerId,actor.id,idempotencyKey,fingerprint,JSON.stringify(payload),at]);
       for(const kind of ['payment','enrollment'])await enqueueOperationalJob(tx,{kind,entityId:id,version:1,now:at});
+      if(this.amocrm?.enqueue&&booking&&booking.state==='completed'&&booking.report_payload)await this.amocrm.enqueue(tx,{booking,event:null,action:'paid'});
       await tx.query('INSERT INTO eduson_booking.audit_events(id,booking_id,actor_id,actor_role,action,payload,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)',[randomUUID(),normalized.bookingId,actor.id,actor.role,'payment_recorded',JSON.stringify({paymentId:id,amountNet:normalized.amountNet,managerId,currency:'RUB'}),at]);
       return publicPayment(inserted.rows[0]);
     });

@@ -31,6 +31,21 @@ CREATE TABLE IF NOT EXISTS eduson_booking.operation_jobs (
 );
 CREATE INDEX IF NOT EXISTS operation_jobs_status ON eduson_booking.operation_jobs(status,created_at);
 
+CREATE TABLE IF NOT EXISTS eduson_booking.amocrm_stage_jobs (
+  id TEXT PRIMARY KEY,
+  event_id TEXT NOT NULL UNIQUE,
+  booking_id TEXT NOT NULL REFERENCES eduson_booking.bookings(id),
+  event TEXT NOT NULL CHECK (event IN ('booking.created','booking.confirmed','booking.cancelled','booking.completed','booking.paid')),
+  payload JSONB NOT NULL CHECK (jsonb_typeof(payload)='object'),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','processing','done','error')),
+  attempts INT NOT NULL DEFAULT 0,
+  last_error TEXT,
+  lease_until TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS amocrm_stage_jobs_status ON eduson_booking.amocrm_stage_jobs(status,created_at);
+
 CREATE TABLE IF NOT EXISTS eduson_booking.confirmation_history_issues (
   id TEXT PRIMARY KEY,
   sheet_row INT NOT NULL CHECK (sheet_row>1),
