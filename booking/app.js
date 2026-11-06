@@ -68,6 +68,7 @@ function applyTheme(theme) {
   try {
     localStorage.setItem(`booking.theme.${userKey}`, value);
     localStorage.setItem('booking.theme', value);
+    localStorage.setItem('eks-theme', value);
   } catch(e){}
   renderShell();
   renderContent();
@@ -77,7 +78,7 @@ function initTheme() {
   const userKey = state.user?.id || 'default';
   let saved = null;
   try {
-    saved = localStorage.getItem(`booking.theme.${userKey}`) || localStorage.getItem('booking.theme');
+    saved = localStorage.getItem(`booking.theme.${userKey}`) || localStorage.getItem('booking.theme') || localStorage.getItem('eks-theme');
   } catch(e){}
   applyTheme(saved === 'light' ? 'light' : 'dark');
 }
@@ -235,7 +236,7 @@ function renderPrototypeShell() {
     <span>${state.theme==='light' ? 'Тёмная тема' : 'Светлая тема'}</span>
   </button>
 </div>
-<div class="sidebar-bottom">${renderStaffAvatar(state.user.name,'avatar')}<div class="profile-text"><strong>${esc(state.user.name)}</strong><span>${esc(roles[state.user.role])}</span></div><button class="icon-btn logout-btn" data-action="logout" title="Выйти">${icon('trash')}</button></div></aside><main class="main"><header class="topbar"><div class="topbar-left"><span class="eyebrow">Eduson Operations</span><span class="page-title">${esc(newPageTitle())}</span></div><div class="topbar-actions"><span class="live" title="Время в Москве"><span id="moscow-clock"></span></span><button class="icon-btn" data-action="prototype-reset" aria-label="Сбросить экран">${icon('refresh')}</button></div></header>${state.config.demo?'<div class="demo-banner">Демонстрационная среда · боевые записи</div>':''}<div id="main" tabindex="-1"></div></main></div>`;
+<div class="sidebar-bottom">${renderStaffAvatar(state.user.name,'avatar')}<div class="profile-text"><strong>${esc(state.user.name)}</strong><span>${esc(roles[state.user.role])}</span></div><button class="icon-btn logout-btn" data-action="logout" title="Выйти">${icon('trash')}</button></div></aside><main class="main"><header class="topbar"><div class="topbar-left"><span class="eyebrow">Eduson Operations</span><span class="page-title">${esc(newPageTitle())}</span></div><div class="topbar-actions"><span class="live" title="Время в Москве"><span id="moscow-clock"></span></span><button class="icon-btn theme-topbar-btn" data-action="toggle-theme" title="Сменить тему оформления (Светлая / Тёмная)" aria-label="Сменить тему">${state.theme==='light' ? icon('moon') : icon('sun')}</button><button class="icon-btn" data-action="prototype-reset" aria-label="Сбросить экран">${icon('refresh')}</button></div></header>${state.config.demo?'<div class="demo-banner">Демонстрационная среда · боевые записи</div>':''}<div id="main" tabindex="-1"></div></main></div>`;
   renderTabs();setConnection(state.connected);updateMoscowClock();
 }
 

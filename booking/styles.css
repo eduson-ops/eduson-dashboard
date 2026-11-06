@@ -321,7 +321,7 @@ html[data-ui-mode="new"] body::before{
 }
 html[data-ui-mode="new"] body{background-color:var(--canvas);color:var(--ink)}
 html[data-ui-mode="new"] .app{min-height:100vh;display:grid;grid-template-columns:216px minmax(0,1fr);position:relative;z-index:1}
-html[data-ui-mode="new"] .app>.sidebar{position:relative;inset:auto;width:auto;grid-column:auto;min-height:100vh;padding:21px 14px;gap:20px;background:var(--navy);color:#e4edf9;display:flex;flex-direction:column}
+html[data-ui-mode="new"] .app>.sidebar{position:sticky;top:0;inset:auto;width:auto;grid-column:auto;min-height:100vh;max-height:100vh;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;padding:21px 14px;gap:20px;background:var(--navy);color:#e4edf9;display:flex;flex-direction:column}
 html[data-ui-mode="new"] .app>.sidebar .brand{display:flex;align-items:center;gap:10px;padding:2px 8px 16px;border-bottom:1px solid #ffffff18;color:#e8ecff;font-size:18px;letter-spacing:-.04em}
 html[data-ui-mode="new"] .app>.sidebar .brand-mark{width:32px;height:32px;border-radius:7px;background:var(--primary);display:grid;place-items:center;color:#fff;font-size:17px;font-weight:800}
 html[data-ui-mode="new"] .app>.sidebar .brand-name{font-size:18px;font-weight:760;display:block}.app>.sidebar .brand-sub{display:block;color:var(--y);font-size:10px;letter-spacing:.12em;text-transform:uppercase;margin-top:1px}
@@ -2631,33 +2631,300 @@ html[data-theme="dark"] .new-action.secondary .action-hint,
   font-size: 11px !important;
 }
 
-/* 8. Light theme support */
-html[data-theme="light"] {
+/* 8. Light theme support (Full high-contrast Obsidian light skin) */
+html[data-theme="light"],
+html[data-ui-mode="new"][data-theme="light"] {
   --bg: #f5f5f0 !important;
   --bg2: #ffffff !important;
   --bg3: #fafaf6 !important;
   --bg4: #f0efea !important;
   --bg5: #e8e7e0 !important;
-  --border: rgba(20, 20, 15, 0.08) !important;
-  --border-s: rgba(20, 20, 15, 0.14) !important;
-  --line-y: rgba(196, 144, 0, 0.30) !important;
+  --canvas: #f5f5f0 !important;
+  --surface: #ffffff !important;
+  --surface-2: #fafaf6 !important;
+  --surface-1: #ffffff !important;
+  --surface-3: #f0efea !important;
+  --navy: #ffffff !important;
+  --ink: #1a1a17 !important;
+  --text-strong: #1a1a17 !important;
   --text: #1a1a17 !important;
+  --text-main: #1a1a17 !important;
+  --text-secondary: #5a5a52 !important;
+  --text-muted: #8a8a82 !important;
   --sub: #5a5a52 !important;
   --muted: #8a8a82 !important;
   --dim: #b0b0a8 !important;
+  --border: rgba(20, 20, 15, 0.10) !important;
+  --border-s: rgba(20, 20, 15, 0.16) !important;
+  --border-strong: rgba(20, 20, 15, 0.22) !important;
+  --line: rgba(20, 20, 15, 0.10) !important;
+  --line-y: rgba(196, 144, 0, 0.30) !important;
+  --double-bezel: none !important;
+  --bezel: none !important;
+
   --y: #c49000 !important;
   --y-2: #e0a800 !important;
   --y-3: #946d00 !important;
   --y-bg: rgba(196, 144, 0, 0.08) !important;
   --y-bd: rgba(196, 144, 0, 0.25) !important;
   --y-glow: rgba(196, 144, 0, 0.16) !important;
+
   --g: #1a7a47 !important;
   --g-bg: rgba(26, 122, 71, 0.10) !important;
   --g-bd: rgba(26, 122, 71, 0.25) !important;
+
   --r: #c0392b !important;
   --r-bg: rgba(192, 57, 43, 0.10) !important;
   --r-bd: rgba(192, 57, 43, 0.25) !important;
+
   --b: #1a5fa0 !important;
   --b-bg: rgba(26, 95, 160, 0.10) !important;
   --b-bd: rgba(26, 95, 160, 0.25) !important;
+
+  --emerald: #10b981 !important;
+  --amber: #f59e0b !important;
+  --ruby: #ef4444 !important;
+}
+
+/* Light Theme Structure & Overrides */
+html[data-theme="light"] body,
+html[data-ui-mode="new"][data-theme="light"] body,
+html[data-ui-mode="new"][data-theme="light"] .app,
+html[data-ui-mode="new"][data-theme="light"] .app > .main {
+  background-color: #f5f5f0 !important;
+  background-image: none !important;
+  color: #1a1a17 !important;
+}
+
+html[data-theme="light"] body::before,
+html[data-ui-mode="new"][data-theme="light"] body::before {
+  display: none !important;
+}
+
+/* Light Sidebar */
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar {
+  background: #ffffff !important;
+  border-right: 1px solid rgba(20, 20, 15, 0.10) !important;
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .brand {
+  border-bottom-color: rgba(20, 20, 15, 0.08) !important;
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .brand-title {
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .brand-sub {
+  color: #c49000 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .prototype-nav-item {
+  color: #5a5a52 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .prototype-nav-item:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .prototype-nav-item.active {
+  background: rgba(196, 144, 0, 0.12) !important;
+  color: #946d00 !important;
+  font-weight: 700 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .nav-label {
+  color: #c49000 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .sidebar-bottom {
+  border-top-color: rgba(20, 20, 15, 0.08) !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .profile-text strong {
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .profile-text span {
+  color: #8a8a82 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .logout-btn {
+  border-color: rgba(20, 20, 15, 0.12) !important;
+  color: #8a8a82 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .logout-btn:hover {
+  background: rgba(239, 68, 68, 0.10) !important;
+  border-color: #ef4444 !important;
+  color: #dc2626 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .nav-dashboard-link {
+  background: #fafaf6 !important;
+  border-color: rgba(20, 20, 15, 0.10) !important;
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .theme-toggle-btn {
+  background: #fafaf6 !important;
+  border-color: rgba(20, 20, 15, 0.12) !important;
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .app > .sidebar .theme-toggle-btn:hover {
+  background: #f0efea !important;
+  border-color: var(--y) !important;
+}
+
+/* Light Topbar */
+html[data-ui-mode="new"][data-theme="light"] .app > .main > .topbar {
+  background: #ffffff !important;
+  border-bottom: 1px solid rgba(20, 20, 15, 0.10) !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .topbar .page-title {
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .topbar .eyebrow {
+  color: #8a8a82 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .topbar .live {
+  color: #5a5a52 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .topbar .icon-btn {
+  background: #ffffff !important;
+  border-color: rgba(20, 20, 15, 0.12) !important;
+  color: #5a5a52 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .topbar .icon-btn:hover {
+  background: #fafaf6 !important;
+  border-color: var(--y) !important;
+  color: #1a1a17 !important;
+}
+
+/* Light Cards & Panels */
+html[data-ui-mode="new"][data-theme="light"] .new-page,
+html[data-ui-mode="new"][data-theme="light"] .new-panel,
+html[data-ui-mode="new"][data-theme="light"] .new-metric-card,
+html[data-ui-mode="new"][data-theme="light"] .new-booking-card,
+html[data-ui-mode="new"][data-theme="light"] .new-management-panel,
+html[data-ui-mode="new"][data-theme="light"] .new-booking-frame,
+html[data-ui-mode="new"][data-theme="light"] .new-schedule-frame,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-layout,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-main,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-side,
+html[data-ui-mode="new"][data-theme="light"] .new-overview-hero,
+html[data-ui-mode="new"][data-theme="light"] .new-side-card,
+html[data-ui-mode="new"][data-theme="light"] .new-board-summary article,
+html[data-ui-mode="new"][data-theme="light"] .new-money-grid article,
+html[data-ui-mode="new"][data-theme="light"] .new-table-card,
+html[data-ui-mode="new"][data-theme="light"] .wizard-surface-card {
+  background: #ffffff !important;
+  border-color: rgba(20, 20, 15, 0.10) !important;
+  color: #1a1a17 !important;
+  box-shadow: 0 1px 3px rgba(20, 20, 15, 0.05) !important;
+}
+
+/* Light Headings & Text */
+html[data-ui-mode="new"][data-theme="light"] .new-page-heading h1,
+html[data-ui-mode="new"][data-theme="light"] .new-panel-heading h2,
+html[data-ui-mode="new"][data-theme="light"] h1,
+html[data-ui-mode="new"][data-theme="light"] h2,
+html[data-ui-mode="new"][data-theme="light"] h3,
+html[data-ui-mode="new"][data-theme="light"] strong,
+html[data-ui-mode="new"][data-theme="light"] b,
+html[data-ui-mode="new"][data-theme="light"] .new-metric-card strong,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-row strong,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-manager strong,
+html[data-ui-mode="new"][data-theme="light"] .new-queue-person strong,
+html[data-ui-mode="new"][data-theme="light"] .new-queue-time strong,
+html[data-ui-mode="new"][data-theme="light"] .new-booking-title strong,
+html[data-ui-mode="new"][data-theme="light"] .new-booking-time strong {
+  color: #1a1a17 !important;
+}
+
+html[data-ui-mode="new"][data-theme="light"] .new-page-heading p,
+html[data-ui-mode="new"][data-theme="light"] .new-panel-heading p,
+html[data-ui-mode="new"][data-theme="light"] p,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-side > p,
+html[data-ui-mode="new"][data-theme="light"] .new-metric-card span {
+  color: #5a5a52 !important;
+}
+
+/* Light Tables & Rows */
+html[data-ui-mode="new"][data-theme="light"] .new-load-row,
+html[data-ui-mode="new"][data-theme="light"] .new-queue-row,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-row,
+html[data-ui-mode="new"][data-theme="light"] .new-money-row {
+  border-top-color: rgba(20, 20, 15, 0.08) !important;
+  color: #1a1a17 !important;
+}
+
+html[data-ui-mode="new"][data-theme="light"] .new-load-row:hover,
+html[data-ui-mode="new"][data-theme="light"] .new-queue-row:hover,
+html[data-ui-mode="new"][data-theme="light"] .new-drawer-row:hover {
+  background: rgba(20, 20, 15, 0.02) !important;
+}
+
+html[data-ui-mode="new"][data-theme="light"] .new-table-card th,
+html[data-ui-mode="new"][data-theme="light"] .new-load-table th,
+html[data-ui-mode="new"][data-theme="light"] .matrix-table th {
+  background: #fafaf6 !important;
+  color: #5a5a52 !important;
+  border-color: rgba(20, 20, 15, 0.08) !important;
+}
+
+html[data-ui-mode="new"][data-theme="light"] .new-table-card td,
+html[data-ui-mode="new"][data-theme="light"] .new-load-table td,
+html[data-ui-mode="new"][data-theme="light"] .matrix-table td {
+  border-color: rgba(20, 20, 15, 0.08) !important;
+  color: #1a1a17 !important;
+}
+
+/* Light Inputs & Dialogs */
+html[data-ui-mode="new"][data-theme="light"] input,
+html[data-ui-mode="new"][data-theme="light"] select,
+html[data-ui-mode="new"][data-theme="light"] textarea {
+  background: #ffffff !important;
+  border: 1px solid rgba(20, 20, 15, 0.18) !important;
+  color: #1a1a17 !important;
+}
+
+html[data-ui-mode="new"][data-theme="light"] input:focus,
+html[data-ui-mode="new"][data-theme="light"] select:focus,
+html[data-ui-mode="new"][data-theme="light"] textarea:focus {
+  border-color: #c49000 !important;
+  outline: 2px solid rgba(196, 144, 0, 0.25) !important;
+}
+
+html[data-ui-mode="new"][data-theme="light"] dialog {
+  background: #ffffff !important;
+  border-color: rgba(20, 20, 15, 0.16) !important;
+  color: #1a1a17 !important;
+  box-shadow: 0 16px 48px rgba(20, 20, 15, 0.15) !important;
+}
+
+/* Light Secondary Actions */
+html[data-ui-mode="new"][data-theme="light"] .new-action.secondary,
+html[data-theme="light"] .new-action.secondary {
+  background: #fafaf6 !important;
+  border-color: rgba(20, 20, 15, 0.14) !important;
+  color: #1a1a17 !important;
+}
+html[data-ui-mode="new"][data-theme="light"] .new-action.secondary:hover,
+html[data-theme="light"] .new-action.secondary:hover {
+  background: #f0efea !important;
+  border-color: rgba(20, 20, 15, 0.22) !important;
+  color: #1a1a17 !important;
+}
+
+/* Topbar Theme Toggle Button */
+.topbar .theme-topbar-btn {
+  width: 36px !important;
+  height: 36px !important;
+  display: grid !important;
+  place-items: center !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 9px !important;
+  background: var(--surface) !important;
+  color: var(--muted) !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+.topbar .theme-topbar-btn:hover {
+  background: var(--surface-2) !important;
+  color: var(--y) !important;
+  border-color: var(--y) !important;
+}
+.topbar .theme-topbar-btn svg {
+  width: 17px !important;
+  height: 17px !important;
 }
