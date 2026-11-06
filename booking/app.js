@@ -204,13 +204,24 @@ function renderShell() {
 function renderPrototypeShell() {
   const nav=(view,name,label)=>prototypeNavItem(view,name,label);
   const primary=[];
-  if(isAdmin())primary.push(nav('admin','chart','Control tower'),nav('booking','plus','Запись КЦ'),nav('confirmation','clock','Подтверждение'),nav('active','play','Мой день МИМК'),nav('schedule','calendar','Расписание'),nav('report','file','Отчёт и оплата'));
+  if(isAdmin())primary.push(nav('admin','chart','Админка'),nav('booking','plus','Запись КЦ'),nav('confirmation','clock','Подтверждение'),nav('active','play','Мой день МИМК'),nav('schedule','calendar','Расписание'),nav('report','file','Отчёт и оплата'));
   else if(state.user.role==='call_center')primary.push(nav('booking','plus','Запись КЦ'),nav('active','play','Текущие и будущие'),nav('completed','file','Завершённые'));
   else if(state.user.role==='confirmation')primary.push(nav('booking','plus','Запись КЦ'),nav('confirmation','clock','Подтверждение'),nav('active','play','Текущие и будущие'),nav('completed','file','Завершённые'),nav('compensation','chart','Начисления'));
   else primary.push(nav('active','play','Мой день МИМК'),nav('schedule','calendar','Расписание'),nav('completed','file','Завершённые'),nav('report','file','Отчёт и оплата'));
   const formats='';
   const system=isAdmin()?`<div class="nav-label">Управление</div>${nav('users','users','Сотрудники')}${nav('trash','trash','Отмены')}`:'';
-  app.innerHTML=`<div class="app"><aside class="sidebar" aria-label="Основная навигация"><a class="brand" href="#${esc(defaultView())}"><span class="brand-mark">e</span><span><strong class="brand-name">eduson</strong><small class="brand-sub">operations</small></span></a><nav class="nav" aria-label="Разделы">${primary.join('')}${formats}${system}</nav><div class="sidebar-bottom">${renderStaffAvatar(state.user.name,'avatar')}<div class="profile-text"><strong>${esc(state.user.name)}</strong><span>${esc(roles[state.user.role])}</span></div><button class="icon-btn logout-btn" data-action="logout" title="Выйти">${icon('trash')}</button></div></aside><main class="main"><header class="topbar"><div class="topbar-left"><span class="eyebrow">Eduson Operations</span><span class="page-title">${esc(newPageTitle())}</span></div><div class="topbar-actions"><span class="live" title="Время в Москве"><span class="connection-dot"></span> <span id="moscow-clock"></span></span><button class="icon-btn" data-action="prototype-reset" aria-label="Сбросить экран">${icon('refresh')}</button></div></header>${state.config.demo?'<div class="demo-banner">Демонстрационная среда · боевые записи</div>':''}<div id="main" tabindex="-1"></div></main></div>`;
+  app.innerHTML=`<div class="app"><aside class="sidebar" aria-label="Основная навигация"><a class="brand brand-booking" href="#${esc(defaultView())}"><span class="brand-title">BOOKING</span><small class="brand-sub">EDUSON OPERATIONS</small></a><nav class="nav" aria-label="Разделы">${primary.join('')}${formats}${system}</nav><div class="sidebar-nav-extra">
+  <a class="nav-link nav-dashboard-link" href="/dashboard" target="_blank" rel="noopener" title="Перейти в дашборд аналитики">
+    <span class="nav-emoji" aria-hidden="true">📊</span>
+    <span>Аналитика</span>
+    <span class="ext-badge">↗</span>
+  </a>
+  <button type="button" class="theme-toggle-btn" data-action="toggle-theme" title="Сменить тему оформления">
+    <span class="theme-icon" aria-hidden="true">${state.theme==='light'?'🌙':'☀️'}</span>
+    <span>${state.theme==='light'?'Тёмная тема':'Светлая тема'}</span>
+  </button>
+</div>
+<div class="sidebar-bottom">${renderStaffAvatar(state.user.name,'avatar')}<div class="profile-text"><strong>${esc(state.user.name)}</strong><span>${esc(roles[state.user.role])}</span></div><button class="icon-btn logout-btn" data-action="logout" title="Выйти">${icon('trash')}</button></div></aside><main class="main"><header class="topbar"><div class="topbar-left"><span class="eyebrow">Eduson Operations</span><span class="page-title">${esc(newPageTitle())}</span></div><div class="topbar-actions"><span class="live" title="Время в Москве"><span id="moscow-clock"></span></span><button class="icon-btn" data-action="prototype-reset" aria-label="Сбросить экран">${icon('refresh')}</button></div></header>${state.config.demo?'<div class="demo-banner">Демонстрационная среда · боевые записи</div>':''}<div id="main" tabindex="-1"></div></main></div>`;
   renderTabs();setConnection(state.connected);updateMoscowClock();
 }
 
@@ -344,7 +355,7 @@ function renderContent() {
 }
 
 function newPageTitle() {
-  const labels={overview:'Состояние уроков',booking:'Запись ученика',admin:'Control tower',active:isSales()?'Мой день':'Текущие и будущие',completed:'Завершённые',confirmation:'Очередь подтверждения',schedule:'Расписание',compensation:'Начисления',payments:'Оплаты',users:'Сотрудники',trash:'Отмены',report:'Отчёт и оплата',drawer:'Детализация часа',mobile:'Mobile first'};
+  const labels={overview:'Состояние уроков',booking:'Запись ученика',admin:'Админка',active:isSales()?'Мой день':'Текущие и будущие',completed:'Завершённые',confirmation:'Очередь подтверждения',schedule:'Расписание',compensation:'Начисления',payments:'Оплаты',users:'Сотрудники',trash:'Отмены',report:'Отчёт и оплата',drawer:'Детализация часа',mobile:'Mobile first'};
   return labels[state.view]||'Booking';
 }
 
@@ -380,7 +391,7 @@ function renderNewSalesDay() {
   const currentLabel = current?.state === 'in_progress' ? 'Урок в работе' : 'Ближайший урок';
   const hero = current ? `<article class="new-hero"><div class="new-hero-kicker">${currentLabel}</div><div class="new-hero-time">${esc(wizardTimeLabel(current.time))}</div><h2>${esc(studentName(current))}, ${esc(studentAge(current))}</h2><p>${dateText(current.date)} · 60 минут · Индивидуальный мастер-класс</p><div class="new-hero-facts" aria-label="Факты урока"><span class="new-fact-icon" title="${current.hasPc===true?'Компьютер есть':'Компьютер не указан'}">${icon('monitor')}</span><span class="new-fact-icon" title="${current.parentPresent===true?'Родитель будет':'Родитель не указан'}">${icon('users')}</span>${current.crmUrl ? `<span style="margin-left:8px">${externalLink(current.crmUrl, 'Amo CRM', 'new-inline-link')}</span>` : ''}</div><div class="new-hero-actions">${newSalesActions(current)}</div></article>` : '<article class="new-hero new-empty"><div class="new-hero-kicker">Сегодня</div><h2>Свободных уроков нет</h2><p>Новые назначения появятся здесь автоматически при подтверждении записей.</p></article>';
   const rows = next.map(booking => `<article class="new-lesson-row"><strong>${esc(booking.time)}</strong><div><b>${esc(studentName(booking))} · ${esc(studentAge(booking))}</b><span>${esc(dateText(booking.date))} · ${booking.assignmentKind==='reserve'?'Резерв':'Основной'}</span></div><span class="status ${booking.assignmentKind==='reserve'?'reserve':'confirmed'}">${booking.assignmentKind==='reserve'?'Резерв':'Подтверждён'}</span></article>`).join('');
-  return `<section class="new-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>${esc(newPageTitle())}</h1><p>${esc(newPageSubtitle())}</p></div><span class="new-live">Live</span></header>${managerPicker}<div class="new-board-summary"><article><span>Всего уроков</span><strong>${assigned.length}</strong></article><article><span>Подтверждено</span><strong>${confirmedCount}</strong></article><article><span>В работе</span><strong>${inProgressCount}</strong></article><article><span>Ждут отчёта</span><strong>${uncompletedReportsCount}</strong></article></div><div class="new-sales-grid"><div>${hero}<div class="new-section-heading"><h2>Следующие слоты</h2><span>${next.length}</span></div><div class="new-lesson-list">${rows || '<div class="new-empty-row">Следующих уроков пока нет.</div>'}</div></div><aside class="new-side-card"><h2>Действия МИМК</h2><p>Проведение занятий и отправка отчётов сразу после завершения.</p><div class="new-kpi-list"><div><span>В работе</span><strong>${inProgressCount}</strong></div><div><span>Назначено</span><strong>${assigned.length}</strong></div><div><span>Без отчёта</span><strong>${uncompletedReportsCount}</strong></div></div><button class="new-action secondary" data-view="completed">Открыть историю уроков</button></aside></div></section>`;
+  return `<section class="new-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>${esc(newPageTitle())}</h1><p>${esc(newPageSubtitle())}</p></div></header>${managerPicker}<div class="new-board-summary"><article><span>Всего уроков</span><strong>${assigned.length}</strong></article><article><span>Подтверждено</span><strong>${confirmedCount}</strong></article><article><span>В работе</span><strong>${inProgressCount}</strong></article><article><span>Ждут отчёта</span><strong>${uncompletedReportsCount}</strong></article></div><div class="new-sales-grid"><div>${hero}<div class="new-section-heading"><h2>Следующие слоты</h2><span>${next.length}</span></div><div class="new-lesson-list">${rows || '<div class="new-empty-row">Следующих уроков пока нет.</div>'}</div></div><aside class="new-side-card"><h2>Действия МИМК</h2><p>Проведение занятий и отправка отчётов сразу после завершения.</p><div class="new-kpi-list"><div><span>В работе</span><strong>${inProgressCount}</strong></div><div><span>Назначено</span><strong>${assigned.length}</strong></div><div><span>Без отчёта</span><strong>${uncompletedReportsCount}</strong></div></div><button class="new-action secondary" data-view="completed">Открыть историю уроков</button></aside></div></section>`;
 }
 
 function renderNewOverview() {
@@ -432,6 +443,7 @@ function renderNewAdminExact() {
     const res=Number(hour.reserve||0);
     const held=Number(hour.capacityHeld||0);
     const capSlots=Math.max(Number(hour.managers||0),Number(hour.capacity||0),1);
+    const isEmpty = total === 0;
     const meterPct=overloaded?100:total>0?Math.min(100,Math.round(total/capSlots*100)):0;
     const meterTone=overloaded?'danger':total>=capSlots?'full':total>0?'active':'empty';
 
@@ -449,9 +461,10 @@ function renderNewAdminExact() {
       managersHtml=`<span class="tower-manager-badge none">Нет МИМК</span>`;
     }
 
-    let statusText='Свободен';
+    let statusText=isEmpty?'нет записей':'Свободен';
     let statusTone='neutral';
-    if(held>0){statusText='Нужен МИМК';statusTone='danger';}
+    if(isEmpty){statusText='нет записей';statusTone='empty';}
+    else if(held>0){statusText='Нужен МИМК';statusTone='danger';}
     else if(overloaded){statusText='Перегруз';statusTone='danger';}
     else if(isCurrent){statusText='● В эфире';statusTone='live';}
     else if(total>0&&conf>=total){statusText='Готов';statusTone='success';}
@@ -459,20 +472,20 @@ function renderNewAdminExact() {
 
     const currentBadge=isCurrent?'<span class="tower-radar-badge"><span class="radar-dot"></span>Сейчас</span>':'';
 
-    return `<div class="new-load-row${attention?' attention':''}${isCurrent?' is-current-hour':''}" data-action="hour" data-time="${esc(hour.time)}">
+    return `<div class="new-load-row${isEmpty?' is-empty-hour':''}${attention?' attention':''}${isCurrent?' is-current-hour':''}" data-action="hour" data-time="${esc(hour.time)}">
       <div class="col-time"><button class="new-hour-label" data-action="hour" data-time="${esc(hour.time)}" aria-label="Открыть час ${esc(hour.time)}">${esc(hour.time)}</button>${currentBadge}</div>
       <div class="col-meter">
-        <div class="tower-meter">
+        ${isEmpty ? '<div class="tower-meter empty-meter"><span class="tower-meter-label muted-text">нет записей</span></div>' : `<div class="tower-meter">
           <div class="tower-meter-track"><div class="tower-meter-fill ${meterTone}" style="width:${meterPct}%"></div></div>
           <span class="tower-meter-label ${overloaded?'danger':''}">${total} / ${capSlots} слотов</span>
-        </div>
+        </div>`}
       </div>
       <div class="col-num">${total>0?`<button class="new-load-value pill-total" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="total" aria-label="Записано: ${total}">● ${total}</button>`:'<span class="matrix-empty">—</span>'}</div>
       <div class="col-num">${conf>0?`<button class="new-load-value pill-confirmed" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="confirmed" aria-label="Подтверждено: ${conf}">✓ ${conf}</button>`:'<span class="matrix-empty">—</span>'}</div>
-      <div class="col-managers">${managersHtml}</div>
+      <div class="col-managers">${isEmpty ? '<span class="tower-manager-badge none">—</span>' : managersHtml}</div>
       <div class="col-num">${res>0?`<button class="new-load-value pill-reserve has-val" data-action="hour-metric" data-time="${esc(hour.time)}" data-metric="reserve">⚠ ${res}</button>`:'<span class="matrix-empty">—</span>'}</div>
       <div class="col-status"><span class="status-chip ${statusTone}">${esc(statusText)}</span></div>
-      <div class="col-action"><button class="tower-row-btn" data-action="hour" data-time="${esc(hour.time)}">Детализация →</button></div>
+      <div class="col-action"><button class="tower-row-btn${isEmpty?' secondary':''}" data-action="hour" data-time="${esc(hour.time)}">Детализация →</button></div>
     </div>`;
   }).join('');
 
@@ -487,17 +500,17 @@ function renderNewAdminExact() {
     <header class="new-page-heading">
       <div>
         <span class="new-eyebrow">Администратор</span>
-        <h1>Control tower</h1>
+        <h1>Админка</h1>
         <p>Сводная матрица загрузки команды по часам дня. Нажмите на строку для детализации часа.</p>
       </div>
       <div class="new-heading-actions">
         <button class="new-admin-button" data-action="prototype-hour">Детализация часа</button>
-        <div class="new-admin-live"><span class="connection-dot"></span> Live</div>
+        
       </div>
     </header>
     <div class="new-admin-toolbar">
       <label><span>Дата</span><input type="date" id="admin-date" aria-label="Дата статистики" value="${esc(state.adminDate)}"></label>
-      <label class="age-filter-control"><span>Возраст</span><select id="admin-tag" class="sr-only" aria-label="Фильтр по возрастному тегу"><option value="">Все возраста</option>${ageFilterGroups.map(group=>`<option value="${ageFilterTag(group)}"${selected(state.tag,ageFilterTag(group))}>${group}</option>`).join('')}</select><div class="age-filter-bar" role="group" aria-label="Возраст ученика"><button type="button" class="age-filter-chip${!state.tag?' selected':''}" data-action="admin-age-filter" data-tag="" aria-pressed="${!state.tag}">Все</button>${ageFilterGroups.map(group=>`<button type="button" class="age-filter-chip${state.tag===ageFilterTag(group)?' selected':''}" data-action="admin-age-filter" data-tag="${esc(group)}" aria-pressed="${state.tag===ageFilterTag(group)}">${group}</button>`).join('')}</div></label>
+      <input type="hidden" id="admin-tag" value="">
       <span class="new-admin-toolbar-spacer"></span>
       <button class="new-admin-button" data-action="create">+ Записать на мастер-класс</button>
       <button class="new-admin-refresh" data-action="refresh" aria-label="Обновить статистику">${icon('refresh')}</button>
@@ -551,7 +564,7 @@ function renderNewAdminExact() {
             <h2>Нагрузка команды по часам</h2>
             <p>Сводная матрица слотов, открытых МИМК и текущего статуса дня по Москве.</p>
           </div>
-          <span class="new-panel-live"><span class="connection-dot"></span> Live</span>
+          
         </div>
         <div class="new-load-head">
           <span class="col-time">Время</span>
@@ -613,7 +626,7 @@ function renderNewDrawerExact() {
     const isPrimary=manager.id===hour.allocations?.find(item=>item.kind==='primary')?.managerId;
     return `<article class="new-drawer-manager">${renderStaffAvatar(manager.name,'new-manager-avatar')}<div><strong>${esc(manager.name)}</strong><span>Открыто ${esc(time)}</span></div><span class="status-chip ${isPrimary?'success':'neutral'}">${isPrimary?'Основной':'Свободен'}</span></article>`;
   }).join('');
-  return `<section class="new-page new-drawer-page"><header class="new-page-heading"><div><span class="new-eyebrow">Администратор</span><h1>Детализация часа · ${esc(time)}</h1><p>Список записанных учеников, capacity и оперативное назначение МИМК.</p></div><div class="new-heading-actions"><a class="new-action secondary" href="#admin">← В Control tower</a><span class="new-status-pill">${esc(time)} · ${Number(hour.capacityHeld||0)>0?'внимание':'в норме'}</span></div></header>${hourRibbon?`<div class="drawer-ribbon">${hourRibbon}</div>`:''}<div class="new-drawer-layout"><section class="new-panel new-drawer-main"><div class="new-panel-heading"><div><h2>${esc(time)} · ${dateText(state.adminDate)}</h2><p>Ученики, распределённые на этот час.</p></div><button class="new-action secondary" data-action="export-hour" data-time="${esc(time)}">Экспорт CSV</button></div><div class="new-drawer-stats"><div><span>Записи</span><strong>${Number(hour.total||bookings.length)}</strong></div><div><span>Подтверждено</span><strong>${Number(hour.confirmed||bookings.filter(item=>item.confirmationStatus==='confirmed').length)}</strong></div><div><span>МИМК открыто</span><strong>${Number(hour.managers||0)}</strong></div><div><span>Резерв</span><strong>${Number(hour.reserve||0)}</strong></div></div><div class="new-drawer-list">${list||'<div class="new-empty-board"><strong>Записей на этот час нет</strong></div>'}</div></section><aside class="new-panel new-drawer-side"><h2>Назначение МИМК</h2><p>Администратор закрепляет ответственного менеджера.</p><span class="new-drawer-label">Открытые МИМК</span>${managerRows||'<div class="new-empty-board"><strong>Открытых МИМК нет</strong></div>'}<div class="new-drawer-actions"><button class="new-admin-button" data-action="reassign-drawer" data-time="${esc(time)}">Переназначить</button><button class="new-capacity-button" data-action="reserve-drawer" data-time="${esc(time)}">Оставить резерв</button></div></aside></div></section>`;
+  return `<section class="new-page new-drawer-page"><header class="new-page-heading"><div><span class="new-eyebrow">Администратор</span><h1>Детализация часа · ${esc(time)}</h1><p>Список записанных учеников, capacity и оперативное назначение МИМК.</p></div><div class="new-heading-actions"><a class="new-action secondary" href="#admin">← В Админку</a><span class="new-status-pill">${esc(time)} · ${Number(hour.capacityHeld||0)>0?'внимание':'в норме'}</span></div></header>${hourRibbon?`<div class="drawer-ribbon">${hourRibbon}</div>`:''}<div class="new-drawer-layout"><section class="new-panel new-drawer-main"><div class="new-panel-heading"><div><h2>${esc(time)} · ${dateText(state.adminDate)}</h2><p>Ученики, распределённые на этот час.</p></div><button class="new-action secondary" data-action="export-hour" data-time="${esc(time)}">Экспорт CSV</button></div><div class="new-drawer-stats"><div><span>Записи</span><strong>${Number(hour.total||bookings.length)}</strong></div><div><span>Подтверждено</span><strong>${Number(hour.confirmed||bookings.filter(item=>item.confirmationStatus==='confirmed').length)}</strong></div><div><span>МИМК открыто</span><strong>${Number(hour.managers||0)}</strong></div><div><span>Резерв</span><strong>${Number(hour.reserve||0)}</strong></div></div><div class="new-drawer-list">${list||'<div class="new-empty-board"><strong>Записей на этот час нет</strong></div>'}</div></section><aside class="new-panel new-drawer-side"><h2>Назначение МИМК</h2><p>Администратор закрепляет ответственного менеджера.</p><span class="new-drawer-label">Открытые МИМК</span>${managerRows||'<div class="new-empty-board"><strong>Открытых МИМК нет</strong></div>'}<div class="new-drawer-actions"><button class="new-admin-button" data-action="reassign-drawer" data-time="${esc(time)}">Переназначить</button><button class="new-capacity-button" data-action="reserve-drawer" data-time="${esc(time)}">Оставить резерв</button></div></aside></div></section>`;
 }
 
 function renderNewConfirmation() {
@@ -632,7 +645,7 @@ function renderNewConfirmation() {
     return `<article class="new-queue-row ${timing.overdue?'is-overdue':'is-pending'}"><div class="new-queue-time"><strong>${esc(booking.time)}</strong><span>${dateText(booking.date)} · 60 мин</span><span class="new-queue-deadline${timing.overdue?' overdue':''}">${timing.overdue?'Дедлайн прошёл':'Подтвердить до'} ${timeStamp(booking.confirmationDueAt)}</span></div><div class="new-queue-person"><strong>${esc(studentName(booking))} · ${esc(studentAge(booking))}</strong><span>${esc(booking.parentName||'Родитель не указан')}${phone?` · ${esc(booking.phone)}`:''}</span><div class="new-queue-facts">${ageChip}${pcChip}${parentChip}</div></div><div class="new-queue-actions">${actions}</div></article>`;
   }).join('');
   const managers=(state.managers||[]).filter(manager=>manager.active!==false).slice(0,5).map(manager=>`<div class="new-manager-row">${renderStaffAvatar(manager.name,'new-manager-avatar')}<div><strong>${esc(manager.name)}</strong><small>Открытое расписание</small></div><span class="new-manager-tag">МИМК</span></div>`).join('');
-  return `<section class="new-page new-confirmation-page"><header class="new-page-heading"><div><span class="new-eyebrow">Менеджер подтверждения</span><h1>Очередь подтверждения</h1><p>Подтверждение мастер-классов до дедлайна (за 2 часа до начала).</p></div><button class="new-filter-button" data-action="refresh">${icon('refresh')} Обновить</button></header><div class="new-admin-toolbar new-confirmation-toolbar"><label><span>Дата</span><input type="date" id="booking-date" aria-label="Дата мастер-класса" value="${esc(state.date)}"></label><span class="new-admin-toolbar-spacer"></span><span class="new-sla-note">Подтверждать можно заранее · дедлайн за 2 часа</span></div><div class="new-metric-grid new-confirmation-metrics">${metric('К подтверждению',pending,pending?'Ближайший дедлайн в очереди':'Очередь пуста',pending?'warning':'success')}${metric('Подтверждено',confirmedToday,'за выбранный день','success')}${metric('В резерве',reserve,reserve?'Нужна проверка capacity':'резервов нет',reserve?'warning':'')}${metric('Правило SLA','2 ч','до начала урока','success')}</div><div class="new-confirmation-grid"><section class="new-panel new-queue-panel"><div class="new-panel-heading"><div><h2>Уроки в очереди</h2><p>Подтвердите запись или перенесите её до дедлайна.</p></div><span class="new-panel-live"><span class="connection-dot"></span> Live</span></div><div class="new-queue-list">${queue||'<div class="new-exception-empty">Все доступные записи обработаны.</div>'}</div></section><aside class="new-panel new-rule-panel"><div class="new-panel-heading"><div><h2>Правило подтверждения</h2><p>Автоматическое закрепление за МИМК.</p></div><span class="new-manager-tag">Авто</span></div><div class="new-manager-list">${managers||'<div class="new-exception-empty">Открытых МИМК пока нет.</div>'}</div><button class="new-capacity-button" data-view="admin">Открыть capacity</button></aside></div></section>`;
+  return `<section class="new-page new-confirmation-page"><header class="new-page-heading"><div><span class="new-eyebrow">Менеджер подтверждения</span><h1>Очередь подтверждения</h1><p>Подтверждение мастер-классов до дедлайна (за 2 часа до начала).</p></div><button class="new-filter-button" data-action="refresh">${icon('refresh')} Обновить</button></header><div class="new-admin-toolbar new-confirmation-toolbar"><label><span>Дата</span><input type="date" id="booking-date" aria-label="Дата мастер-класса" value="${esc(state.date)}"></label><span class="new-admin-toolbar-spacer"></span><span class="new-sla-note">Подтверждать можно заранее · дедлайн за 2 часа</span></div><div class="new-metric-grid new-confirmation-metrics">${metric('К подтверждению',pending,pending?'Ближайший дедлайн в очереди':'Очередь пуста',pending?'warning':'success')}${metric('Подтверждено',confirmedToday,'за выбранный день','success')}${metric('В резерве',reserve,reserve?'Нужна проверка capacity':'резервов нет',reserve?'warning':'')}${metric('Правило SLA','2 ч','до начала урока','success')}</div><div class="new-confirmation-grid"><section class="new-panel new-queue-panel"><div class="new-panel-heading"><div><h2>Уроки в очереди</h2><p>Подтвердите запись или перенесите её до дедлайна.</p></div></div><div class="new-queue-list">${queue||'<div class="new-exception-empty">Все доступные записи обработаны.</div>'}</div></section><aside class="new-panel new-rule-panel"><div class="new-panel-heading"><div><h2>Правило подтверждения</h2><p>Автоматическое закрепление за МИМК.</p></div><span class="new-manager-tag">Авто</span></div><div class="new-manager-list">${managers||'<div class="new-exception-empty">Открытых МИМК пока нет.</div>'}</div><button class="new-capacity-button" data-view="admin">Открыть capacity</button></aside></div></section>`;
 }
 
 function newBookingActions(booking) {
@@ -662,7 +675,7 @@ function renderNewBookingBoard(view) {
   const summaryBlock = isTrash
     ? `<div class="new-board-summary"><article><span>Всего отмен</span><strong style="color:#f87171">${counts.all}</strong></article><article><span>Клиентский отказ</span><strong>${bookings.filter(b=>/клиент|отказ|не приш|no-show/i.test(b.cancelReason||'')).length}</strong></article><article><span>Перезаписано</span><strong style="color:#34d399">${bookings.filter(b=>b.cancelReason?.includes('Перезапись')).length}</strong></article><article><span>Другие причины</span><strong>${bookings.filter(b=>!/клиент|отказ|не приш|no-show|перезапись/i.test(b.cancelReason||'')).length}</strong></article></div>`
     : `<div class="new-board-summary"><article><span>Записей</span><strong>${counts.all}</strong></article><article><span>Подтверждено</span><strong>${counts.confirmed}</strong></article><article><span>${view==='completed'?'Проведено':'В работе'}</span><strong>${view==='completed'?counts.completed:counts.inProgress}</strong></article><article><span>Отчётов</span><strong>${counts.reported}</strong></article></div>`;
-  return `<section class="new-page new-board-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>${esc(newPageTitle())}</h1><p>${esc(newPageSubtitle())}</p></div><span class="new-live">Live</span></header>${toolbar}${summaryBlock}<section class="new-booking-list">${cards||`<div class="new-empty-board"><strong>${isTrash?'Отменённых записей нет':'Записей пока нет'}</strong><span>${isTrash?'Здесь отображаются отменённые уроки с кнопкой быстрой перезаписи.':'Измените дату или дождитесь новых событий.'}</span></div>`}</section></section>`;
+  return `<section class="new-page new-board-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>${esc(newPageTitle())}</h1><p>${esc(newPageSubtitle())}</p></div></header>${toolbar}${summaryBlock}<section class="new-booking-list">${cards||`<div class="new-empty-board"><strong>${isTrash?'Отменённых записей нет':'Записей пока нет'}</strong><span>${isTrash?'Здесь отображаются отменённые уроки с кнопкой быстрой перезаписи.':'Измените дату или дождитесь новых событий.'}</span></div>`}</section></section>`;
 }
 
 function renderNewUsersExact() {
@@ -675,13 +688,13 @@ function renderNewUsersExact() {
     const cards=groupUsers.map(user=>`<article class="new-staff-card">${renderStaffAvatar(user.name,'new-manager-avatar')}<div><strong>${esc(user.name)}</strong><span>${esc(user.email)}</span><small>${esc(roles[user.role]||user.role)}</small></div><span class="new-staff-status ${user.active?'active':'disabled'}">${user.active?'Активен':'Отключён'}</span><button class="new-action secondary" data-action="edit-user" data-id="${esc(user.id)}">Изменить</button></article>`).join('');
     return `<div class="staff-role-group"><h3 class="staff-role-heading">${esc(roleTitles[roleKey]||roleKey)} <span class="staff-count">(${groupUsers.length})</span></h3><div class="new-staff-list">${cards}</div></div>`;
   }).join('');
-  return `<section class="new-page new-management-page"><header class="new-page-heading"><div><span class="new-eyebrow">Администратор</span><h1>Сотрудники</h1><p>Доступы, роли и возрастные группы команды.</p></div><button class="new-admin-button" data-action="create-user">+ Добавить сотрудника</button></header><section class="new-management-panel"><div class="new-panel-heading"><div><h2>Команда Booking</h2><p>${cleanUsers.length} активных сотрудников</p></div><span class="new-panel-live"><span class="connection-dot"></span> Live</span></div>${sections||'<div class="new-empty-board"><strong>Сотрудники не найдены</strong></div>'}</section></section>`;
+  return `<section class="new-page new-management-page"><header class="new-page-heading"><div><span class="new-eyebrow">Администратор</span><h1>Сотрудники</h1><p>Доступы, роли и возрастные группы команды.</p></div><button class="new-admin-button" data-action="create-user">+ Добавить сотрудника</button></header><section class="new-management-panel"><div class="new-panel-heading"><div><h2>Команда Booking</h2><p>${cleanUsers.length} активных сотрудников</p></div></div>${sections||'<div class="new-empty-board"><strong>Сотрудники не найдены</strong></div>'}</section></section>`;
 }
 
 function renderNewCompensationExact() {
   const data=state.compensation||{},rows=(data.rows||[]).filter(row=>!state.compensationManager||row.managerId===state.compensationManager),money=value=>`${Number(value||0).toLocaleString('ru-RU')} ₽`,sum=field=>rows.reduce((total,row)=>total+Number(row[field]||0),0);
   const cards=(data.bookings||[]).filter(row=>!state.compensationManager||row.managerId===state.compensationManager).map(row=>`<article class="new-money-row"><div><strong>${esc(row.studentName||'Имя не указано')}</strong><span>${dateText(row.date)} · ${esc(row.time)}</span></div><div><small>Подтверждение</small><strong>${money(row.confirmationAmount)}</strong></div><div><small>Посещение</small><strong>${money(row.attendanceAmount)}</strong></div><div><small>Всего</small><strong>${money(row.total)}</strong></div></article>`).join('');
-  return `<section class="new-page new-management-page"><header class="new-page-heading"><div><span class="new-eyebrow">Менеджер подтверждения</span><h1>Начисления</h1><p>100 ₽ за подтверждение и 200 ₽ за посещённый урок.</p></div><span class="new-live">Live</span></header><div class="new-board-toolbar"><label><span>Период с</span><input type="date" id="compensation-from" aria-label="Начисления с" value="${esc(state.compensationFrom)}"></label><label><span>по</span><input type="date" id="compensation-to" aria-label="Начисления по" value="${esc(state.compensationTo)}"></label>${isAdmin()?`<label><span>Менеджер</span><select id="compensation-manager" aria-label="Менеджер подтверждения"><option value="">Все менеджеры</option>${(data.rows||[]).map(row=>`<option value="${esc(row.managerId)}"${selected(state.compensationManager,row.managerId)}>${esc(row.managerName)}</option>`).join('')}</select></label>`:''}<button class="new-admin-refresh" data-action="refresh" aria-label="Обновить начисления">${icon('refresh')}</button></div><div class="new-money-grid"><article><span>За подтверждение</span><strong>${money(sum('confirmationAmount'))}</strong><small>${sum('confirmedCount')} записей</small></article><article><span>За посещение</span><strong>${money(sum('attendanceAmount'))}</strong><small>${sum('attendedCount')} уроков</small></article><article><span>Всего за период</span><strong>${money(sum('total'))}</strong><small>${dateText(state.compensationFrom)} – ${dateText(state.compensationTo)}</small></article></div><section class="new-management-panel"><div class="new-panel-heading"><div><h2>По записям</h2><p>Начисление закрепляется за фактическим подтверждением.</p></div></div><div class="new-money-list">${cards||'<div class="new-empty-board"><strong>Начислений нет</strong><span>Измените период или дождитесь новых подтверждений.</span></div>'}</div></section></section>`;
+  return `<section class="new-page new-management-page"><header class="new-page-heading"><div><span class="new-eyebrow">Менеджер подтверждения</span><h1>Начисления</h1><p>100 ₽ за подтверждение и 200 ₽ за посещённый урок.</p></div></header><div class="new-board-toolbar"><label><span>Период с</span><input type="date" id="compensation-from" aria-label="Начисления с" value="${esc(state.compensationFrom)}"></label><label><span>по</span><input type="date" id="compensation-to" aria-label="Начисления по" value="${esc(state.compensationTo)}"></label>${isAdmin()?`<label><span>Менеджер</span><select id="compensation-manager" aria-label="Менеджер подтверждения"><option value="">Все менеджеры</option>${(data.rows||[]).map(row=>`<option value="${esc(row.managerId)}"${selected(state.compensationManager,row.managerId)}>${esc(row.managerName)}</option>`).join('')}</select></label>`:''}<button class="new-admin-refresh" data-action="refresh" aria-label="Обновить начисления">${icon('refresh')}</button></div><div class="new-money-grid"><article><span>За подтверждение</span><strong>${money(sum('confirmationAmount'))}</strong><small>${sum('confirmedCount')} записей</small></article><article><span>За посещение</span><strong>${money(sum('attendanceAmount'))}</strong><small>${sum('attendedCount')} уроков</small></article><article><span>Всего за период</span><strong>${money(sum('total'))}</strong><small>${dateText(state.compensationFrom)} – ${dateText(state.compensationTo)}</small></article></div><section class="new-management-panel"><div class="new-panel-heading"><div><h2>По записям</h2><p>Начисление закрепляется за фактическим подтверждением.</p></div></div><div class="new-money-list">${cards||'<div class="new-empty-board"><strong>Начислений нет</strong><span>Измените период или дождитесь новых подтверждений.</span></div>'}</div></section></section>`;
 }
 
 function renderNewPaymentsExact() {
@@ -702,7 +715,7 @@ function renderNewReportExact() {
     const hasRep=Boolean(b.report);
     return `<button type="button" class="report-lesson-picker${isSel?' active':''}" data-action="select-report-lesson" data-id="${esc(b.id)}"><div class="report-picker-top"><strong>${esc(b.time)}</strong><span class="report-picker-badge ${hasRep?'done':'needed'}">${hasRep?'Отчёт сдан':'Нужен отчёт'}</span></div><div class="report-picker-body"><span class="report-picker-name">${esc(studentName(b))} · ${esc(studentAge(b))}</span><small class="report-picker-manager">${esc(b.assignedName||'МИМК')}</small></div></button>`;
   }).join('')}</div></aside>`:'';
-  return `<section class="new-page new-report-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>Отчёт и оплата</h1><p>Отчёт сохраняется в Google Sheets и PostgreSQL, затем доступна оплата.</p></div><span class="new-status-pill">Урок проведён</span></header><div class="new-report-grid${completedBookings.length>1?' with-selector':''}">${lessonList}<article class="new-report-card"><div class="new-panel-heading"><div><h2>Отчёт по уроку</h2><p>${esc(studentName(booking))} · ${dateText(booking.date)} · ${esc(booking.time)} · ${esc(booking.assignedName||'МИМК')}</p></div></div><div class="new-report-facts"><div><span>Практика</span><strong>${esc(report?.practice||'Не заполнено')}</strong></div><div><span>Пакет</span><strong>${esc(report?.package||'Не заполнено')}</strong></div><div><span>Канал</span><strong>${esc(report?.channel||'Не заполнено')}</strong></div><div><span>Сумма</span><strong>${report?.amountNet==null?'—':`${Number(report.amountNet).toLocaleString('ru-RU')} ₽`}</strong></div><div class="full"><span>Договорённость</span><strong>${esc(report?.agreement||'Не заполнено')}</strong></div></div><div class="new-report-footer"><span class="new-sync-mark">${report?'Отчёт сохранён':'Нужно заполнить отчёт'}</span>${reportButton}</div></article><aside class="new-panel new-report-summary"><h2>Статус урока</h2><div class="new-progress-line done"><i></i><span>Запись создана</span></div><div class="new-progress-line done"><i></i><span>Урок подтверждён</span></div><div class="new-progress-line done"><i></i><span>Урок проведён</span></div><div class="new-progress-line${report?' done':''}"><i></i><span>Отчёт заполнен</span></div><button class="new-capacity-button" data-action="payment" data-id="${esc(booking.id)}">Оформить оплату</button></aside></div></section>`;
+  return `<section class="new-page new-report-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>Отчёт и оплата</h1><p>Отчёт сохраняется в Google Sheets и PostgreSQL, затем доступна оплата.</p></div><span class="new-status-pill">Урок проведён</span></header><div class="new-report-grid${completedBookings.length>1?' with-selector':''}">${lessonList}<article class="new-report-card"><div class="new-panel-heading"><div><h2>Отчёт по уроку</h2><p>${esc(studentName(booking))} · ${dateText(booking.date)} · ${esc(booking.time)} · ${esc(booking.assignedName||'МИМК')}</p></div></div><div class="new-report-facts"><div><span>Практика</span><strong>${esc(report?.practice||'Не заполнено')}</strong></div><div><span>Пакет</span><strong>${esc(report?.package||'Не заполнено')}</strong></div><div><span>Канал</span><strong>${esc(report?.channel||'Не заполнено')}</strong></div><div><span>Сумма нетто</span><strong>${report?.amountNet==null?'—':`${Number(report.amountNet).toLocaleString('ru-RU')} ₽`}</strong></div><div class="full"><span>Договорённость</span><strong>${esc(report?.agreement||'Не заполнено')}</strong></div></div><div class="new-report-footer"><span class="new-sync-mark">${report?'Отчёт сохранён':'Нужно заполнить отчёт'}</span>${reportButton}</div></article><aside class="new-panel new-report-summary"><h2>Статус урока</h2><div class="new-progress-line done"><i></i><span>Запись создана</span></div><div class="new-progress-line done"><i></i><span>Урок подтверждён</span></div><div class="new-progress-line done"><i></i><span>Урок проведён</span></div><div class="new-progress-line${report?' done':''}"><i></i><span>Отчёт заполнен</span></div><button class="new-capacity-button" data-action="payment" data-id="${esc(booking.id)}">Оформить оплату</button></aside></div></section>`;
 }
 
 function renderNewMobileExact() {
@@ -711,11 +724,11 @@ function renderNewMobileExact() {
 }
 
 function renderNewScheduleExact() {
-  return `<section class="new-page new-schedule-page"><header class="new-page-heading"><div><span class="new-eyebrow">Администратор</span><h1>Расписание МИМК</h1><p>Открытые часы команды на 14 дней с быстрым редактированием слотов.</p></div><span class="new-live">Live</span></header><div class="new-schedule-frame">${renderSchedule()}</div></section>`;
+  return `<section class="new-page new-schedule-page"><header class="new-page-heading"><div><span class="new-eyebrow">Администратор</span><h1>Расписание МИМК</h1><p>Открытые часы команды на 14 дней с быстрым редактированием слотов.</p></div></header><div class="new-schedule-frame">${renderSchedule()}</div></section>`;
 }
 
 function renderNewBookingExact() {
-  return `<section class="new-page new-booking-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>Новая запись</h1><p>Дата, свободный час и контакты сделки в одном потоке.</p></div><span class="new-live">Live</span></header><div class="new-booking-frame">${renderBookingWizard()}</div></section>`;
+  return `<section class="new-page new-booking-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>Новая запись</h1><p>Дата, свободный час и контакты сделки в одном потоке.</p></div></header><div class="new-booking-frame">${renderBookingWizard()}</div></section>`;
 }
 
 function renderNewView() {
@@ -733,7 +746,7 @@ function renderNewView() {
   if(state.view==='compensation')return renderNewCompensationExact();
   if(state.view==='payments')return renderNewPaymentsExact();
   const content=renderBookings();
-  return `<section class="new-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>${esc(newPageTitle())}</h1><p>${esc(newPageSubtitle())}</p></div><span class="new-live">Live</span></header><div class="new-table-card">${content}</div></section>`;
+  return `<section class="new-page"><header class="new-page-heading"><div><span class="new-eyebrow">${esc(roles[state.user.role])}</span><h1>${esc(newPageTitle())}</h1><p>${esc(newPageSubtitle())}</p></div></header><div class="new-table-card">${content}</div></section>`;
 }
 
 function renderFreshness() {
@@ -1070,16 +1083,59 @@ function scheduleInterval(interval,index,day) {
 function renderScheduleOverview(dates) {
   if(!isAdmin()||!state.scheduleOverview)return '';
   const days=state.scheduleOverview;
+  const hoursList=Array.from({length:12},(_,i)=>i+10);
+  const hourColors={10:'red',11:'red',12:'red',13:'red',14:'amber',15:'amber',16:'amber',17:'green',18:'green',19:'green',20:'green',21:'green'};
+  const dn=['Вс','Пн','Вт','Ср','Чт','Пт','Сб'];
+
+  // Total slots calculation
   const grandTotal=state.managers.reduce((sum,manager)=>{
     return sum+dates.reduce((dSum,date)=>dSum+scheduleHourEntries(days.find(day=>day.managerId===manager.id&&day.date===date)).size,0);
   },0);
   const potentialRub=Math.round(grandTotal*0.45*35000);
+
+  // Summary manager cards
   const summaryCards=state.managers.map(manager=>{
     const total=dates.reduce((dSum,date)=>dSum+scheduleHourEntries(days.find(day=>day.managerId===manager.id&&day.date===date)).size,0);
     const warnStyle=total===0?'background:var(--r-bg);border-color:var(--r-bd)':'';
     const valColor=total===0?'color:var(--r)':'';
     return `<div class="hms-card" style="${warnStyle}"><div class="hms-name">💼 ${esc(manager.name)}</div><div class="hms-val" style="${valColor}">${total}</div><div class="hms-sub">${total===0?'⚠ не заполнил':'слотов на 14 дней'}</div></div>`;
   }).join('');
+
+  // 1:1 Pre-October Grid Header (Row 1: Days with colspan=12, Row 2: Hours 10..21)
+  let tableHeader='<thead><tr><th class="mgr-h" rowspan="2">💼 Менеджер</th>';
+  dates.forEach(dStr=>{
+    const d=new Date(dStr+'T12:00:00Z');
+    const isWknd=d.getDay()===0||d.getDay()===6;
+    const label=(isWknd?'🟡 ':'')+dn[d.getDay()]+' '+d.getDate()+'.'+String(d.getMonth()+1).padStart(2,'0');
+    tableHeader+=`<th colspan="${hoursList.length}" class="day-hdr${isWknd?' weekend-hdr':''}">${label}</th>`;
+  });
+  tableHeader+='<th rowspan="2" class="total-hdr">Всего</th></tr><tr>';
+  dates.forEach(()=>{
+    hoursList.forEach(hr=>{
+      tableHeader+=`<th class="hr-hdr">${hr}</th>`;
+    });
+  });
+  tableHeader+='</tr></thead>';
+
+  // Table Body: Each manager has 12 hourly cells per day with briefcase 💼
+  let tableBody='<tbody>';
+  state.managers.forEach(manager=>{
+    let mgrTotal=0;
+    tableBody+=`<tr class="hm-row"><td class="mgr-td">💼 ${esc(manager.name)}</td>`;
+    dates.forEach(dStr=>{
+      const dayEntry=days.find(day=>day.managerId===manager.id&&day.date===dStr);
+      const entries=scheduleHourEntries(dayEntry);
+      mgrTotal+=entries.size;
+      hoursList.forEach(hr=>{
+        const hasSlot=entries.has(hr);
+        const colClass=hasSlot?`slot-${hourColors[hr]}`:'slot-0';
+        tableBody+=`<td class="${colClass}" title="${esc(manager.name)} · ${dStr} · ${hr}:00">${hasSlot?'<span class="slot-num">💼</span>':''}</td>`;
+      });
+    });
+    tableBody+=`<td class="mgr-total-cell"><strong>${mgrTotal}</strong></td></tr>`;
+  });
+  tableBody+='</tbody>';
+
   return `<section class="schedule-overview">
     <div id="hm-total-banner" style="margin-bottom:14px">
       <div style="display:flex;align-items:center;gap:16px;background:linear-gradient(135deg,rgba(245,200,66,0.1),rgba(62,207,142,0.06));border:1px solid var(--y-bd);border-radius:var(--r10);padding:14px 18px">
@@ -1095,18 +1151,14 @@ function renderScheduleOverview(dates) {
       </div>
     </div>
     <div class="hm-summary">${summaryCards}</div>
-    <div class="hm-legend" style="display:flex;align-items:center;gap:14px;margin-bottom:10px">
-      <div class="hm-leg-item" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div class="hm-leg-dot" style="width:12px;height:12px;border-radius:3px;background:rgba(240,82,82,0.4)"></div>10–13 (низкий)</div>
-      <div class="hm-leg-item" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div class="hm-leg-dot" style="width:12px;height:12px;border-radius:3px;background:rgba(245,150,0,0.4)"></div>14–16 (средний)</div>
-      <div class="hm-leg-item" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div class="hm-leg-dot" style="width:12px;height:12px;border-radius:3px;background:rgba(40,200,120,0.4)"></div>17–21 (прайм)</div>
+    <div class="hm-legend" style="display:flex;align-items:center;gap:14px;margin-bottom:12px">
+      <div class="hm-leg-item" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div class="hm-leg-dot" style="width:12px;height:12px;border-radius:3px;background:rgba(240,82,82,0.4)"></div>10:00–13:00 (низкий спрос)</div>
+      <div class="hm-leg-item" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div class="hm-leg-dot" style="width:12px;height:12px;border-radius:3px;background:rgba(245,150,0,0.4)"></div>14:00–16:00 (средний спрос)</div>
+      <div class="hm-leg-item" style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)"><div class="hm-leg-dot" style="width:12px;height:12px;border-radius:3px;background:rgba(40,200,120,0.4)"></div>17:00–21:00 (прайм тайм)</div>
     </div>
-    <div class="hm-wrap"><table class="hm"><thead><tr><th class="mgr-h">💼 МИМК</th>${dates.map(date=>`<th class="day-hdr">${dateShort(date)}</th>`).join('')}<th>Всего</th></tr></thead><tbody>${state.managers.map(manager=>{
-    const counts=dates.map(date=>scheduleHourEntries(days.find(day=>day.managerId===manager.id&&day.date===date)).size);
-    return `<tr class="hm-row"><td class="mgr-td">💼 ${esc(manager.name)}</td>${dates.map((date,index)=>`<td><button class="heatmap-cell${counts[index]?' has-hours':''}" data-action="schedule-manager-day" data-manager-id="${esc(manager.id)}" data-date="${date}" aria-label="${esc(manager.name)}, ${dateText(date)}, часов ${counts[index]}">${counts[index]||'—'}</button></td>`).join('')}<td><strong>${counts.reduce((sum,value)=>sum+value,0)}</strong></td></tr>`;
-  }).join('')}</tbody></table></div>
+    <div class="hm-wrap"><table class="hm">${tableHeader}${tableBody}</table></div>
   </section>`;
 }
-
 function renderSchedule() {
   if(!state.managerId)return '<div class="empty"><strong>Нет менеджеров мастер-классов</strong>Добавьте сотрудника с ролью менеджера, чтобы настроить расписание.</div>';
   const dates=rollingScheduleDates(state.week),hours=Array.from({length:12},(_,index)=>index+10);
@@ -1122,8 +1174,8 @@ function renderSchedule() {
     const entries=scheduleHourEntries(schedule.days.find(day=>day.date===date));
     const active=entries.has(hour);
     const timeTone=hour<14?'time-morning':hour<17?'time-day':'time-prime';
-    return `<td class="${index===7?'week-boundary':''}"><button class="schedule-hour-cell ${timeTone}${active?' selected':''}${date===pickedDay.date?' selected-day':''}" data-action="schedule-hour" data-date="${date}" data-hour="${hour}" aria-pressed="${active}" aria-label="${dateText(date)}, ${String(hour).padStart(2,'0')}:00, ${active?'открыто':'закрыто'}">${active?icon('check'):''}${active&&entries.get(hour)>0?'<i title="Есть резервное место"></i>':''}</button></td>`;
-  }).join('')}</tr>`).join('')}</tbody><tfoot><tr><th>Всего</th>${dates.map(date=>`<td>${scheduleHourEntries(schedule.days.find(day=>day.date===date)).size||'—'}</td>`).join('')}</tr></tfoot></table></div><div class="schedule-mobile-editor"><div class="schedule-day-pills">${dates.slice(state.scheduleTab*7,state.scheduleTab*7+7).map(date=>dayButton(date)).join('')}</div><div class="schedule-mobile-hours">${hours.map(hour=>{const timeTone=hour<14?'time-morning':hour<17?'time-day':'time-prime';return `<button class="schedule-mobile-hour ${timeTone}${pickedHours.has(hour)?' selected':''}" data-action="schedule-hour" data-date="${pickedDay.date}" data-hour="${hour}" aria-pressed="${pickedHours.has(hour)}">${String(hour).padStart(2,'0')}:00${pickedHours.has(hour)?icon('check'):''}</button>`;}).join('')}</div></div><div class="schedule-day-tools"><strong>${dateText(pickedDay.date)}</strong><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="17">Прайм 17–21</button><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="14">День 14–21</button><button class="subtle compact" data-action="schedule-clear-day" data-date="${pickedDay.date}">Снять день</button><span class="spacer"></span><button class="subtle compact" data-action="schedule-clear-range">Очистить 14 дней</button></div><details class="schedule-interval-details"><summary>Интервалы и резерв · ${dateText(pickedDay.date)}</summary><div class="intervals">${pickedDay.intervals.map((interval,index)=>scheduleInterval(interval,index,pickedDay)).join('')}<button class="add-hours" data-action="add-interval" data-date="${pickedDay.date}">Добавить часы</button></div>${pickedDay.intervals.length?`<label class="reserve-field">Резерв во всех интервалах дня<select data-schedule-date="${pickedDay.date}" data-field="reserveCapacity" aria-label="Установить резерв во всех интервалах ${dateText(pickedDay.date)}"><option value="0"${selected(pickedDay.reserveCapacity??1,0)}>0</option><option value="1"${selected(pickedDay.reserveCapacity??1,1)}>1</option></select></label>`:''}</details><div class="schedule-description">Нажмите на час, чтобы открыть или закрыть его. Последний урок — 21:00–22:00. Точка в ячейке означает резервное место.</div><div class="schedule-save"><div><strong>${selectedCount} ч.</strong><span class="dirty-note" id="schedule-dirty">${drafts.read(scheduleDraftKey()).days?'Есть сохранённый черновик':'Опубликованное расписание'}</span></div><button class="primary" data-action="save-schedule"${state.scheduleConflict?' disabled':''}>Сохранить расписание</button></div></section>`;
+    return `<td class="${index===7?'week-boundary':''}"><button class="schedule-hour-cell ${timeTone}${active?' selected':''}${date===pickedDay.date?' selected-day':''}" data-action="schedule-hour" data-date="${date}" data-hour="${hour}" aria-pressed="${active}" aria-label="${dateText(date)}, ${String(hour).padStart(2,'0')}:00, ${active?'открыто':'закрыто'}">${active?'💼':''}${active&&entries.get(hour)>0?'<i title="Есть резервное место"></i>':''}</button></td>`;
+  }).join('')}</tr>`).join('')}</tbody><tfoot><tr><th>Всего</th>${dates.map(date=>`<td>${scheduleHourEntries(schedule.days.find(day=>day.date===date)).size||'—'}</td>`).join('')}</tr></tfoot></table></div><div class="schedule-mobile-editor"><div class="schedule-day-pills">${dates.slice(state.scheduleTab*7,state.scheduleTab*7+7).map(date=>dayButton(date)).join('')}</div><div class="schedule-mobile-hours">${hours.map(hour=>{const timeTone=hour<14?'time-morning':hour<17?'time-day':'time-prime';return `<button class="schedule-mobile-hour ${timeTone}${pickedHours.has(hour)?' selected':''}" data-action="schedule-hour" data-date="${pickedDay.date}" data-hour="${hour}" aria-pressed="${pickedHours.has(hour)}">${String(hour).padStart(2,'0')}:00${pickedHours.has(hour)?'💼':''}</button>`;}).join('')}</div></div><div class="schedule-day-tools"><strong>${dateText(pickedDay.date)}</strong><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="17">Прайм 17–21</button><button class="outline compact" data-action="schedule-quick" data-date="${pickedDay.date}" data-start="14">День 14–21</button><button class="subtle compact" data-action="schedule-clear-day" data-date="${pickedDay.date}">Снять день</button><span class="spacer"></span><button class="subtle compact" data-action="schedule-clear-range">Очистить 14 дней</button></div><details class="schedule-interval-details"><summary>Интервалы и резерв · ${dateText(pickedDay.date)}</summary><div class="intervals">${pickedDay.intervals.map((interval,index)=>scheduleInterval(interval,index,pickedDay)).join('')}<button class="add-hours" data-action="add-interval" data-date="${pickedDay.date}">Добавить часы</button></div>${pickedDay.intervals.length?`<label class="reserve-field">Резерв во всех интервалах дня<select data-schedule-date="${pickedDay.date}" data-field="reserveCapacity" aria-label="Установить резерв во всех интервалах ${dateText(pickedDay.date)}"><option value="0"${selected(pickedDay.reserveCapacity??1,0)}>0</option><option value="1"${selected(pickedDay.reserveCapacity??1,1)}>1</option></select></label>`:''}</details><div class="schedule-description">Нажмите на час, чтобы открыть или закрыть его. Последний урок — 21:00–22:00. Точка в ячейке означает резервное место.</div><div class="schedule-save"><div><strong>${selectedCount} ч.</strong><span class="dirty-note" id="schedule-dirty">${drafts.read(scheduleDraftKey()).days?'Есть сохранённый черновик':'Опубликованное расписание'}</span></div><button class="primary" data-action="save-schedule"${state.scheduleConflict?' disabled':''}>Сохранить расписание</button></div></section>`;
 }
 
 function renderUsers() {
@@ -1233,8 +1285,8 @@ function openReport(booking) {
   const paymentMethodOptions=['Кэш','Рассрочка','Сплит','Другое'];
   const agreementOptions=['Оплачено','Оплата сегодня','Оплата завтра','Думает / перезвонить','Отказ'];
   const channelSuggestions=['RIS','Influence','Floctory','Mail','Яндекс Директ','VK','Партнёры','Другое'];
-  const channelField=`<label class="field"><span>Канал привлечения</span><input type="text" list="channel-list" name="channel" value="${esc(values.channel||channelSuggestions[0])}" required><datalist id="channel-list">${channelSuggestions.map(ch=>`<option value="${esc(ch)}">`).join('')}</datalist></label>`;
-  const fields=formField('practice','Практика / направление',values.practice||practiceOptions[0],{required:true,options:practiceOptions})+formField('package','Пакет',values.package||packageOptions[0],{required:true,options:packageOptions})+formField('paymentMethod','Способ оплаты',values.paymentMethod||paymentMethodOptions[0],{required:true,options:paymentMethodOptions})+formField('agreement','Договорённость',values.agreement||agreementOptions[0],{required:true,options:agreementOptions})+formField('objection','Возражение',values.objection)+channelField+formField('amountNet','Сумма нетто, ₽',values.amountNet??'',{type:'number',min:0,step:'0.01',required:true})+formField('recordingUrl','Ссылка на запись',values.recordingUrl,{type:'url'});
+  const channelField=`<label class="field"><span>Канал привлечения</span><input type="text" list="channel-list" name="channel" value="${esc(values.channel||'')}" placeholder="Выберите или введите канал (RIS, VK, Floctory...)" required><datalist id="channel-list">${channelSuggestions.map(ch=>`<option value="${esc(ch)}">`).join('')}</datalist></label>`;
+  const fields=formField('practice','Практика / направление',values.practice||practiceOptions[0],{required:true,options:practiceOptions})+formField('package','Пакет',values.package||packageOptions[0],{required:true,options:packageOptions})+formField('paymentMethod','Способ оплаты',values.paymentMethod||paymentMethodOptions[0],{required:true,options:paymentMethodOptions})+formField('agreement','Договорённость',values.agreement||agreementOptions[0],{required:true,options:agreementOptions})+formField('objection','Возражение',values.objection)+channelField+formField('amountNet','Сумма нетто (после вычета комиссий), ₽',values.amountNet??'',{type:'number',min:0,step:'0.01',required:true})+formField('recordingUrl','Ссылка на запись',values.recordingUrl,{type:'url'});
   showDialog('Отчёт о мастер-классе',`<form id="report-form" data-draft="${esc(name)}"><div class="dialog-body">${formError()}${facts}<div class="report-header-note">Отчёт сохраняется в базу и Google Sheets (gid 1367593612). Повторное сохранение обновляет отчёт.</div><div class="form-grid">${fields}</div><p class="field-hint" style="margin-top:18px">Сумма в отчёте фиксирует итог занятия. Оплата создаёт проводку в реестре.</p></div><div class="dialog-footer"><span class="small">Черновик сохраняется автоматически</span><button type="button" class="secondary" data-action="close-dialog">Закрыть</button><button type="submit" class="primary">Сохранить отчёт</button></div></form>`,{name:'report',bookingId:booking.id,version:booking.version});
 }
 

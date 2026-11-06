@@ -1,4 +1,4 @@
-﻿@font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:swap;src:url('/booking/inter-variable.woff2') format('woff2')}
+@font-face{font-family:Inter;font-style:normal;font-weight:100 900;font-display:swap;src:url('/booking/inter-variable.woff2') format('woff2')}
 @font-face{font-family:Montserrat;font-style:normal;font-weight:100 900;font-display:swap;src:url('/booking/montserrat.woff2') format('woff2')}
 :root{font-family:Arial,Helvetica,sans-serif;color:#272d40;background:#f0f0f6;font-synthesis:none;--blue:var(--y);--navy:#182440;--muted:#858998;--line:#e8e8ef;--canvas:#f0f0f6;--green:#adfa8e;--red:#ffe4e7}
 *{box-sizing:border-box}body{margin:0;font-size:14px}button,input,select,textarea{font:inherit}button,a,input,select,textarea{outline-offset:4px}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.5}button{border:0}a{color:var(--y);text-decoration:none}a:hover{text-decoration:underline}h1,h2,h3,p{margin-top:0}h1{font-size:30px;letter-spacing:-.5px;font-weight:600;margin-bottom:8px}h2{font-size:23px}h3{font-size:17px}input,select,textarea{border:1px solid #d6d8e3;background:#fff;color:#252b3e;border-radius:4px;padding:11px 12px;min-width:0}input:focus,select:focus,textarea:focus{outline:2px solid var(--y-2);border-color:var(--blue)}textarea{resize:vertical;min-height:92px}input[type=checkbox]{accent-color:var(--blue)}input[type=date]{min-width:148px}.muted,.small{color:var(--muted)}.small{font-size:12px;line-height:1.5}.text-right{text-align:right}.nowrap{white-space:nowrap}.initial-state{padding:80px;text-align:center;color:#6b7287}.skip-link{position:absolute;top:-60px;left:190px;background:#fff;padding:12px;z-index:100}.skip-link:focus{top:10px}
@@ -2199,4 +2199,389 @@ select::placeholder {
 
 .schedule-hour-cell.selected i {
   background: var(--g) !important;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   KIRILL REFINEMENTS & COMPONENT POLISH
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* 1. Large, prominent & beautiful BOOKING header */
+.brand-booking {
+  padding: 24px 20px 18px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 3px !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid var(--border) !important;
+  margin-bottom: 14px !important;
+}
+.brand-booking .brand-title {
+  font-family: var(--display) !important;
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em !important;
+  color: var(--y) !important;
+  line-height: 1.1 !important;
+  text-transform: uppercase !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5) !important;
+}
+.brand-booking .brand-sub {
+  font-family: var(--mono) !important;
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.15em !important;
+  color: var(--muted) !important;
+  text-transform: uppercase !important;
+}
+
+/* 2. Left sidebar tabs: bolder font weight & crisp styling */
+.sidebar .nav-link,
+.sidebar .prototype-nav-item {
+  font-family: var(--sans) !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em !important;
+  padding: 10px 14px !important;
+  color: var(--sub) !important;
+  border-radius: var(--r6) !important;
+  transition: all var(--dur) var(--ease) !important;
+}
+.sidebar .nav-link:hover,
+.sidebar .prototype-nav-item:hover {
+  background: var(--bg3) !important;
+  color: var(--text) !important;
+}
+.sidebar .nav-link.selected,
+.sidebar .prototype-nav-item.active {
+  background: var(--bg3) !important;
+  color: var(--y) !important;
+  font-weight: 800 !important;
+  box-shadow: inset 3px 0 0 var(--y) !important;
+}
+.sidebar .nav-label {
+  font-family: var(--sans) !important;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+  color: var(--muted) !important;
+  padding: 16px 14px 6px !important;
+}
+
+/* Extra sidebar actions: Analytics link & Theme switcher */
+.sidebar-nav-extra {
+  margin-top: auto !important;
+  padding: 12px 10px !important;
+  border-top: 1px solid var(--border) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+.nav-dashboard-link {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 8px 10px !important;
+  border-radius: var(--r6) !important;
+  text-decoration: none !important;
+  background: rgba(245, 200, 66, 0.05) !important;
+  border: 1px solid var(--y-bd) !important;
+}
+.nav-dashboard-link:hover {
+  background: var(--y-bg) !important;
+  color: var(--y) !important;
+}
+.nav-dashboard-link .ext-badge {
+  margin-left: auto !important;
+  font-size: 10px !important;
+  color: var(--y) !important;
+}
+.theme-toggle-btn {
+  font-family: var(--sans) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--sub) !important;
+  background: var(--bg3) !important;
+  border: 1px solid var(--border-s) !important;
+  border-radius: var(--r6) !important;
+  padding: 8px 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  cursor: pointer !important;
+  transition: all var(--dur) var(--ease) !important;
+  width: 100% !important;
+}
+.theme-toggle-btn:hover {
+  color: var(--text) !important;
+  border-color: var(--y-bd) !important;
+}
+
+/* 3. Proportions fix for Control Tower / Admin table */
+.new-admin-grid {
+  display: block !important;
+  width: 100% !important;
+}
+.new-load-panel {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 20px !important;
+  overflow-x: auto !important;
+}
+.new-load-head,
+.new-load-row {
+  display: grid !important;
+  grid-template-columns: 85px 1fr 75px 75px 180px 75px 110px 120px !important;
+  align-items: center !important;
+  width: 100% !important;
+  min-width: 820px !important;
+  box-sizing: border-box !important;
+  gap: 8px !important;
+}
+
+/* 4. Empty hours (total === 0): quiet, muted, grey */
+.new-load-row.is-empty-hour {
+  opacity: 0.38 !important;
+  background: transparent !important;
+  filter: grayscale(0.85) !important;
+  transition: opacity 0.15s ease, filter 0.15s ease, background 0.15s ease !important;
+}
+.new-load-row.is-empty-hour:hover {
+  opacity: 0.9 !important;
+  filter: none !important;
+  background: var(--bg3) !important;
+}
+.new-load-row.is-empty-hour .new-hour-label {
+  color: var(--muted) !important;
+}
+.new-load-row.is-empty-hour .status-chip {
+  background: var(--bg3) !important;
+  color: var(--muted) !important;
+  border-color: var(--border) !important;
+  font-weight: 500 !important;
+}
+.tower-meter.empty-meter .tower-meter-label {
+  color: var(--muted) !important;
+  font-size: 11px !important;
+  font-weight: 500 !important;
+}
+
+/* 5. Toned down, solid, crisp amber buttons (ZERO neon blinding glow) */
+.primary,
+.new-admin-button,
+.new-action.primary,
+.wizard-contact-actions .primary,
+.tower-row-btn:not(.secondary) {
+  background: var(--y) !important;
+  color: #0a0a0a !important;
+  border: 1px solid var(--y-3) !important;
+  font-weight: 700 !important;
+  border-radius: var(--r6) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease) !important;
+}
+.primary:hover,
+.new-admin-button:hover,
+.new-action.primary:hover,
+.wizard-contact-actions .primary:hover {
+  background: var(--y-2) !important;
+  color: #0a0a0a !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35) !important;
+  transform: translateY(-1px) !important;
+}
+.pill-total {
+  background: var(--bg3) !important;
+  color: var(--y) !important;
+  border: 1px solid var(--y-bd) !important;
+  box-shadow: none !important;
+}
+
+/* 6. Balanced & sleek Wizard Toggles (Есть ПК / С родителем) */
+.wizard-checks {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 12px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+}
+.fact-toggle {
+  cursor: pointer !important;
+  display: inline-flex !important;
+}
+.fact-toggle input {
+  display: none !important;
+}
+.fact-toggle .fact-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 10px 16px !important;
+  border-radius: var(--r6) !important;
+  background: var(--bg3) !important;
+  border: 1px solid var(--border-s) !important;
+  color: var(--sub) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  transition: all var(--dur) var(--ease) !important;
+  user-select: none !important;
+  min-height: 40px !important;
+  box-sizing: border-box !important;
+}
+.fact-toggle .fact-chip svg {
+  width: 18px !important;
+  height: 18px !important;
+  flex-shrink: 0 !important;
+  color: var(--muted) !important;
+}
+.fact-toggle:hover .fact-chip {
+  border-color: var(--y-bd) !important;
+  color: var(--text) !important;
+}
+.fact-toggle input:checked + .fact-chip {
+  background: var(--y-bg) !important;
+  border-color: var(--y) !important;
+  color: var(--y) !important;
+  box-shadow: 0 0 10px var(--y-glow) !important;
+}
+.fact-toggle input:checked + .fact-chip svg {
+  color: var(--y) !important;
+}
+
+/* 7. Pre-October 1:1 Schedule Heatmap Grid */
+.hm {
+  border-collapse: collapse !important;
+  width: 100% !important;
+  min-width: 1200px !important;
+  font-family: var(--sans) !important;
+}
+.hm th {
+  font-size: 9px !important;
+  color: var(--sub) !important;
+  font-weight: 600 !important;
+  padding: 6px 2px !important;
+  text-align: center !important;
+  border: 1px solid var(--border) !important;
+  white-space: nowrap !important;
+  background: var(--bg3) !important;
+}
+.hm th.mgr-h {
+  text-align: left !important;
+  min-width: 140px !important;
+  padding-left: 12px !important;
+  background: var(--bg3) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+}
+.hm th.day-hdr {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: var(--y) !important;
+  border: 1px solid var(--border-s) !important;
+  padding: 6px 4px !important;
+  background: var(--bg3) !important;
+}
+.hm th.weekend-hdr {
+  color: var(--p) !important;
+}
+.hm th.hr-hdr {
+  font-size: 9px !important;
+  font-weight: 500 !important;
+  color: var(--sub) !important;
+  font-family: var(--mono) !important;
+  padding: 4px 1px !important;
+  min-width: 22px !important;
+}
+.hm th.total-hdr {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: var(--y) !important;
+  min-width: 45px !important;
+}
+.hm td {
+  font-size: 11px !important;
+  padding: 2px !important;
+  text-align: center !important;
+  border: 1px solid var(--border) !important;
+  min-width: 22px !important;
+  height: 28px !important;
+  transition: all var(--dur) var(--ease) !important;
+}
+.hm td.mgr-td {
+  text-align: left !important;
+  font-size: 12px !important;
+  color: var(--text) !important;
+  font-weight: 600 !important;
+  padding: 6px 12px !important;
+  background: var(--bg2) !important;
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 2 !important;
+  white-space: nowrap !important;
+  border-right: 2px solid var(--border-s) !important;
+}
+.hm td.mgr-total-cell {
+  background: var(--bg2) !important;
+  color: var(--y) !important;
+  font-family: var(--mono) !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+.slot-0 {
+  background: var(--bg3) !important;
+  color: var(--dim) !important;
+}
+.slot-red {
+  background: rgba(240, 82, 82, 0.28) !important;
+  color: #ff8080 !important;
+  border: 1px solid rgba(240, 82, 82, 0.5) !important;
+}
+.slot-amber {
+  background: rgba(245, 150, 0, 0.28) !important;
+  color: #ffd060 !important;
+  border: 1px solid rgba(245, 150, 0, 0.5) !important;
+}
+.slot-green {
+  background: rgba(40, 200, 120, 0.28) !important;
+  color: #50efaa !important;
+  border: 1px solid rgba(40, 200, 120, 0.5) !important;
+}
+.slot-num {
+  font-size: 11px !important;
+}
+
+/* 8. Light theme support */
+html[data-theme="light"] {
+  --bg: #f5f5f0 !important;
+  --bg2: #ffffff !important;
+  --bg3: #fafaf6 !important;
+  --bg4: #f0efea !important;
+  --bg5: #e8e7e0 !important;
+  --border: rgba(20, 20, 15, 0.08) !important;
+  --border-s: rgba(20, 20, 15, 0.14) !important;
+  --line-y: rgba(196, 144, 0, 0.30) !important;
+  --text: #1a1a17 !important;
+  --sub: #5a5a52 !important;
+  --muted: #8a8a82 !important;
+  --dim: #b0b0a8 !important;
+  --y: #c49000 !important;
+  --y-2: #e0a800 !important;
+  --y-3: #946d00 !important;
+  --y-bg: rgba(196, 144, 0, 0.08) !important;
+  --y-bd: rgba(196, 144, 0, 0.25) !important;
+  --y-glow: rgba(196, 144, 0, 0.16) !important;
+  --g: #1a7a47 !important;
+  --g-bg: rgba(26, 122, 71, 0.10) !important;
+  --g-bd: rgba(26, 122, 71, 0.25) !important;
+  --r: #c0392b !important;
+  --r-bg: rgba(192, 57, 43, 0.10) !important;
+  --r-bd: rgba(192, 57, 43, 0.25) !important;
+  --b: #1a5fa0 !important;
+  --b-bg: rgba(26, 95, 160, 0.10) !important;
+  --b-bd: rgba(26, 95, 160, 0.25) !important;
 }
