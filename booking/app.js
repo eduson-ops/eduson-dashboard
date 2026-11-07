@@ -221,7 +221,7 @@ function renderPrototypeShell() {
   const primary=[];
   if(isAdmin())primary.push(nav('admin','chart','Админка'),nav('booking','plus','Запись КЦ'),nav('confirmation','clock','Подтверждение'),nav('active','play','Мой день МИМК'),nav('schedule','calendar','Расписание'),nav('report','file','Отчёт и оплата'));
   else if(state.user.role==='call_center')primary.push(nav('booking','plus','Запись КЦ'),nav('active','play','Текущие и будущие'),nav('completed','file','Завершённые'));
-  else if(state.user.role==='confirmation')primary.push(nav('booking','plus','Запись КЦ'),nav('confirmation','clock','Подтверждение'),nav('active','play','Текущие и будущие'),nav('completed','file','Завершённые'),nav('compensation','chart','Начисления'));
+  else if(state.user.role==='confirmation')primary.push(nav('booking','plus','Запись КЦ'),nav('confirmation','clock','Подтверждение'),nav('active','play','Текущие и будущие'),nav('completed','file','Завершённые'),nav('compensation','chart','Начисления'),nav('trash','trash','Отмены'));
   else primary.push(nav('active','play','Мой день МИМК'),nav('schedule','calendar','Расписание'),nav('completed','file','Завершённые'),nav('report','file','Отчёт и оплата'));
   const formats='';
   const system=isAdmin()?`<div class="nav-label">Управление</div>${nav('users','users','Сотрудники')}${nav('trash','trash','Отмены')}`:'';
@@ -1284,7 +1284,7 @@ async function openResolveLegacy(booking) {
 
 function openCancel(booking,noShow=false) {
   if(!booking)return;
-  showDialog(noShow?'Ученик не пришёл':'Отмена мастер-класса',`<form id="cancel-form"><div class="dialog-body">${formError()}<p class="report-header-note">${esc(studentName(booking))} · ${dateText(booking.date)} · ${esc(booking.time)}</p>${formField('reason','Причина отмены',noShow?'Ученик не пришёл':'',{type:'textarea',required:true,full:true,readOnly:noShow})}<p class="field-hint">Запись останется в истории. Администратор сможет восстановить её при наличии места.</p></div><div class="dialog-footer"><button type="button" class="secondary" data-action="close-dialog">Назад</button><button type="submit" class="danger">Отменить мастер-класс</button></div></form>`,{name:'cancel',bookingId:booking.id,version:booking.version});
+  showDialog(noShow?'Ученик не пришёл':'Отмена мастер-класса',`<form id="cancel-form"><div class="dialog-body">${formError()}<p class="report-header-note">${esc(studentName(booking))} · ${dateText(booking.date)} · ${esc(booking.time)}</p>${formField('reason','Причина отмены и комментарий',noShow?'Ученик не пришёл':'',{type:'textarea',required:true,full:true,readOnly:noShow,placeholder:'Подробно укажите причину отмены — комментарий передаётся в отдел подтверждения и перезаписи (Ане Багдасарян)'})}<p class="field-hint">Причина и комментарий сохраняются в истории и передаются в отдел перезаписи (Ане Багдасарян).</p></div><div class="dialog-footer"><button type="button" class="secondary" data-action="close-dialog">Назад</button><button type="submit" class="danger">Отменить мастер-класс</button></div></form>`,{name:'cancel',bookingId:booking.id,version:booking.version});
 }
 
 function openReport(booking) {
